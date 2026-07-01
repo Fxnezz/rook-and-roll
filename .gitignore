@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Claude Code local (machine-specific)
 .claude/settings.local.json
+
+# Stockfish engine (copied from node_modules by scripts/copy-engine.mjs)
+/public/engine/
