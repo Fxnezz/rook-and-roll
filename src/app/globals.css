@@ -1,26 +1,228 @@
 @import "tailwindcss";
 
+/* ------------------------------------------------------------------ */
+/*  Rook & Roll — design system                                        */
+/*  Dark-first. Warm amber/gold accent over deep slate. Original.      */
+/* ------------------------------------------------------------------ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0e1117;
+  --bg-elev: #161b24;
+  --bg-elev-2: #1d2430;
+  --panel: #141922;
+  --border: #262d3a;
+  --border-strong: #333c4d;
+
+  /* Text */
+  --text: #e8ecf3;
+  --text-muted: #9aa6b8;
+  --text-faint: #64708a;
+
+  /* Brand */
+  --accent: #e9a23b;        /* amber/gold */
+  --accent-strong: #f4b451;
+  --accent-dim: #c07d1f;
+  --accent-contrast: #241a08;
+
+  --good: #5bbf7a;          /* wins / good moves */
+  --bad: #e5604d;           /* losses / blunders */
+  --info: #5aa8e0;
+  --warn: #e5b13a;
+
+  /* Shape */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 18px;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.25);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-bg-elev: var(--bg-elev);
+  --color-bg-elev-2: var(--bg-elev-2);
+  --color-panel: var(--panel);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-dim: var(--accent-dim);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --radius-card: var(--radius);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
+}
+
+html {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100%;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(233, 162, 59, 0.08), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Selection */
+::selection {
+  background: rgba(233, 162, 59, 0.3);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #45506680;
+  background-clip: padding-box;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Reusable component classes                                         */
+/* ------------------------------------------------------------------ */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.95rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease, opacity 0.15s;
+  user-select: none;
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--bg-elev-2);
+  border-color: var(--border-strong);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+  border-color: var(--accent-dim);
+  color: var(--accent-contrast);
+}
+.btn-primary:hover {
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent-strong));
+}
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.btn-ghost:hover {
+  background: var(--bg-elev);
+}
+.btn-danger {
+  color: var(--bad);
+}
+.btn-danger:hover {
+  background: rgba(229, 96, 77, 0.12);
+  border-color: rgba(229, 96, 77, 0.4);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.7rem;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-family: var(--font-mono);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 3px rgba(233, 162, 59, 0.15);
+}
+
+.label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-weight: 700;
+}
+
+@keyframes pop-in {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-pop { animation: pop-in 0.18s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.animate-fade { animation: fade-in 0.2s ease; }
+
+/* Thinking dots */
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
+}
+.dot-blink > span { animation: blink 1.2s infinite both; }
+.dot-blink > span:nth-child(2) { animation-delay: 0.2s; }
+.dot-blink > span:nth-child(3) { animation-delay: 0.4s; }

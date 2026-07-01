@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "/Users/sam/.local/bin/rr-dev.sh",
+      "runtimeArgs": [],
+      "port": 3010,
+      "autoPort": true
+    }
+  ]
+}
