@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import type { Color, PieceSymbol, Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { MoveList } from "@/components/game/MoveList";
@@ -58,8 +59,46 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
   const [analysis, setAnalysis] = useState<GameAnalysis | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<{ done: number; total: number } | null>(null);
 
+  const { data: session } = useSession();
   const botFenRef = useRef<string | null>(null);
   const startedRef = useRef(false);
+  const savedRef = useRef(false);
+
+  const saveGame = useCallback(
+    (finalStatus: GameStatus) => {
+      if (savedRef.current || !session?.user || !finalStatus.result || finalStatus.result === undefined) return;
+      if (snapshot.moves.length === 0) return;
+      savedRef.current = true;
+      const resultMap = { "1-0": "WHITE_WINS", "0-1": "BLACK_WINS", "1/2-1/2": "DRAW" } as const;
+      const body = {
+        pgn: game.getPgn(),
+        finalFen: game.getFen(),
+        result: resultMap[finalStatus.result],
+        termination: finalStatus.reason ?? "Game over",
+        category: tc.category,
+        timeControl: tc.id,
+        opponentType: "BOT" as const,
+        botTier: tier.id,
+        botElo: tier.elo,
+        color: humanColor,
+        opponentName: tier.name,
+        rated: tc.category !== "untimed",
+        moves: snapshot.moves.map((m, i) => ({
+          ply: i + 1,
+          san: m.san,
+          uci: m.from + m.to + (m.promotion ?? ""),
+          fen: m.after,
+        })),
+      };
+      fetch("/api/games", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).catch(() => {});
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [session, snapshot.moves, tc, tier, humanColor, game],
+  );
 
   const clock = useClock(tc, (loser) => {
     setOverride({
@@ -98,6 +137,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
       clock.stop();
       setShowResult(true);
       playSound("gameEnd");
+      saveGame(status);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.over]);

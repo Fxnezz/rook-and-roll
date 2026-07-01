@@ -1,8 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { SessionProvider } from "next-auth/react";
 import { SettingsProvider } from "@/lib/chess/useSettings";
 
 export function Providers({ children }: { children: ReactNode }) {
-  return <SettingsProvider>{children}</SettingsProvider>;
+  return (
+    <SessionProvider>
+      <SettingsProvider>{children}</SettingsProvider>
+    </SessionProvider>
+  );
 }

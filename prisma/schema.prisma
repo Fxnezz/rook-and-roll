@@ -1,0 +1,208 @@
+// Rook & Roll — data model.
+// Postgres (Supabase or Neon) via Prisma. See README for setup.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth (NextAuth / Auth.js Prisma adapter models + credentials password hash)
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  username      String?   @unique
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+
+  // Current ratings per time-control category (Glicko-ish Elo).
+  ratingBullet    Int @default(1200)
+  ratingBlitz     Int @default(1200)
+  ratingRapid     Int @default(1200)
+  ratingClassical Int @default(1200)
+  puzzleRating    Int @default(1000)
+  puzzleStreak    Int @default(0)
+
+  accounts       Account[]
+  sessions       Session[]
+  gamesAsWhite   Game[]           @relation("WhiteGames")
+  gamesAsBlack   Game[]           @relation("BlackGames")
+  ratingHistory  RatingHistory[]
+  puzzleAttempts PuzzleAttempt[]
+  friendsInit    Friendship[]     @relation("Requester")
+  friendsRecv    Friendship[]     @relation("Addressee")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Games
+// ---------------------------------------------------------------------------
+
+enum GameResult {
+  WHITE_WINS
+  BLACK_WINS
+  DRAW
+  ABORTED
+}
+
+enum OpponentType {
+  HUMAN
+  BOT
+}
+
+model Game {
+  id           String       @id @default(cuid())
+  whiteId      String?
+  blackId      String?
+  whiteName    String
+  blackName    String
+  opponentType OpponentType @default(HUMAN)
+  botTier      String?
+  rated        Boolean      @default(false)
+  category     String // bullet | blitz | rapid | classical | untimed
+  timeControl  String // e.g. "5+0"
+  result       GameResult
+  termination  String // checkmate, resignation, timeout, draw reason, ...
+  pgn          String       @db.Text
+  finalFen     String
+  ply          Int          @default(0)
+
+  whiteRatingBefore Int?
+  blackRatingBefore Int?
+  whiteRatingAfter  Int?
+  blackRatingAfter  Int?
+
+  createdAt DateTime @default(now())
+
+  white  User?   @relation("WhiteGames", fields: [whiteId], references: [id], onDelete: SetNull)
+  black  User?   @relation("BlackGames", fields: [blackId], references: [id], onDelete: SetNull)
+  moves  Move[]
+
+  @@index([whiteId])
+  @@index([blackId])
+  @@index([createdAt])
+}
+
+model Move {
+  id     String @id @default(cuid())
+  gameId String
+  ply    Int
+  san    String
+  uci    String
+  fen    String
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+}
+
+model RatingHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  category  String // bullet | blitz | rapid | classical | puzzle
+  rating    Int
+  delta     Int
+  gameId    String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, category])
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+
+  requester User @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("Addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+}
+
+// ---------------------------------------------------------------------------
+// Puzzles
+// ---------------------------------------------------------------------------
+
+model Puzzle {
+  id         String   @id @default(cuid())
+  fen        String
+  // Solution as a line of UCI moves; the side to move plays index 0, 2, 4…
+  solution   String[]
+  themes     String[]
+  rating     Int      @default(1200)
+  popularity Int      @default(0)
+  source     String?
+  createdAt  DateTime @default(now())
+
+  attempts PuzzleAttempt[]
+
+  @@index([rating])
+}
+
+model PuzzleAttempt {
+  id           String   @id @default(cuid())
+  userId       String
+  puzzleId     String
+  solved       Boolean
+  ratingBefore Int
+  ratingAfter  Int
+  createdAt    DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  puzzle Puzzle @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

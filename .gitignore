@@ -45,3 +45,4 @@ next-env.d.ts
 
 # Stockfish engine (copied from node_modules by scripts/copy-engine.mjs)
 /public/engine/
+!.env.example

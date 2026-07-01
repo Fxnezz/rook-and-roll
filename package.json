@@ -8,19 +8,29 @@
     "start": "next start",
     "lint": "eslint",
     "copy-engine": "node scripts/copy-engine.mjs",
-    "postinstall": "node scripts/copy-engine.mjs",
-    "prebuild": "node scripts/copy-engine.mjs",
-    "predev": "node scripts/copy-engine.mjs"
+    "postinstall": "node scripts/copy-engine.mjs && prisma generate",
+    "prebuild": "node scripts/copy-engine.mjs && prisma generate",
+    "predev": "node scripts/copy-engine.mjs && prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "node --experimental-strip-types prisma/seed.ts",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@auth/prisma-adapter": "^2.11.2",
+    "@prisma/client": "^6.19.3",
+    "bcryptjs": "^3.0.3",
     "chess.js": "^1.4.0",
     "next": "16.2.9",
+    "next-auth": "^5.0.0-beta.31",
+    "prisma": "^6.19.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "stockfish": "^18.0.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
