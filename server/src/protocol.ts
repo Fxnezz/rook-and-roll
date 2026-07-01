@@ -1,0 +1,99 @@
+// Wire protocol shared (conceptually) with the web client.
+// Keep this in sync with src/lib/online/protocol.ts in the Next.js app.
+
+export type Color = "w" | "b";
+
+export interface Identity {
+  /** stable user id if signed in, else a guest id */
+  userId: string;
+  username: string;
+  rating: number;
+  guest: boolean;
+}
+
+export interface TimeControlSpec {
+  id: string; // e.g. "5+0"
+  initialMs: number | null;
+  incrementMs: number;
+  category: string; // bullet|blitz|rapid|classical|untimed
+}
+
+export interface ClockState {
+  whiteMs: number;
+  blackMs: number;
+  running: boolean;
+  activeColor: Color | null;
+  updatedAt: number; // server epoch ms when these values were captured
+}
+
+export interface PlayerInfo {
+  userId: string;
+  username: string;
+  rating: number;
+  color: Color;
+  connected: boolean;
+}
+
+export interface GameStateMsg {
+  roomId: string;
+  fen: string;
+  pgn: string;
+  moves: { san: string; from: string; to: string; promotion?: string }[];
+  turn: Color;
+  players: { white: PlayerInfo; black: PlayerInfo };
+  clock: ClockState;
+  timeControl: TimeControlSpec;
+  status: GameOverMsg | null;
+  spectators: number;
+  drawOfferFrom?: Color | null;
+  rated: boolean;
+}
+
+export interface GameOverMsg {
+  result: "1-0" | "0-1" | "1/2-1/2";
+  winner: Color | null;
+  reason: string;
+  ratingDelta?: { white: number; black: number };
+}
+
+export interface ChatMsg {
+  from: string; // username, or "System"
+  text: string;
+  ts: number;
+  system?: boolean;
+}
+
+// ---- client → server events ----
+export interface ClientToServer {
+  "queue:join": (p: { identity: Identity; timeControl: TimeControlSpec; rated: boolean }) => void;
+  "queue:leave": () => void;
+  "room:join": (p: { roomId: string; identity: Identity }) => void;
+  "room:spectate": (p: { roomId: string; identity: Identity }) => void;
+  "room:leave": (p: { roomId: string }) => void;
+  "move": (p: { roomId: string; from: string; to: string; promotion?: string }) => void;
+  "resign": (p: { roomId: string }) => void;
+  "draw:offer": (p: { roomId: string }) => void;
+  "draw:accept": (p: { roomId: string }) => void;
+  "draw:decline": (p: { roomId: string }) => void;
+  "rematch:offer": (p: { roomId: string }) => void;
+  "rematch:accept": (p: { roomId: string }) => void;
+  "chat:send": (p: { roomId: string; text: string }) => void;
+}
+
+// ---- server → client events ----
+export interface ServerToClient {
+  "queue:waiting": (p: { position: number; playersSearching: number }) => void;
+  "queue:matched": (p: { roomId: string }) => void;
+  "game:state": (s: GameStateMsg) => void;
+  "game:move": (p: { san: string; from: string; to: string; promotion?: string; clock: ClockState }) => void;
+  "game:over": (p: GameOverMsg) => void;
+  "clock:sync": (p: ClockState) => void;
+  "draw:offered": (p: { from: Color }) => void;
+  "draw:declined": () => void;
+  "rematch:offered": (p: { from: Color }) => void;
+  "rematch:ready": (p: { roomId: string }) => void;
+  "chat:message": (m: ChatMsg) => void;
+  "opponent:disconnected": (p: { graceMs: number }) => void;
+  "opponent:reconnected": () => void;
+  "error:msg": (p: { message: string }) => void;
+}

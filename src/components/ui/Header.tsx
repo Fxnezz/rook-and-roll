@@ -10,8 +10,9 @@ import { UserMenu } from "./UserMenu";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 
 const NAV = [
-  { href: "/play/local", label: "Pass & Play" },
+  { href: "/play/online", label: "Play" },
   { href: "/play/bot", label: "Bots" },
+  { href: "/play/local", label: "Pass & Play" },
   { href: "/puzzles", label: "Puzzles" },
   { href: "/leaderboard", label: "Leaderboard" },
 ];

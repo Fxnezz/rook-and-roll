@@ -3,9 +3,9 @@ import { Piece } from "@/lib/pieces";
 import { IconUsers, IconRobot } from "@/components/ui/icons";
 
 const FEATURES = [
-  { title: "Pass & Play", body: "Share one screen and play a friend — full rules, clean board, zero setup." },
-  { title: "Play the bots", body: "Stockfish-powered opponents from total beginner to expert. (Coming next.)" },
-  { title: "Your board, your way", body: "Four board themes, original piece sets, sounds, and annotations." },
+  { title: "Play online", body: "Get matched with a live opponent, with clocks, chat, and rated ladders." },
+  { title: "Play the bots", body: "Stockfish-powered opponents from total beginner to expert, with post-game analysis." },
+  { title: "Puzzles & more", body: "Sharpen tactics with rated puzzles, or pass-and-play a friend on one screen." },
 ];
 
 function HeroBoard() {
@@ -52,8 +52,8 @@ export default function Home() {
             rolling out. Built from scratch — no borrowed art, no noise.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <Link href="/play/local" className="btn btn-primary text-base !px-5 !py-3">
-              <IconUsers width={18} height={18} /> Pass &amp; Play
+            <Link href="/play/online" className="btn btn-primary text-base !px-5 !py-3">
+              <IconUsers width={18} height={18} /> Play online
             </Link>
             <Link href="/play/bot" className="btn text-base !px-5 !py-3">
               <IconRobot width={18} height={18} /> Play a bot
