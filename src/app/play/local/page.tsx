@@ -1,20 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Color, PieceSymbol, Square } from "chess.js";
+import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { MoveList } from "@/components/game/MoveList";
 import { CapturedTray } from "@/components/game/CapturedTray";
 import { GameControls } from "@/components/game/GameControls";
 import { SharePanel } from "@/components/game/SharePanel";
 import { GameOverModal } from "@/components/game/GameOverModal";
+import { OpeningExplorer } from "@/components/game/OpeningExplorer";
 import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
 import { playSound, primeAudio } from "@/lib/chess/sound";
 import { IconPlus, IconUsers } from "@/components/ui/icons";
 
-type Tab = "moves" | "share";
+type Tab = "moves" | "openings" | "share";
 
 export default function LocalGamePage() {
   const game = useChessGame();
@@ -71,6 +72,20 @@ export default function LocalGamePage() {
   }, [game]);
 
   const flip = () => setManualOrientation((o) => (o === "w" ? "b" : "w"));
+
+  /** Play a SAN move from the opening explorer at the current view position. */
+  const playSan = useCallback(
+    (san: string) => {
+      try {
+        const probe = new Chess(snapshot.fen);
+        const mv = probe.move(san);
+        if (mv) onMove(mv.from, mv.to, mv.promotion);
+      } catch {
+        /* not legal here */
+      }
+    },
+    [snapshot.fen, onMove],
+  );
 
   const canBack = snapshot.viewPly > 0;
   const canForward = snapshot.viewPly < snapshot.moves.length;
@@ -169,23 +184,25 @@ export default function LocalGamePage() {
             <p className="text-sm font-semibold">{statusText}</p>
           </div>
           <div className="flex border-b border-[var(--border)]">
-            {(["moves", "share"] as Tab[]).map((t) => (
+            {(["moves", "openings", "share"] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`flex-1 border-b-2 px-4 py-2.5 text-sm font-semibold capitalize transition-colors ${
+                className={`flex-1 border-b-2 px-3 py-2.5 text-sm font-semibold capitalize transition-colors ${
                   tab === t
                     ? "border-[var(--accent)] text-[var(--text)]"
                     : "border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"
                 }`}
               >
-                {t === "moves" ? "Moves" : "Share & Import"}
+                {t === "moves" ? "Moves" : t === "openings" ? "Openings" : "Share"}
               </button>
             ))}
           </div>
           <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0">
             {tab === "moves" ? (
               <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} />
+            ) : tab === "openings" ? (
+              <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : (
               <div className="h-full overflow-y-auto">
                 <SharePanel

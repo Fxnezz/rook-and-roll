@@ -96,7 +96,9 @@ function findKing(game: Chess, color: Color): Square | null {
 /** Build a Chess instance replaying `ply` moves from the mainline. */
 function rebuildAt(startFen: string, moves: Move[], ply: number): Chess {
   const g = new Chess(startFen);
-  for (let i = 0; i < ply; i++) {
+  // clamp: transient renders can briefly hold a viewPly from a previous game
+  const n = Math.min(ply, moves.length);
+  for (let i = 0; i < n; i++) {
     g.move({ from: moves[i].from, to: moves[i].to, promotion: moves[i].promotion });
   }
   return g;
@@ -123,8 +125,10 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
   const gameRef = useRef<Chess>(new Chess(initialFen));
   const startFenRef = useRef<string>(initialFen);
   const [viewPly, setViewPly] = useState<number>(0);
-  const [, force] = useState(0);
-  const bump = useCallback(() => force((n) => n + 1), []);
+  // Version counter: bumped whenever the underlying Chess instance mutates in
+  // a way viewPly alone doesn't capture (loadFen/loadPgn/reset/undo).
+  const [version, setVersion] = useState(0);
+  const bump = useCallback(() => setVersion((n) => n + 1), []);
 
   const snapshot = useMemo<GameSnapshot>(() => {
     const game = gameRef.current;
@@ -148,7 +152,7 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
       captured: computeCaptured(view),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewPly, force]);
+  }, [viewPly, version]);
 
   const makeMove = useCallback<UseChessGame["makeMove"]>(
     ({ from, to, promotion }) => {
@@ -174,7 +178,8 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
     (sq: Square): Move[] => {
       const game = gameRef.current;
       const moves = game.history({ verbose: true }) as Move[];
-      const src = viewPly === moves.length ? game : rebuildAt(startFenRef.current, moves, viewPly);
+      const ply = Math.min(viewPly, moves.length);
+      const src = ply === moves.length ? game : rebuildAt(startFenRef.current, moves, ply);
       try {
         return src.moves({ square: sq, verbose: true }) as Move[];
       } catch {

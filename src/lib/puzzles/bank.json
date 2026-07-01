@@ -1,0 +1,479 @@
+[
+  {
+    "id": "p001",
+    "fen": "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
+    "solution": [
+      "e1e8"
+    ],
+    "themes": [
+      "backRankMate",
+      "mateIn1"
+    ],
+    "rating": 640
+  },
+  {
+    "id": "p002",
+    "fen": "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1",
+    "solution": [
+      "e8e1"
+    ],
+    "themes": [
+      "backRankMate",
+      "mateIn1"
+    ],
+    "rating": 640
+  },
+  {
+    "id": "p003",
+    "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 1",
+    "solution": [
+      "f3f7"
+    ],
+    "themes": [
+      "scholarsMate",
+      "attackingF7",
+      "mateIn1"
+    ],
+    "rating": 600
+  },
+  {
+    "id": "p004",
+    "fen": "6rk/6pp/7N/8/8/8/8/K7 w - - 0 1",
+    "solution": [
+      "h6f7"
+    ],
+    "themes": [
+      "smotheredMate",
+      "knightMate",
+      "mateIn1"
+    ],
+    "rating": 900
+  },
+  {
+    "id": "p005",
+    "fen": "k7/8/1QK5/8/8/8/8/8 w - - 0 1",
+    "solution": [
+      "b6b7"
+    ],
+    "themes": [
+      "queenMate",
+      "endgame",
+      "mateIn1"
+    ],
+    "rating": 520
+  },
+  {
+    "id": "p006",
+    "fen": "7k/8/5N2/8/8/8/8/6RK w - - 0 1",
+    "solution": [
+      "g1g8"
+    ],
+    "themes": [
+      "arabianMate",
+      "rookMate",
+      "mateIn1"
+    ],
+    "rating": 880
+  },
+  {
+    "id": "p007",
+    "fen": "8/4N1pk/8/8/8/8/8/1K2R3 w - - 0 1",
+    "solution": [
+      "e1h1"
+    ],
+    "themes": [
+      "anastasiaMate",
+      "rookMate",
+      "mateIn1"
+    ],
+    "rating": 980
+  },
+  {
+    "id": "p008",
+    "fen": "3rkr2/8/8/8/8/7Q/8/4K3 w - - 0 1",
+    "solution": [
+      "h3e6"
+    ],
+    "themes": [
+      "epauletteMate",
+      "queenMate",
+      "mateIn1"
+    ],
+    "rating": 950
+  },
+  {
+    "id": "p009",
+    "fen": "6k1/4Rppp/8/8/8/8/5PPP/6K1 w - - 0 1",
+    "solution": [
+      "e7e8"
+    ],
+    "themes": [
+      "backRankMate",
+      "mateIn1"
+    ],
+    "rating": 700
+  },
+  {
+    "id": "p010",
+    "fen": "2k5/1ppp4/8/8/8/8/5PPP/R5K1 w - - 0 1",
+    "solution": [
+      "a1a8"
+    ],
+    "themes": [
+      "backRankMate",
+      "mateIn1"
+    ],
+    "rating": 660
+  },
+  {
+    "id": "p011",
+    "fen": "8/8/8/8/8/5k2/8/4qK2 b - - 0 1",
+    "solution": [
+      "e1f2"
+    ],
+    "themes": [
+      "queenMate",
+      "endgame",
+      "mateIn1"
+    ],
+    "rating": 540
+  },
+  {
+    "id": "p012",
+    "fen": "8/8/8/8/8/2k5/1q6/2K5 b - - 0 1",
+    "solution": [
+      "b2c2"
+    ],
+    "themes": [
+      "queenMate",
+      "endgame",
+      "mateIn1"
+    ],
+    "rating": 560
+  },
+  {
+    "id": "p013",
+    "fen": "7k/7p/8/8/8/8/8/5QK1 w - - 0 1",
+    "solution": [
+      "f1f8"
+    ],
+    "themes": [
+      "queenMate",
+      "backRankMate",
+      "mateIn1"
+    ],
+    "rating": 600
+  },
+  {
+    "id": "p014",
+    "fen": "8/8/8/7k/4R3/2R5/8/6K1 w - - 0 1",
+    "solution": [
+      "c3g3",
+      "h5h6",
+      "e4h4"
+    ],
+    "themes": [
+      "mateIn2",
+      "endgame"
+    ],
+    "rating": 1413
+  },
+  {
+    "id": "p015",
+    "fen": "8/6K1/6R1/8/8/2R5/8/1k6 w - - 0 1",
+    "solution": [
+      "g6g2",
+      "b1a1",
+      "c3c1"
+    ],
+    "themes": [
+      "mateIn2",
+      "endgame"
+    ],
+    "rating": 1255
+  },
+  {
+    "id": "p016",
+    "fen": "8/k4R2/8/8/8/8/8/3R2K1 w - - 0 1",
+    "solution": [
+      "d1d6",
+      "a7a8",
+      "d6d8"
+    ],
+    "themes": [
+      "mateIn2",
+      "endgame"
+    ],
+    "rating": 1245
+  },
+  {
+    "id": "p017",
+    "fen": "8/8/4Q3/8/7k/8/4KR2/8 w - - 0 1",
+    "solution": [
+      "f2g2",
+      "h4h5",
+      "e6h3"
+    ],
+    "themes": [
+      "mateIn2",
+      "endgame"
+    ],
+    "rating": 1313
+  },
+  {
+    "id": "p018",
+    "fen": "7R/8/8/8/7k/4R3/8/1K6 w - - 0 1",
+    "solution": [
+      "h8g8",
+      "h4h5",
+      "e3h3"
+    ],
+    "themes": [
+      "mateIn2",
+      "endgame"
+    ],
+    "rating": 1314
+  },
+  {
+    "id": "p019",
+    "fen": "8/2B4Q/8/8/K7/8/8/k7 w - - 0 1",
+    "solution": [
+      "c7e5",
+      "a1a2",
+      "h7c2"
+    ],
+    "themes": [
+      "mateIn2",
+      "endgame"
+    ],
+    "rating": 1309
+  },
+  {
+    "id": "p020",
+    "fen": "8/3K4/4Q3/7k/4R3/8/8/8 w - - 0 1",
+    "solution": [
+      "e6g8",
+      "h5h6",
+      "e4h4"
+    ],
+    "themes": [
+      "mateIn2",
+      "endgame"
+    ],
+    "rating": 1283
+  },
+  {
+    "id": "p021",
+    "fen": "8/Q7/8/4r3/8/8/8/2K3k1 w - - 0 1",
+    "solution": [
+      "a7g1",
+      "e5e1",
+      "g1e1"
+    ],
+    "themes": [
+      "mateIn2",
+      "endgame"
+    ],
+    "rating": 1362
+  },
+  {
+    "id": "p022",
+    "fen": "1k6/8/8/1BK5/5Q2/8/8/8 w - - 0 1",
+    "solution": [
+      "c5b6",
+      "b8c8",
+      "f4c7"
+    ],
+    "themes": [
+      "mateIn2",
+      "endgame"
+    ],
+    "rating": 1462
+  },
+  {
+    "id": "p023",
+    "fen": "8/8/4K3/2Q3R1/8/8/8/5k2 w - - 0 1",
+    "solution": [
+      "c5c2",
+      "f1e1",
+      "g5g1"
+    ],
+    "themes": [
+      "mateIn2",
+      "endgame"
+    ],
+    "rating": 1283
+  },
+  {
+    "id": "p024",
+    "fen": "r6k/6pp/8/8/8/1R6/1R3PPP/6K1 w - - 0 1",
+    "solution": [
+      "b3b8",
+      "a8b8",
+      "b2b8"
+    ],
+    "themes": [
+      "mateIn2",
+      "backRankMate"
+    ],
+    "rating": 1216
+  },
+  {
+    "id": "p025",
+    "fen": "7k/5p1p/6p1/8/2R5/8/6PP/2Q3K1 w - - 0 1",
+    "solution": [
+      "c1h6",
+      "h8g8",
+      "c4c8"
+    ],
+    "themes": [
+      "mateIn2"
+    ],
+    "rating": 1418
+  },
+  {
+    "id": "p026",
+    "fen": "3r2k1/6pp/8/8/4R3/4Q3/6P1/7K w - - 0 1",
+    "solution": [
+      "e4e8",
+      "d8e8",
+      "e3e8"
+    ],
+    "themes": [
+      "mateIn2",
+      "backRankMate"
+    ],
+    "rating": 1244
+  },
+  {
+    "id": "p027",
+    "fen": "r6k/5ppp/8/8/3R4/8/3R1P1P/7K w - - 0 1",
+    "solution": [
+      "d4d8",
+      "a8d8",
+      "d2d8"
+    ],
+    "themes": [
+      "mateIn2",
+      "backRankMate"
+    ],
+    "rating": 1228
+  },
+  {
+    "id": "p028",
+    "fen": "1r5k/5ppp/8/8/8/8/2R2PP1/2R3K1 w - - 0 1",
+    "solution": [
+      "c2c8",
+      "b8c8",
+      "c1c8"
+    ],
+    "themes": [
+      "mateIn2",
+      "backRankMate"
+    ],
+    "rating": 1243
+  },
+  {
+    "id": "p029",
+    "fen": "r6k/6pp/8/8/3R4/8/3R2PP/7K w - - 0 1",
+    "solution": [
+      "d4d8",
+      "a8d8",
+      "d2d8"
+    ],
+    "themes": [
+      "mateIn2",
+      "backRankMate"
+    ],
+    "rating": 1397
+  },
+  {
+    "id": "p030",
+    "fen": "7k/5p1p/6p1/8/8/R7/3Q1PP1/7K w - - 0 1",
+    "solution": [
+      "d2h6",
+      "h8g8",
+      "a3a8"
+    ],
+    "themes": [
+      "mateIn2"
+    ],
+    "rating": 1367
+  },
+  {
+    "id": "p031",
+    "fen": "r6k/6pp/8/8/1R6/8/5PPP/1Q4K1 w - - 0 1",
+    "solution": [
+      "b4b8",
+      "a8b8",
+      "b1b8"
+    ],
+    "themes": [
+      "mateIn2",
+      "backRankMate"
+    ],
+    "rating": 1368
+  },
+  {
+    "id": "p032",
+    "fen": "8/8/8/1B6/Q7/8/k5K1/8 w - - 0 1",
+    "solution": [
+      "a4b4",
+      "a2a1",
+      "b4a3",
+      "a1b1",
+      "b5d3"
+    ],
+    "themes": [
+      "mateIn3",
+      "endgame"
+    ],
+    "rating": 1741
+  },
+  {
+    "id": "p033",
+    "fen": "k7/8/8/6Q1/8/3N1K2/8/8 w - - 0 1",
+    "solution": [
+      "g5b5",
+      "a8a7",
+      "d3c5",
+      "a7a8",
+      "b5b7"
+    ],
+    "themes": [
+      "mateIn3",
+      "endgame"
+    ],
+    "rating": 1988
+  },
+  {
+    "id": "p034",
+    "fen": "8/8/3N4/2Q5/8/1K6/8/4k3 w - - 0 1",
+    "solution": [
+      "d6e4",
+      "e1e2",
+      "c5f2",
+      "e2d3",
+      "e4c5"
+    ],
+    "themes": [
+      "mateIn3",
+      "endgame"
+    ],
+    "rating": 1849
+  },
+  {
+    "id": "p035",
+    "fen": "8/8/8/4N3/8/Q6k/8/4K3 w - - 0 1",
+    "solution": [
+      "a3f3",
+      "h3h4",
+      "f3g4"
+    ],
+    "themes": [
+      "mateIn3",
+      "endgame"
+    ],
+    "rating": 1800
+  }
+]
