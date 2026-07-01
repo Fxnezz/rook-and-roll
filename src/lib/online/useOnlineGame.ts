@@ -81,7 +81,14 @@ export function useOnlineGame(identity: Identity) {
     const socket: OnlineSocket = io(SOCKET_URL, { transports: ["websocket"], autoConnect: true });
     socketRef.current = socket;
 
-    socket.on("connect", () => patch({ connected: true }));
+    socket.on("connect", () => {
+      patch({ connected: true });
+      // If we were in a game when the transport dropped, rejoin the room so
+      // the server clears our grace timer and resends authoritative state.
+      if (roomRef.current) {
+        socket.emit("room:join", { roomId: roomRef.current, identity: identityRef.current });
+      }
+    });
     socket.on("disconnect", () => patch({ connected: false }));
 
     socket.on("queue:waiting", ({ playersSearching }) =>
@@ -164,6 +171,11 @@ export function useOnlineGame(identity: Identity) {
     return () => clearInterval(iv);
   }, [state.phase]);
 
+  /** Open the socket ahead of time (e.g. when the lobby mounts). */
+  const connect = useCallback(() => {
+    ensureSocket();
+  }, [ensureSocket]);
+
   const findGame = useCallback(
     (timeControl: TimeControlSpec, rated: boolean) => {
       const socket = ensureSocket();
@@ -219,6 +231,7 @@ export function useOnlineGame(identity: Identity) {
 
   return {
     state,
+    connect,
     findGame,
     cancelSearch,
     spectate,

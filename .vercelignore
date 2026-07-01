@@ -1,0 +1,4 @@
+# The realtime Socket.io server deploys separately (Railway/Render), not Vercel.
+server
+.env
+.claude

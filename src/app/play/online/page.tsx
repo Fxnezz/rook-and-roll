@@ -25,15 +25,25 @@ function soundFor(san: string) {
   else playSound("move");
 }
 
-function guestIdentity(): { userId: string; username: string } {
-  if (typeof window === "undefined") return { userId: "guest:ssr", username: "Guest" };
-  let id = localStorage.getItem("rr.guestId");
-  if (!id) {
-    id = "guest:" + Math.random().toString(36).slice(2, 10);
-    localStorage.setItem("rr.guestId", id);
-  }
-  const num = id.slice(-4);
-  return { userId: id, username: `Guest-${num}` };
+/**
+ * Stable guest identity. Resolved in an effect (not during render) so the
+ * server- and client-rendered HTML match; until mounted we show a neutral
+ * placeholder.
+ */
+function useGuestIdentity(): { userId: string; username: string } {
+  const [guest, setGuest] = useState<{ userId: string; username: string }>({
+    userId: "guest:pending",
+    username: "Guest",
+  });
+  useEffect(() => {
+    let id = localStorage.getItem("rr.guestId");
+    if (!id) {
+      id = "guest:" + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem("rr.guestId", id);
+    }
+    setGuest({ userId: id, username: `Guest-${id.slice(-4)}` });
+  }, []);
+  return guest;
 }
 
 export default function OnlinePage() {
@@ -66,6 +76,7 @@ export default function OnlinePage() {
       .catch(() => {});
   }, [loggedIn]);
 
+  const guest = useGuestIdentity();
   const identity: Identity = useMemo(() => {
     const ratingForCat = ratings?.[tc.category] ?? 1200;
     if (session?.user) {
@@ -76,12 +87,17 @@ export default function OnlinePage() {
         guest: false,
       };
     }
-    const g = guestIdentity();
-    return { ...g, rating: 1200, guest: true };
-  }, [session, ratings, tc.category]);
+    return { ...guest, rating: 1200, guest: true };
+  }, [session, ratings, tc.category, guest]);
 
   const online = useOnlineGame(identity);
   const { state } = online;
+
+  // Open the socket as soon as the lobby is visible so match-finding is instant.
+  useEffect(() => {
+    online.connect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const orientation: Color = state.myColor ?? "w";
   const lastAppliedRef = useRef<string>("");
