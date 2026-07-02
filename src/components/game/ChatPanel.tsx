@@ -13,15 +13,18 @@ export function ChatPanel({
   disabled?: boolean;
 }) {
   const [text, setText] = useState("");
-  const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
+    // Keep the chat pinned to the bottom by scrolling its own container only —
+    // not the page (scrollIntoView would jump the mobile viewport).
+    const c = scrollRef.current;
+    if (c) c.scrollTop = c.scrollHeight;
   }, [messages]);
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto px-3 py-2">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2">
         {messages.length === 0 ? (
           <p className="py-6 text-center text-xs text-[var(--text-faint)]">Say hello — keep it friendly.</p>
         ) : (
@@ -38,7 +41,6 @@ export function ChatPanel({
             </div>
           ))
         )}
-        <div ref={endRef} />
       </div>
       <form
         className="flex gap-1 border-t border-[var(--border)] p-2"

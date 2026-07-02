@@ -145,6 +145,36 @@ npm run db:push
 | `node scripts/copy-engine.mjs` | copy Stockfish WASM into `public/engine/` |
 | `server: npm run dev` | realtime server with hot reload (tsx) |
 
+## Admin panel (owner-only)
+
+There is a hidden, owner-only admin console. It is **not** linked anywhere in
+the UI, nav, sitemap, or robots.txt, and `/admin` returns a plain 404 to anyone
+without a valid admin session.
+
+- **How to open it:** type the key sequence anywhere on the site — the Konami
+  code: **↑ ↑ ↓ ↓ ← → ← → b a** — to reveal a password prompt. The key
+  sequence is a convenience only; it grants nothing on its own.
+- **The real gate is server-side.** The password is checked against a bcrypt
+  hash in `ADMIN_PASSWORD_HASH` (never in source or the client bundle). On
+  success the server sets a short-lived (30 min), `httpOnly`, `secure` admin
+  JWT cookie, entirely separate from normal user sessions. `src/middleware.ts`
+  blocks every `/admin` and `/api/admin` route for non-admins before any
+  handler runs, and each handler re-verifies independently.
+- **Set / rotate the admin password:**
+  ```bash
+  node scripts/hash-admin-password.mjs 'your-strong-password'
+  ```
+  Put the printed hash in `ADMIN_PASSWORD_HASH` (escape `$`→`\$` in local
+  `.env`; paste raw in Vercel), and set `ADMIN_JWT_SECRET` to a random string.
+  Redeploy. If `ADMIN_PASSWORD_HASH` is unset, the admin login route 404s and
+  the panel is fully disabled.
+- **Rate limiting:** the login endpoint allows 5 failed attempts per IP per 15
+  minutes, then returns 429.
+- **Audit log:** every admin login (success / failed / blocked) and every admin
+  action is appended to the `AdminAuditLog` table with actor, action, target,
+  IP, timestamp, and a JSON detail payload. It is append-only (never deleted)
+  and viewable in the admin console.
+
 ## Security notes & known limitations
 
 This is a hobby platform, and a couple of integrity shortcuts are worth knowing

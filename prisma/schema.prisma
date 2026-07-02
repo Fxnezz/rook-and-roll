@@ -11,6 +11,27 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
+// Admin / moderation (Phase 7+)
+// ---------------------------------------------------------------------------
+
+// Append-only record of every admin action and login attempt. Never deleted.
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  actor      String   @default("admin") // admin identifier (single-admin for now)
+  action     String // e.g. admin_login_success, user_ban, game_force_result
+  targetType String? // "user" | "game" | "chat" | ...
+  targetId   String?
+  ip         String?
+  detail     Json?
+  createdAt  DateTime @default(now())
+
+  @@index([action])
+  @@index([createdAt])
+  @@index([targetType, targetId])
+  @@index([ip, action, createdAt])
+}
+
+// ---------------------------------------------------------------------------
 // Auth (NextAuth / Auth.js Prisma adapter models + credentials password hash)
 // ---------------------------------------------------------------------------
 

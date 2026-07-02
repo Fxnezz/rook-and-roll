@@ -13,8 +13,19 @@ export function MoveList({
   onGoToPly: (ply: number) => void;
 }) {
   const activeRef = useRef<HTMLButtonElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest" });
+    const el = activeRef.current;
+    const container = scrollRef.current;
+    if (!el || !container) return;
+    // Scroll ONLY the move-list container into view — never the page. Using
+    // element.scrollIntoView() here would bubble up and scroll the whole
+    // window, which on mobile jumps the viewport down off the board.
+    const elRect = el.getBoundingClientRect();
+    const cRect = container.getBoundingClientRect();
+    if (elRect.top < cRect.top || elRect.bottom > cRect.bottom) {
+      container.scrollTop += elRect.top - cRect.top - (cRect.height - elRect.height) / 2;
+    }
   }, [viewPly]);
 
   const rows: { num: number; white?: Move; black?: Move; whitePly: number; blackPly: number }[] = [];
@@ -55,7 +66,7 @@ export function MoveList({
   };
 
   return (
-    <div className="h-full overflow-y-auto py-1">
+    <div ref={scrollRef} className="h-full overflow-y-auto py-1">
       {rows.map((r) => (
         <div
           key={r.num}
