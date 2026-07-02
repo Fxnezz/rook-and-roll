@@ -3,7 +3,7 @@ import { prisma, isDbConfigured } from "@/lib/db/prisma";
 import { DbNotice } from "@/components/ui/DbNotice";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Leaderboard — Rook & Roll" };
+export const metadata = { title: "Leaderboard" };
 
 const CATEGORIES = [
   { key: "ratingBullet", label: "Bullet", icon: "🚀" },

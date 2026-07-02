@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth/auth";
 import { DbNotice } from "@/components/ui/DbNotice";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "My games — Rook & Roll" };
+export const metadata = { title: "My games" };
 
 const RESULT_BADGE = {
   win: { label: "Win", color: "var(--good)" },
