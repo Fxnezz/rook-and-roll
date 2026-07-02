@@ -29,8 +29,13 @@ export async function initPersistence(): Promise<boolean> {
     return false;
   }
   try {
-    const mod = await import("@prisma/client");
-    const PrismaClient = (mod as { PrismaClient: new () => PrismaLike }).PrismaClient;
+    // Indirect specifier so TypeScript treats @prisma/client as an OPTIONAL
+    // runtime dependency — the server builds and runs without it installed
+    // (persistence simply stays disabled). A literal import() would make tsc
+    // require the package at build time.
+    const specifier: string = "@prisma/client";
+    const mod = (await import(specifier)) as { PrismaClient: new () => PrismaLike };
+    const PrismaClient = mod.PrismaClient;
     prisma = new PrismaClient();
     enabled = true;
     console.log("[persistence] Prisma connected — rated games will be saved.");
