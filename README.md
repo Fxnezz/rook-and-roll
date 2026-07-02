@@ -145,6 +145,25 @@ npm run db:push
 | `node scripts/copy-engine.mjs` | copy Stockfish WASM into `public/engine/` |
 | `server: npm run dev` | realtime server with hot reload (tsx) |
 
+## Security notes & known limitations
+
+This is a hobby platform, and a couple of integrity shortcuts are worth knowing
+before running it as anything more serious:
+
+- **Socket identity is client-asserted.** The realtime server trusts the
+  `userId`/`username` a client sends on `queue:join`. Move *legality* is always
+  re-validated server-side, but a crafted client could impersonate another
+  user's id and affect that user's rating. Before a real launch, pass the
+  NextAuth session JWT from the browser and verify it on the server with
+  `AUTH_SECRET` (e.g. via `jose`), then derive identity from the verified token.
+- **Bot games are self-reported.** `/api/games` records a signed-in user's own
+  vs-bot result from the client, so bot-rating gains are not tamper-proof.
+  Human-vs-human ratings go through the authoritative realtime server and are
+  not self-reported. Make bot games unrated, or move bot play server-side, if
+  rating integrity matters.
+- Passwords are hashed with bcrypt (cost 12); chat is length-capped, rate-
+  limited, and profanity-filtered; move submission is rate-limited per socket.
+
 ## Licensing notes
 
 - **Stockfish 18** (bundled WASM build) is **GPLv3** — the engine files are served
