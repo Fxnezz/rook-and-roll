@@ -10,6 +10,8 @@ declare module "next-auth" {
     user: {
       id: string;
       username: string | null;
+      /** true when an admin is impersonating this user */
+      imp?: boolean;
     } & DefaultSession["user"];
   }
 }
@@ -29,7 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      authorize: async (creds) => {
+      authorize: async (creds, request) => {
         const email = String(creds?.email ?? "").toLowerCase().trim();
         const password = String(creds?.password ?? "");
         if (!email || !password) return null;
@@ -37,6 +39,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user?.passwordHash) return null;
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) return null;
+
+        // Blocked accounts cannot sign in (banned permanently, or until a date).
+        const blocked =
+          (user.status === "BANNED" || user.status === "SUSPENDED") &&
+          (!user.bannedUntil || user.bannedUntil > new Date());
+        if (blocked) return null;
+
+        // Record the login (IP/UA) for admin review — best-effort.
+        try {
+          const ip = (request?.headers?.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
+          await prisma.loginEvent.create({
+            data: {
+              userId: user.id,
+              ip,
+              userAgent: request?.headers?.get("user-agent") ?? undefined,
+              method: "credentials",
+            },
+          });
+        } catch {
+          /* non-fatal */
+        }
+
         return {
           id: user.id,
           name: user.name ?? user.username,
@@ -68,6 +92,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = (token.id as string) ?? token.sub ?? "";
         session.user.username = (token.username as string | null) ?? null;
+        session.user.imp = Boolean(token.imp);
       }
       return session;
     },

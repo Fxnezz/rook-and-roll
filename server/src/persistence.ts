@@ -13,6 +13,7 @@ type PrismaLike = {
     findUnique: (a: unknown) => Promise<{ [k: string]: unknown } | null>;
     update: (a: unknown) => Promise<unknown>;
   };
+  notification?: { create: (a: unknown) => Promise<unknown> };
   game: {
     create: (a: unknown) => Promise<{ id: string }>;
     count: (a: unknown) => Promise<number>;
@@ -43,6 +44,30 @@ export async function initPersistence(): Promise<boolean> {
   } catch (e) {
     console.warn("[persistence] @prisma/client not available; persistence disabled.", (e as Error).message);
     return false;
+  }
+}
+
+/** Look up a real user's moderation state (ban/mute). Guests are never moderated. */
+export async function getUserModeration(
+  userId: string,
+): Promise<{ banned: boolean; muted: boolean }> {
+  if (!enabled || !prisma || userId.startsWith("guest:") || userId.startsWith("spectator:")) {
+    return { banned: false, muted: false };
+  }
+  try {
+    const u = (await prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true, bannedUntil: true, mutedUntil: true },
+    })) as { status?: string; bannedUntil?: string | Date | null; mutedUntil?: string | Date | null } | null;
+    if (!u) return { banned: false, muted: false };
+    const now = Date.now();
+    const bUntil = u.bannedUntil ? new Date(u.bannedUntil).getTime() : null;
+    const mUntil = u.mutedUntil ? new Date(u.mutedUntil).getTime() : null;
+    const banned = (u.status === "BANNED" || u.status === "SUSPENDED") && (bUntil === null || bUntil > now);
+    const muted = u.status === "MUTED" && (mUntil === null || mUntil > now);
+    return { banned, muted };
+  } catch {
+    return { banned: false, muted: false };
   }
 }
 

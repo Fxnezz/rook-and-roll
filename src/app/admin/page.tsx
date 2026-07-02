@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma, isDbConfigured } from "@/lib/db/prisma";
 import { AdminLogoutButton } from "@/components/admin/AdminBar";
 
@@ -19,7 +20,7 @@ export default async function AdminHome() {
       </div>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <Card title="Users" note="Manage accounts" href="#" soon />
+        <Card title="Users" note="Manage accounts, ban, impersonate" href="/admin/users" />
         <Card title="Live games" note="God-mode tools" href="#" soon />
         <Card title="Platform" note="Flags & analytics" href="#" soon />
       </div>
@@ -57,14 +58,20 @@ export default async function AdminHome() {
   );
 }
 
-function Card({ title, note, soon }: { title: string; note: string; href: string; soon?: boolean }) {
-  return (
-    <div className="panel p-4">
+function Card({ title, note, href, soon }: { title: string; note: string; href: string; soon?: boolean }) {
+  const inner = (
+    <>
       <div className="flex items-center justify-between">
         <h3 className="font-bold">{title}</h3>
         {soon && <span className="chip !px-1.5 !py-0.5 text-[10px]">soon</span>}
       </div>
       <p className="mt-1 text-sm text-[var(--text-muted)]">{note}</p>
-    </div>
+    </>
+  );
+  if (soon) return <div className="panel p-4 opacity-70">{inner}</div>;
+  return (
+    <Link href={href} className="panel block p-4 transition-colors hover:bg-[var(--bg-elev)]">
+      {inner}
+    </Link>
   );
 }

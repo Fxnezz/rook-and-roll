@@ -53,6 +53,12 @@ model User {
   puzzleRating    Int @default(1000)
   puzzleStreak    Int @default(0)
 
+  // Moderation (admin, Phase 8)
+  status           UserStatus @default(ACTIVE)
+  moderationReason String?
+  bannedUntil      DateTime? // null while BANNED = permanent
+  mutedUntil       DateTime? // can play but not chat until this passes
+
   accounts       Account[]
   sessions       Session[]
   gamesAsWhite   Game[]           @relation("WhiteGames")
@@ -61,6 +67,44 @@ model User {
   puzzleAttempts PuzzleAttempt[]
   friendsInit    Friendship[]     @relation("Requester")
   friendsRecv    Friendship[]     @relation("Addressee")
+  loginEvents    LoginEvent[]
+  notifications  Notification[]
+}
+
+enum UserStatus {
+  ACTIVE
+  MUTED
+  SUSPENDED
+  BANNED
+}
+
+// Login/IP history for admin review.
+model LoginEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  ip        String?
+  userAgent String?
+  method    String   @default("credentials") // credentials | google | impersonation
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Admin -> user direct message, surfaced in the user's in-app inbox.
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  fromAdmin Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model Account {
@@ -167,6 +211,7 @@ model RatingHistory {
   rating    Int
   delta     Int
   gameId    String?
+  kind      String   @default("game") // "game" | "admin" (adjustment marker)
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

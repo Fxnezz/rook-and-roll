@@ -5,7 +5,7 @@ import { Server, type Socket } from "socket.io";
 import { GameRoom } from "./GameRoom.js";
 import { cleanChat } from "./chat.js";
 import { RateLimiter, CorrelationTracker } from "./anticheat.js";
-import { initPersistence, saveFinishedGame } from "./persistence.js";
+import { initPersistence, saveFinishedGame, getUserModeration } from "./persistence.js";
 import type {
   ClientToServer,
   Identity,
@@ -49,6 +49,7 @@ interface SocketData {
   userId?: string;
   username?: string;
   roomId?: string;
+  muted?: boolean;
 }
 
 // ---- health ----------------------------------------------------------------
@@ -161,11 +162,19 @@ setInterval(() => {
 
 // ---- socket handlers -------------------------------------------------------
 io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<string, never>, SocketData>) => {
-  socket.on("queue:join", ({ identity, timeControl, rated }) => {
+  socket.on("queue:join", async ({ identity, timeControl, rated }) => {
     const isRated = rated && !identity.guest;
     socket.data.userId = identity.userId;
     socket.data.username = identity.username;
     userSocket.set(identity.userId, socket.id);
+
+    // Banned users cannot enter matchmaking; muted users can play but not chat.
+    const mod = await getUserModeration(identity.userId);
+    socket.data.muted = mod.muted;
+    if (mod.banned) {
+      socket.emit("error:msg", { message: "Your account is suspended." });
+      return;
+    }
 
     // already in a game? rejoin instead
     const existing = userRoom.get(identity.userId);
@@ -186,13 +195,14 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
 
   socket.on("queue:leave", () => removeFromQueues(socket.id));
 
-  socket.on("room:join", ({ roomId, identity }) => {
+  socket.on("room:join", async ({ roomId, identity }) => {
     const room = rooms.get(roomId);
     if (!room) return socket.emit("error:msg", { message: "Room not found" });
     socket.data.userId = identity.userId;
     socket.data.username = identity.username;
     socket.data.roomId = roomId;
     userSocket.set(identity.userId, socket.id);
+    socket.data.muted = (await getUserModeration(identity.userId)).muted;
     socket.join(roomId);
 
     const color = room.playerColor(identity.userId);
@@ -322,6 +332,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   socket.on("chat:send", ({ roomId, text }) => {
     const room = rooms.get(roomId);
     if (!room) return;
+    if (socket.data.muted) return; // muted users can play but not chat
     if (!chatLimiter.allow(socket.id)) return;
     const clean = cleanChat(text);
     if (!clean) return;
