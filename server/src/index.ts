@@ -66,6 +66,9 @@ app.get("/", (_req, res) => {
     status: "ok",
     rooms: rooms.size,
     searching: [...queues.values()].reduce((n, q) => n + q.length, 0),
+    // Non-secret diagnostics: is admin god-mode auth configured? (never the value)
+    adminSecretSet: Boolean(process.env.ADMIN_JWT_SECRET),
+    dbSet: Boolean(process.env.DATABASE_URL),
   });
 });
 
