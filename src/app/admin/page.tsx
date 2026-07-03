@@ -21,7 +21,7 @@ export default async function AdminHome() {
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <Card title="Users" note="Manage accounts, ban, impersonate" href="/admin/users" />
-        <Card title="Live games" note="God-mode tools" href="#" soon />
+        <Card title="Live games" note="God-mode tools" href="/admin/live" />
         <Card title="Platform" note="Flags & analytics" href="#" soon />
       </div>
 

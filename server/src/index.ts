@@ -6,6 +6,7 @@ import { GameRoom } from "./GameRoom.js";
 import { cleanChat } from "./chat.js";
 import { RateLimiter, CorrelationTracker } from "./anticheat.js";
 import { initPersistence, saveFinishedGame, getUserModeration } from "./persistence.js";
+import { verifyAdminToken } from "./adminAuth.js";
 import type {
   ClientToServer,
   Identity,
@@ -50,6 +51,11 @@ interface SocketData {
   username?: string;
   roomId?: string;
   muted?: boolean;
+  isAdmin?: boolean;
+}
+
+function liveGames() {
+  return [...rooms.values()].filter((r) => !r.status).map((r) => r.summary());
 }
 
 // ---- health ----------------------------------------------------------------
@@ -341,6 +347,87 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
       text: clean,
       ts: Date.now(),
     });
+  });
+
+  // ---- admin god-mode ------------------------------------------------------
+  // The admin token is cryptographically verified before isAdmin is set; every
+  // admin:* handler re-checks socket.data.isAdmin (which the client cannot set).
+  socket.on("admin:hello", async ({ token }) => {
+    if (await verifyAdminToken(token)) {
+      socket.data.isAdmin = true;
+      socket.emit("admin:ok", { games: liveGames() });
+    } else {
+      socket.data.isAdmin = false;
+      socket.emit("admin:denied");
+    }
+  });
+
+  const adminRoom = (roomId: string): GameRoom | null =>
+    socket.data.isAdmin ? rooms.get(roomId) ?? null : null;
+
+  const resync = (room: GameRoom) => io.to(room.id).emit("game:state", room.toState());
+
+  socket.on("admin:games", () => {
+    if (!socket.data.isAdmin) return;
+    socket.emit("admin:games", { games: liveGames() });
+  });
+
+  // Invisible spectate: join the room without appearing in the spectator count
+  // or player list.
+  socket.on("admin:attach", ({ roomId }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    socket.join(roomId);
+    socket.emit("game:state", room.toState());
+  });
+
+  socket.on("admin:setFen", ({ roomId, fen }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    if (room.adminSetFen(fen)) resync(room);
+  });
+
+  socket.on("admin:place", ({ roomId, square, piece }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    room.adminPlace(square, piece);
+    resync(room);
+  });
+
+  socket.on("admin:forceMove", ({ roomId, from, to, promotion }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    room.adminForceMove(from, to, promotion);
+    io.to(roomId).emit("game:move", { san: `${from}${to}`, from, to, promotion, clock: room.clockState() });
+    resync(room);
+  });
+
+  socket.on("admin:forceResult", ({ roomId, result }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    room.adminForceResult(result);
+    void endGame(room);
+  });
+
+  socket.on("admin:clock", ({ roomId, color, addSeconds, pause, disable }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    room.adminClock(color, { addSeconds, pause, disable });
+    resync(room);
+  });
+
+  socket.on("admin:freeze", ({ roomId, color, frozen }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    room.adminFreeze(color, frozen);
+    resync(room);
+  });
+
+  socket.on("admin:swap", ({ roomId }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    room.adminSwap();
+    resync(room);
   });
 
   socket.on("disconnect", () => {

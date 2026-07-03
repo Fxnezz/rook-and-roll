@@ -1,5 +1,6 @@
-import { Chess } from "chess.js";
+import { Chess, type Square } from "chess.js";
 import type {
+  AdminPiece,
   ClockState,
   Color,
   GameOverMsg,
@@ -34,6 +35,11 @@ export class GameRoom {
   status: GameOverMsg | null = null;
   drawOfferFrom: Color | null = null;
   spectators = new Set<string>();
+
+  // Admin god-mode state
+  frozen = { w: false, b: false };
+  private clockDisabled = false;
+  adminResolved = false;
 
   constructor(a: Identity, b: Identity, tc: TimeControlSpec, rated: boolean) {
     this.timeControl = tc;
@@ -93,6 +99,7 @@ export class GameRoom {
 
   /** Returns the timed-out color if any side has flagged. */
   checkFlag(now = Date.now()): Color | null {
+    if (this.clockDisabled) return null;
     if (this.untimed || !this.running || this.status || !this.activeColor) return null;
     if (this.remaining(this.activeColor, now) <= 0) return this.activeColor;
     return null;
@@ -105,6 +112,7 @@ export class GameRoom {
     promotion?: string,
   ): { ok: true; san: string } | { ok: false; error: string } {
     if (this.status) return { ok: false, error: "Game is over" };
+    if (this.frozen[color]) return { ok: false, error: "Your side is frozen" };
     if (this.chess.turn() !== color) return { ok: false, error: "Not your turn" };
     const now = Date.now();
     // flag check before accepting the move
@@ -185,6 +193,96 @@ export class GameRoom {
     }));
   }
 
+  // ---- admin god-mode (all callers are verified admins in index.ts) --------
+
+  adminSetFen(fen: string): boolean {
+    try {
+      this.chess.load(fen);
+      this.drawOfferFrom = null;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  adminPlace(square: string, piece: AdminPiece | null) {
+    try {
+      if (piece) this.chess.put({ type: piece.type, color: piece.color }, square as Square);
+      else this.chess.remove(square as Square);
+    } catch {
+      /* ignore invalid placements */
+    }
+  }
+
+  /** Move a piece bypassing legality, then hand the turn to the other side. */
+  adminForceMove(from: string, to: string, promotion?: string) {
+    const p = this.chess.get(from as Square);
+    if (!p) return;
+    this.chess.remove(from as Square);
+    this.chess.put({ type: (promotion as AdminPiece["type"]) ?? p.type, color: p.color }, to as Square);
+    const parts = this.chess.fen().split(" ");
+    parts[1] = parts[1] === "w" ? "b" : "w";
+    try {
+      this.chess.load(parts.join(" "));
+    } catch {
+      /* position may be technically illegal in god mode — that's allowed */
+    }
+  }
+
+  adminForceResult(result: "1-0" | "0-1" | "1/2-1/2") {
+    const winner: Color | null = result === "1-0" ? "w" : result === "0-1" ? "b" : null;
+    this.adminResolved = true;
+    this.finish(result, winner, "Admin-resolved");
+  }
+
+  adminClock(color: Color, opts: { addSeconds?: number; pause?: boolean; disable?: boolean }) {
+    if (opts.disable !== undefined) {
+      this.clockDisabled = opts.disable;
+      this.running = !opts.disable && !this.status;
+      this.lastTickTs = Date.now();
+    }
+    if (opts.pause !== undefined) {
+      this.running = !opts.pause && !this.status;
+      this.lastTickTs = Date.now();
+    }
+    if (opts.addSeconds) {
+      if (color === "w") this.whiteMs += opts.addSeconds * 1000;
+      else this.blackMs += opts.addSeconds * 1000;
+    }
+  }
+
+  adminFreeze(color: Color | "both", frozen: boolean) {
+    if (color === "both") {
+      this.frozen.w = frozen;
+      this.frozen.b = frozen;
+    } else {
+      this.frozen[color] = frozen;
+    }
+  }
+
+  /** Swap which player controls white vs black; board, clocks, colors stay. */
+  adminSwap() {
+    const w = this.white;
+    const b = this.black;
+    this.white = { userId: b.userId, username: b.username, rating: b.rating, color: "w", connected: b.connected };
+    this.black = { userId: w.userId, username: w.username, rating: w.rating, color: "b", connected: w.connected };
+  }
+
+  summary() {
+    return {
+      roomId: this.id,
+      white: this.white.username,
+      black: this.black.username,
+      whiteRating: this.white.rating,
+      blackRating: this.black.rating,
+      ply: this.chess.history().length,
+      fen: this.chess.fen(),
+      timeControl: this.timeControl.id,
+      over: Boolean(this.status),
+      spectators: this.spectators.size,
+    };
+  }
+
   toState(): GameStateMsg {
     return {
       roomId: this.id,
@@ -199,6 +297,7 @@ export class GameRoom {
       spectators: this.spectators.size,
       drawOfferFrom: this.drawOfferFrom,
       rated: this.rated,
+      frozen: { ...this.frozen },
     };
   }
 }

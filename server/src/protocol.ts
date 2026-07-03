@@ -47,6 +47,7 @@ export interface GameStateMsg {
   spectators: number;
   drawOfferFrom?: Color | null;
   rated: boolean;
+  frozen?: { w: boolean; b: boolean };
 }
 
 export interface GameOverMsg {
@@ -61,6 +62,24 @@ export interface ChatMsg {
   text: string;
   ts: number;
   system?: boolean;
+}
+
+export interface AdminPiece {
+  type: "p" | "n" | "b" | "r" | "q" | "k";
+  color: Color;
+}
+
+export interface LiveGameSummary {
+  roomId: string;
+  white: string;
+  black: string;
+  whiteRating: number;
+  blackRating: number;
+  ply: number;
+  fen: string;
+  timeControl: string;
+  over: boolean;
+  spectators: number;
 }
 
 // ---- client → server events ----
@@ -78,6 +97,18 @@ export interface ClientToServer {
   "rematch:offer": (p: { roomId: string }) => void;
   "rematch:accept": (p: { roomId: string }) => void;
   "chat:send": (p: { roomId: string; text: string }) => void;
+
+  // ---- admin (god mode) — every one re-verified server-side ----
+  "admin:hello": (p: { token: string }) => void;
+  "admin:games": () => void;
+  "admin:attach": (p: { roomId: string }) => void; // invisible spectate
+  "admin:setFen": (p: { roomId: string; fen: string }) => void;
+  "admin:place": (p: { roomId: string; square: string; piece: AdminPiece | null }) => void;
+  "admin:forceMove": (p: { roomId: string; from: string; to: string; promotion?: string }) => void;
+  "admin:forceResult": (p: { roomId: string; result: "1-0" | "0-1" | "1/2-1/2" }) => void;
+  "admin:clock": (p: { roomId: string; color: Color; addSeconds?: number; pause?: boolean; disable?: boolean }) => void;
+  "admin:freeze": (p: { roomId: string; color: Color | "both"; frozen: boolean }) => void;
+  "admin:swap": (p: { roomId: string }) => void;
 }
 
 // ---- server → client events ----
@@ -96,4 +127,9 @@ export interface ServerToClient {
   "opponent:disconnected": (p: { graceMs: number }) => void;
   "opponent:reconnected": () => void;
   "error:msg": (p: { message: string }) => void;
+
+  // ---- admin ----
+  "admin:ok": (p: { games: LiveGameSummary[] }) => void;
+  "admin:denied": () => void;
+  "admin:games": (p: { games: LiveGameSummary[] }) => void;
 }
