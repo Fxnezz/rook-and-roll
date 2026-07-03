@@ -76,6 +76,59 @@ model User {
   friendsRecv    Friendship[]     @relation("Addressee")
   loginEvents    LoginEvent[]
   notifications  Notification[]
+  gameRatings    GameRating[]
+  highScores     HighScore[]
+  wordStats      WordGameStats?
+}
+
+// ---------------------------------------------------------------------------
+// Games Hub (Phases 11-15) — generic per-game rating + arcade high scores,
+// reused across Connect Four, Checkers, Snake, Tetris, 2048, racing, platformer
+// rather than adding bespoke columns/tables per game.
+// ---------------------------------------------------------------------------
+
+model GameRating {
+  id        String   @id @default(cuid())
+  userId    String
+  game      String // "connect4" | "checkers"
+  rating    Int      @default(1200)
+  wins      Int      @default(0)
+  losses    Int      @default(0)
+  draws     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, game])
+}
+
+model HighScore {
+  id        String   @id @default(cuid())
+  userId    String
+  game      String // "snake" | "tetris" | "2048" | "racing" | "platformer"
+  /** score for arcade games; best lap/level time in ms for racing/platformer */
+  score     Int
+  /** optional sub-key, e.g. a platformer level id — null for whole-game scores */
+  level     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, game])
+  @@index([game, level, score])
+}
+
+model WordGameStats {
+  userId         String   @id
+  played         Int      @default(0)
+  wins           Int      @default(0)
+  currentStreak  Int      @default(0)
+  maxStreak      Int      @default(0)
+  guessDist      Int[]    @default([0, 0, 0, 0, 0, 0])
+  lastPlayedDate String? // YYYY-MM-DD, guards against replaying the same daily
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum UserStatus {

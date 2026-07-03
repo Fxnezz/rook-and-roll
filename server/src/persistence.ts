@@ -47,6 +47,12 @@ export async function initPersistence(): Promise<boolean> {
   }
 }
 
+/** Shared client accessor so other modules (boardgames/persistence.ts) reuse
+ *  this same connection instead of opening a second one. */
+export function getPrisma(): PrismaLike | null {
+  return enabled ? prisma : null;
+}
+
 /** Look up a real user's moderation state (ban/mute). Guests are never moderated. */
 export async function getUserModeration(
   userId: string,

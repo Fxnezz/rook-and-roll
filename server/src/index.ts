@@ -7,6 +7,8 @@ import { cleanChat } from "./chat.js";
 import { RateLimiter, CorrelationTracker } from "./anticheat.js";
 import { initPersistence, saveFinishedGame, getUserModeration } from "./persistence.js";
 import { verifyAdminToken } from "./adminAuth.js";
+import { registerBoardGameHandlers } from "./boardgames/socketHandlers.js";
+import type { BgClientToServer, BgServerToClient } from "./boardgames/protocol.js";
 import type {
   ClientToServer,
   Identity,
@@ -27,6 +29,16 @@ const server = http.createServer(app);
 const io = new Server<ClientToServer, ServerToClient>(server, {
   cors: { origin: CLIENT_ORIGIN, methods: ["GET", "POST"] },
 });
+
+// Games Hub (Connect Four / Tic-Tac-Toe / Checkers) lives on its own
+// namespace of this SAME server/process — reuses the deployment, CORS
+// config, and HTTP upgrade handling, while keeping its typed event map
+// separate from chess's.
+const boardGamesNsp = io.of("/boardgames") as unknown as import("socket.io").Namespace<
+  BgClientToServer,
+  BgServerToClient
+>;
+registerBoardGameHandlers(boardGamesNsp);
 
 // ---- state -----------------------------------------------------------------
 const rooms = new Map<string, GameRoom>();
