@@ -71,6 +71,13 @@ export default function AdminUsersPage() {
     if (!rating) return;
     act(r.id, `/api/admin/users/${r.id}/rating`, { category, rating: Number(rating) });
   };
+  const message = (r: Row) => {
+    const title = prompt(`Message ${r.username} — subject:`, "Message from the team");
+    if (title === null) return;
+    const body = prompt("Body:");
+    if (!body) return;
+    act(r.id, `/api/admin/users/${r.id}/notify`, { title, message: body });
+  };
   const impersonate = async (r: Row) => {
     if (!confirm(`Impersonate ${r.username}? You'll browse as them (banner shown).`)) return;
     const res = await fetch("/api/admin/impersonate", {
@@ -128,6 +135,7 @@ export default function AdminUsersPage() {
               <div className="flex flex-wrap justify-end gap-1">
                 <MiniBtn onClick={() => setDetailId(r.id)}>View</MiniBtn>
                 <MiniBtn onClick={() => impersonate(r)}>Login&nbsp;as</MiniBtn>
+                <MiniBtn onClick={() => message(r)}>DM</MiniBtn>
                 <MiniBtn onClick={() => editRating(r)}>Rating</MiniBtn>
                 {r.status === "MUTED" ? (
                   <MiniBtn onClick={() => act(r.id, `/api/admin/users/${r.id}/moderate`, { action: "unmute" })}>

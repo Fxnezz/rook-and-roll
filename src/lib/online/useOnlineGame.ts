@@ -144,6 +144,10 @@ export function useOnlineGame(identity: Identity) {
       socket.emit("room:join", { roomId, identity: identityRef.current });
     });
     socket.on("chat:message", (m) => setState((s) => ({ ...s, chat: [...s.chat, m].slice(-100) })));
+    socket.on("chat:cleared", () => setState((s) => ({ ...s, chat: [] })));
+    socket.on("kicked", ({ message }) =>
+      setState((s) => ({ ...INITIAL, error: message, phase: "idle" as OnlinePhase } as typeof s)),
+    );
     socket.on("opponent:disconnected", () => patch({ opponentConnected: false }));
     socket.on("opponent:reconnected", () => patch({ opponentConnected: true }));
     socket.on("error:msg", ({ message }) => patch({ error: message }));

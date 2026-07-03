@@ -14,6 +14,13 @@ datasource db {
 // Admin / moderation (Phase 7+)
 // ---------------------------------------------------------------------------
 
+// Key/value platform config: maintenance mode, feature flags, active broadcast.
+model AppConfig {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
 // Append-only record of every admin action and login attempt. Never deleted.
 model AdminAuditLog {
   id         String   @id @default(cuid())

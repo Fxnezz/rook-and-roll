@@ -3,6 +3,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Header } from "@/components/ui/Header";
+import { isMaintenance, getBroadcast } from "@/lib/admin/config";
+import { getAdminSession } from "@/lib/admin/auth";
+import { MaintenanceScreen } from "@/components/ui/MaintenanceScreen";
+import { BroadcastBanner } from "@/components/ui/BroadcastBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,6 +17,10 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+// The root layout reads live config (maintenance mode, broadcast) and the admin
+// session per request, so it must not be statically cached.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.AUTH_URL ?? "https://rook-and-roll.vercel.app"),
@@ -36,11 +44,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Maintenance mode: non-admins see a "back soon" screen; admins pass through.
+  const maintenance = await isMaintenance();
+  const blocked = maintenance && !(await getAdminSession());
+  const broadcast = blocked ? null : await getBroadcast();
+
   return (
     <html
       lang="en"
@@ -48,8 +61,15 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Providers>
-          <Header />
-          <main className="flex-1">{children}</main>
+          {blocked ? (
+            <MaintenanceScreen />
+          ) : (
+            <>
+              {broadcast && <BroadcastBanner broadcast={broadcast} />}
+              <Header />
+              <main className="flex-1">{children}</main>
+            </>
+          )}
         </Providers>
       </body>
     </html>

@@ -210,6 +210,22 @@ export default function AdminLivePage() {
                   <MiniBtn onClick={() => emit("admin:swap", { roomId: attached })}>Swap sides</MiniBtn>
                 </div>
               </Tool>
+
+              <Tool label="Moderation">
+                <div className="flex flex-wrap gap-2">
+                  <MiniBtn onClick={() => emit("admin:clearChat", { roomId: attached })}>Clear chat</MiniBtn>
+                  <MiniBtn
+                    onClick={() => emit("admin:kick", { userId: state.players.white.userId, cooldownMs: 300_000, message: "Removed by a moderator." })}
+                  >
+                    Kick {state.players.white.username}
+                  </MiniBtn>
+                  <MiniBtn
+                    onClick={() => emit("admin:kick", { userId: state.players.black.userId, cooldownMs: 300_000, message: "Removed by a moderator." })}
+                  >
+                    Kick {state.players.black.username}
+                  </MiniBtn>
+                </div>
+              </Tool>
             </div>
           </div>
         ) : (

@@ -45,6 +45,7 @@ const queues = new Map<string, QueueEntry[]>(); // bucket -> entries
 const moveLimiter = new RateLimiter(20, 5_000); // 20 moves / 5s per socket
 const chatLimiter = new RateLimiter(8, 5_000);
 const correlation = new CorrelationTracker();
+const kickCooldown = new Map<string, number>(); // userId -> reconnect-allowed timestamp
 
 interface SocketData {
   userId?: string;
@@ -173,6 +174,13 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     socket.data.userId = identity.userId;
     socket.data.username = identity.username;
     userSocket.set(identity.userId, socket.id);
+
+    // Kick cooldown: recently force-disconnected users can't rejoin yet.
+    const cd = kickCooldown.get(identity.userId);
+    if (cd && cd > Date.now()) {
+      socket.emit("error:msg", { message: "You were removed. Try again later." });
+      return;
+    }
 
     // Banned users cannot enter matchmaking; muted users can play but not chat.
     const mod = await getUserModeration(identity.userId);
@@ -428,6 +436,22 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!room) return;
     room.adminSwap();
     resync(room);
+  });
+
+  socket.on("admin:clearChat", ({ roomId }) => {
+    if (!socket.data.isAdmin) return;
+    io.to(roomId).emit("chat:cleared");
+  });
+
+  socket.on("admin:kick", ({ userId, cooldownMs, message }) => {
+    if (!socket.data.isAdmin) return;
+    if (cooldownMs && cooldownMs > 0) kickCooldown.set(userId, Date.now() + cooldownMs);
+    const sid = userSocket.get(userId);
+    const target = sid ? io.sockets.sockets.get(sid) : undefined;
+    if (target) {
+      target.emit("kicked", { message: message ?? "You have been disconnected by a moderator." });
+      target.disconnect(true);
+    }
   });
 
   socket.on("disconnect", () => {

@@ -109,6 +109,8 @@ export interface ClientToServer {
   "admin:clock": (p: { roomId: string; color: Color; addSeconds?: number; pause?: boolean; disable?: boolean }) => void;
   "admin:freeze": (p: { roomId: string; color: Color | "both"; frozen: boolean }) => void;
   "admin:swap": (p: { roomId: string }) => void;
+  "admin:kick": (p: { userId: string; cooldownMs?: number; message?: string }) => void;
+  "admin:clearChat": (p: { roomId: string }) => void;
 }
 
 // ---- server → client events ----
@@ -132,4 +134,6 @@ export interface ServerToClient {
   "admin:ok": (p: { games: LiveGameSummary[] }) => void;
   "admin:denied": () => void;
   "admin:games": (p: { games: LiveGameSummary[] }) => void;
+  "kicked": (p: { message: string }) => void;
+  "chat:cleared": () => void;
 }

@@ -7,6 +7,7 @@ import { Wordmark } from "./Logo";
 import { IconSettings } from "./icons";
 import { SlideOver } from "./SlideOver";
 import { UserMenu } from "./UserMenu";
+import { NotificationBell } from "./NotificationBell";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 
 const NAV = [
@@ -58,6 +59,7 @@ export function Header() {
           </nav>
         </div>
         <div className="flex items-center gap-1">
+          <NotificationBell />
           <button
             className="btn btn-ghost !p-2"
             onClick={() => setSettingsOpen(true)}
