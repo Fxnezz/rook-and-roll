@@ -173,7 +173,40 @@ without a valid admin session.
 - **Audit log:** every admin login (success / failed / blocked) and every admin
   action is appended to the `AdminAuditLog` table with actor, action, target,
   IP, timestamp, and a JSON detail payload. It is append-only (never deleted)
-  and viewable in the admin console.
+  and viewable/searchable in the admin console. Captured actions include:
+  `admin_login_success|failed|blocked`, `impersonate_start|stop`,
+  `user_ban|unban|mute|unmute|suspend`, `user_rating_edit`,
+  `user_view_private`, `user_notify`, `maintenance_toggle`,
+  `broadcast_set|clear`, and any client-logged moderation actions.
+
+### What the console can do
+- **Users** (`/admin/users`): search; ban / mute / suspend (temp or permanent,
+  enforced at login *and* the realtime handshake); edit ratings (logged as an
+  adjustment); view private data (email, IP/login history, OAuth) — access
+  logged; impersonate ("login as") with a persistent banner; DM a user's inbox.
+- **Live games** (`/admin/live`): connects to the realtime server with an admin
+  token; list in-progress games; attach invisibly; set FEN, place pieces, force
+  moves/results, add/pause/disable clocks, freeze a side, swap sides, kick a
+  player, clear chat, and read a live engine eval.
+- **Platform** (`/admin/platform`): maintenance mode + site-wide broadcasts.
+- **Analytics** (`/admin/analytics`) and **Audit log** (`/admin/audit`).
+
+For god-mode to work in production, the realtime server must share
+`ADMIN_JWT_SECRET` with the Next.js app (same value on Vercel and Render).
+
+### Verifying access control
+Every admin API route and socket event rejects non-admin callers. Quick manual
+checks (no admin cookie):
+
+```bash
+# Pages + APIs 404 for non-admins (middleware blocks before any handler):
+curl -s -o /dev/null -w "%{http_code}\n" https://<app>/admin           # 404
+curl -s -o /dev/null -w "%{http_code}\n" https://<app>/api/admin/users  # 404
+# Login route 404s entirely when ADMIN_PASSWORD_HASH is unset.
+```
+On the socket server, `admin:*` events do nothing unless a valid `admin:hello`
+token was verified first (see `server/src/index.ts`; verified in the repo's
+scripted tests — a forged/absent token is denied and cannot mutate a game).
 
 ## Security notes & known limitations
 
