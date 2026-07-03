@@ -195,6 +195,27 @@ export class GameRoom {
 
   // ---- admin god-mode (all callers are verified admins in index.ts) --------
 
+  /**
+   * God-mode edits (place/remove a piece, force a move) aren't legal chess
+   * moves, so chess.js can't record them in its move history. Left alone,
+   * that leaves fen()/pgn()/history() mutually inconsistent — which is what
+   * caused player and spectator boards to snap back to the standard starting
+   * position after an admin forced a move: their resync logic saw "0 moves"
+   * and reset to a fresh game instead of the actual (edited) position.
+   *
+   * Treating every god-mode edit as a new starting point (identical to
+   * importing a custom FEN) keeps fen/pgn/history mutually consistent, so
+   * every client's resync lands on the right board.
+   */
+  private rebaseAsNewStart(fen?: string) {
+    try {
+      this.chess.load(fen ?? this.chess.fen());
+    } catch {
+      /* god-mode positions may be technically illegal; load() still accepts
+         most malformed-but-parseable FENs */
+    }
+  }
+
   adminSetFen(fen: string): boolean {
     try {
       this.chess.load(fen);
@@ -210,8 +231,9 @@ export class GameRoom {
       if (piece) this.chess.put({ type: piece.type, color: piece.color }, square as Square);
       else this.chess.remove(square as Square);
     } catch {
-      /* ignore invalid placements */
+      return; // invalid placement (e.g. two kings) — ignore
     }
+    this.rebaseAsNewStart();
   }
 
   /** Move a piece bypassing legality, then hand the turn to the other side. */
@@ -222,11 +244,7 @@ export class GameRoom {
     this.chess.put({ type: (promotion as AdminPiece["type"]) ?? p.type, color: p.color }, to as Square);
     const parts = this.chess.fen().split(" ");
     parts[1] = parts[1] === "w" ? "b" : "w";
-    try {
-      this.chess.load(parts.join(" "));
-    } catch {
-      /* position may be technically illegal in god mode — that's allowed */
-    }
+    this.rebaseAsNewStart(parts.join(" "));
   }
 
   adminForceResult(result: "1-0" | "0-1" | "1/2-1/2") {

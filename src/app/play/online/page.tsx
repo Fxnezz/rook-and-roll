@@ -106,8 +106,18 @@ export default function OnlinePage() {
   useEffect(() => {
     if (!state.fullState) return;
     const fs = state.fullState;
-    if (fs.moves.length === 0) game.reset();
-    else game.loadPgn(fs.pgn);
+    if (fs.moves.length === 0) {
+      // Load the actual position, not the standard start — an admin may have
+      // set a custom board with zero moves played since (see rebaseAsNewStart
+      // in GameRoom.ts). game.reset() would always show the starting array.
+      game.loadFen(fs.fen);
+    } else {
+      const ok = game.loadPgn(fs.pgn);
+      // Safety net: god-mode edits aren't legal moves, so a PGN replay can in
+      // principle end up out of sync with the server's authoritative FEN.
+      // Fall back to the FEN directly so the board is never wrong.
+      if (!ok || game.getFen() !== fs.fen) game.loadFen(fs.fen);
+    }
     game.goLive();
     lastAppliedRef.current = fs.moves.length ? fs.moves[fs.moves.length - 1].from + fs.moves[fs.moves.length - 1].to : "";
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -39,6 +39,6 @@
   "exclude": [
     "node_modules",
     "server",
-    "**/* 2.ts"
+    "**/* [0-9].ts"
   ]
 }

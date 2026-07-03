@@ -31,8 +31,13 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
 
   useEffect(() => {
     if (!state.fullState) return;
-    if (state.fullState.moves.length === 0) game.reset();
-    else game.loadPgn(state.fullState.pgn);
+    const fs = state.fullState;
+    if (fs.moves.length === 0) {
+      game.loadFen(fs.fen);
+    } else {
+      const ok = game.loadPgn(fs.pgn);
+      if (!ok || game.getFen() !== fs.fen) game.loadFen(fs.fen);
+    }
     game.goLive();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.stateSeq]);
