@@ -66,19 +66,68 @@ model User {
   bannedUntil      DateTime? // null while BANNED = permanent
   mutedUntil       DateTime? // can play but not chat until this passes
 
-  accounts       Account[]
-  sessions       Session[]
-  gamesAsWhite   Game[]           @relation("WhiteGames")
-  gamesAsBlack   Game[]           @relation("BlackGames")
-  ratingHistory  RatingHistory[]
-  puzzleAttempts PuzzleAttempt[]
-  friendsInit    Friendship[]     @relation("Requester")
-  friendsRecv    Friendship[]     @relation("Addressee")
-  loginEvents    LoginEvent[]
-  notifications  Notification[]
-  gameRatings    GameRating[]
-  highScores     HighScore[]
-  wordStats      WordGameStats?
+  accounts        Account[]
+  sessions        Session[]
+  gamesAsWhite    Game[]          @relation("WhiteGames")
+  gamesAsBlack    Game[]          @relation("BlackGames")
+  ratingHistory   RatingHistory[]
+  puzzleAttempts  PuzzleAttempt[]
+  friendsInit     Friendship[]    @relation("Requester")
+  friendsRecv     Friendship[]    @relation("Addressee")
+  loginEvents     LoginEvent[]
+  notifications   Notification[]
+  gameRatings     GameRating[]
+  highScores      HighScore[]
+  wordStats       WordGameStats?
+  reportsFiled    Report[]        @relation("ReportsFiled")
+  reportsReceived Report[]        @relation("ReportsReceived")
+  warnings        Warning[]
+}
+
+// A player-filed report against another player, reviewed in the admin
+// Reports queue. reporterId is nullable so a reporter's account being later
+// deleted doesn't cascade-delete the report itself.
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String?
+  reportedId String
+  reason     String
+  detail     String?      @db.Text
+  status     ReportStatus @default(OPEN)
+  resolution String?
+  createdAt  DateTime     @default(now())
+  resolvedAt DateTime?
+
+  reporter User? @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: SetNull)
+  reported User  @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([reportedId])
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+// A formal warning short of a mute/ban — logged and sent to the user's inbox.
+model Warning {
+  id        String   @id @default(cuid())
+  userId    String
+  reason    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// IP addresses blocked from logging in or registering (ban-evasion tool).
+model BannedIp {
+  ip        String   @id
+  reason    String?
+  createdAt DateTime @default(now())
 }
 
 // ---------------------------------------------------------------------------
@@ -106,9 +155,13 @@ model HighScore {
   id        String   @id @default(cuid())
   userId    String
   game      String // "snake" | "tetris" | "2048" | "racing" | "platformer"
-  /** score for arcade games; best lap/level time in ms for racing/platformer */
+  /**
+   * score for arcade games; best lap/level time in ms for racing/platformer
+   */
   score     Int
-  /** optional sub-key, e.g. a platformer level id — null for whole-game scores */
+  /**
+   * optional sub-key, e.g. a platformer level id — null for whole-game scores
+   */
   level     String?
   createdAt DateTime @default(now())
 
@@ -154,13 +207,13 @@ model LoginEvent {
 
 // Admin -> user direct message, surfaced in the user's in-app inbox.
 model Notification {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
   title     String
   body      String
-  fromAdmin Boolean  @default(false)
+  fromAdmin Boolean   @default(false)
   readAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -242,9 +295,9 @@ model Game {
 
   createdAt DateTime @default(now())
 
-  white  User?   @relation("WhiteGames", fields: [whiteId], references: [id], onDelete: SetNull)
-  black  User?   @relation("BlackGames", fields: [blackId], references: [id], onDelete: SetNull)
-  moves  Move[]
+  white User?  @relation("WhiteGames", fields: [whiteId], references: [id], onDelete: SetNull)
+  black User?  @relation("BlackGames", fields: [blackId], references: [id], onDelete: SetNull)
+  moves Move[]
 
   @@index([whiteId])
   @@index([blackId])

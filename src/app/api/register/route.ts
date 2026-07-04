@@ -35,6 +35,12 @@ export async function POST(req: Request) {
   if (password.length < 8)
     return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
 
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
+  if (ip && (await prisma.bannedIp.findUnique({ where: { ip } }))) {
+    // Deliberately vague — don't confirm to a banned IP that the ban is what stopped it.
+    return NextResponse.json({ error: "Could not create account. Try again." }, { status: 500 });
+  }
+
   try {
     const existing = await prisma.user.findFirst({
       where: { OR: [{ email }, { username }] },

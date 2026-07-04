@@ -6,7 +6,7 @@ import { audit, clientIp } from "@/lib/admin/audit";
 
 export const runtime = "nodejs";
 
-type Action = "ban" | "unban" | "mute" | "unmute" | "suspend";
+type Action = "ban" | "unban" | "mute" | "unmute" | "suspend" | "warn";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const denied = await guardAdmin();
@@ -27,6 +27,29 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     body.durationHours && body.durationHours > 0
       ? new Date(Date.now() + body.durationHours * 3_600_000)
       : null;
+
+  if (action === "warn") {
+    if (!reason) return NextResponse.json({ error: "A reason is required for a warning." }, { status: 400 });
+    try {
+      const user = await prisma.user.findUniqueOrThrow({ where: { id }, select: { id: true, username: true } });
+      await Promise.all([
+        prisma.warning.create({ data: { userId: id, reason } }),
+        prisma.notification.create({
+          data: { userId: id, title: "Formal warning", body: reason, fromAdmin: true },
+        }),
+      ]);
+      await audit({
+        action: "user_warn",
+        targetType: "user",
+        targetId: id,
+        ip: clientIp(req),
+        detail: { username: user.username, reason },
+      });
+      return NextResponse.json({ ok: true, user });
+    } catch {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+  }
 
   const data: Prisma.UserUpdateInput = {};
   switch (action) {

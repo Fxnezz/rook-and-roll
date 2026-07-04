@@ -38,6 +38,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       accounts: { select: { provider: true, providerAccountId: true, type: true } },
       loginEvents: { orderBy: { createdAt: "desc" }, take: 20 },
       ratingHistory: { orderBy: { createdAt: "desc" }, take: 20 },
+      warnings: { orderBy: { createdAt: "desc" }, take: 20 },
+      reportsReceived: {
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { id: true, reason: true, status: true, createdAt: true, reporter: { select: { username: true } } },
+      },
       _count: { select: { gamesAsWhite: true, gamesAsBlack: true } },
     },
   });

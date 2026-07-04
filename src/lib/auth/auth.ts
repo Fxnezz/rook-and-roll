@@ -35,6 +35,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const email = String(creds?.email ?? "").toLowerCase().trim();
         const password = String(creds?.password ?? "");
         if (!email || !password) return null;
+
+        // IP bans are checked before anything else — a banned IP can't even
+        // reach the password check, regardless of which account it targets.
+        const ip = (request?.headers?.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
+        if (ip && (await prisma.bannedIp.findUnique({ where: { ip } }))) return null;
+
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user?.passwordHash) return null;
         const ok = await bcrypt.compare(password, user.passwordHash);
@@ -48,7 +54,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         // Record the login (IP/UA) for admin review — best-effort.
         try {
-          const ip = (request?.headers?.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
           await prisma.loginEvent.create({
             data: {
               userId: user.id,

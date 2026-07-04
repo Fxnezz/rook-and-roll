@@ -78,6 +78,11 @@ export default function AdminUsersPage() {
     if (!body) return;
     act(r.id, `/api/admin/users/${r.id}/notify`, { title, message: body });
   };
+  const warn = (r: Row) => {
+    const reason = prompt(`Warn ${r.username} — reason:`);
+    if (!reason) return;
+    act(r.id, `/api/admin/users/${r.id}/moderate`, { action: "warn", reason });
+  };
   const impersonate = async (r: Row) => {
     if (!confirm(`Impersonate ${r.username}? You'll browse as them (banner shown).`)) return;
     const res = await fetch("/api/admin/impersonate", {
@@ -136,6 +141,7 @@ export default function AdminUsersPage() {
                 <MiniBtn onClick={() => setDetailId(r.id)}>View</MiniBtn>
                 <MiniBtn onClick={() => impersonate(r)}>Login&nbsp;as</MiniBtn>
                 <MiniBtn onClick={() => message(r)}>DM</MiniBtn>
+                <MiniBtn onClick={() => warn(r)}>Warn</MiniBtn>
                 <MiniBtn onClick={() => editRating(r)}>Rating</MiniBtn>
                 {r.status === "MUTED" ? (
                   <MiniBtn onClick={() => act(r.id, `/api/admin/users/${r.id}/moderate`, { action: "unmute" })}>
@@ -202,16 +208,40 @@ interface Detail {
   ratingClassical: number;
   accounts: { provider: string; type: string }[];
   loginEvents: { ip: string | null; method: string; createdAt: string; userAgent: string | null }[];
+  warnings: { id: string; reason: string; createdAt: string }[];
+  reportsReceived: {
+    id: string;
+    reason: string;
+    status: string;
+    createdAt: string;
+    reporter: { username: string | null } | null;
+  }[];
   _count: { gamesAsWhite: number; gamesAsBlack: number };
 }
 
 function UserDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const [d, setD] = useState<Detail | null>(null);
-  useEffect(() => {
+  const [banningIp, setBanningIp] = useState(false);
+  const load = useCallback(() => {
     fetch(`/api/admin/users/${id}`)
       .then((r) => r.json())
       .then((x) => setD(x.user));
   }, [id]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const banIp = async (ip: string) => {
+    const reason = prompt(`Ban IP ${ip}? Reason (optional):`, "") ?? "";
+    setBanningIp(true);
+    await fetch("/api/admin/banned-ips", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "add", ip, reason }),
+    }).catch(() => {});
+    setBanningIp(false);
+    alert(`Banned ${ip}.`);
+  };
 
   return (
     <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60 p-4 animate-fade" onClick={onClose}>
@@ -251,12 +281,57 @@ function UserDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 <span className="text-[var(--text-faint)]">none recorded</span>
               ) : (
                 d.loginEvents.map((e, i) => (
-                  <div key={i} className="truncate">
-                    {new Date(e.createdAt).toLocaleString()} · {e.ip ?? "—"} · {e.method}
+                  <div key={i} className="flex items-center justify-between gap-2">
+                    <span className="truncate">
+                      {new Date(e.createdAt).toLocaleString()} · {e.ip ?? "—"} · {e.method}
+                    </span>
+                    {e.ip && (
+                      <button
+                        className="shrink-0 text-[var(--bad)] hover:underline disabled:opacity-50"
+                        disabled={banningIp}
+                        onClick={() => banIp(e.ip!)}
+                      >
+                        Ban IP
+                      </button>
+                    )}
                   </div>
                 ))
               )}
             </div>
+
+            <span className="label mt-3 block">Warnings ({d.warnings.length})</span>
+            <div className="mt-1 max-h-32 overflow-y-auto rounded bg-[var(--bg)] p-2 text-xs">
+              {d.warnings.length === 0 ? (
+                <span className="text-[var(--text-faint)]">none</span>
+              ) : (
+                d.warnings.map((w) => (
+                  <div key={w.id} className="border-b border-[var(--border)] py-1 last:border-0">
+                    <div>{w.reason}</div>
+                    <div className="text-[var(--text-faint)]">{new Date(w.createdAt).toLocaleString()}</div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <span className="label mt-3 block">Reports received ({d.reportsReceived.length})</span>
+            <div className="mt-1 max-h-32 overflow-y-auto rounded bg-[var(--bg)] p-2 text-xs">
+              {d.reportsReceived.length === 0 ? (
+                <span className="text-[var(--text-faint)]">none</span>
+              ) : (
+                d.reportsReceived.map((r) => (
+                  <div key={r.id} className="border-b border-[var(--border)] py-1 last:border-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span>{r.reason}</span>
+                      <span className="chip !px-1.5 !py-0.5 text-[10px]">{r.status}</span>
+                    </div>
+                    <div className="text-[var(--text-faint)]">
+                      by {r.reporter?.username ?? "deleted user"} · {new Date(r.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
             <button className="btn mt-4 w-full" onClick={onClose}>
               Close
             </button>

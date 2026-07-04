@@ -5,9 +5,12 @@ import { AdminLogoutButton } from "@/components/admin/AdminBar";
 export const dynamic = "force-dynamic";
 
 export default async function AdminHome() {
-  const recent = isDbConfigured
-    ? await prisma.adminAuditLog.findMany({ orderBy: { createdAt: "desc" }, take: 15 })
-    : [];
+  const [recent, openReportCount] = isDbConfigured
+    ? await Promise.all([
+        prisma.adminAuditLog.findMany({ orderBy: { createdAt: "desc" }, take: 15 }),
+        prisma.report.count({ where: { status: "OPEN" } }),
+      ])
+    : ([[], 0] as [Awaited<ReturnType<typeof prisma.adminAuditLog.findMany>>, number]);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -26,6 +29,13 @@ export default async function AdminHome() {
         <Card title="Platform" note="Maintenance & broadcasts" href="/admin/platform" />
         <Card title="Analytics" note="Users, games, ratings" href="/admin/analytics" />
         <Card title="Audit log" note="Every admin action" href="/admin/audit" />
+        <Card
+          title="Reports"
+          note="Player-filed reports queue"
+          href="/admin/reports"
+          badge={openReportCount > 0 ? String(openReportCount) : undefined}
+        />
+        <Card title="Banned IPs" note="Block sign-in & registration" href="/admin/banned-ips" />
       </div>
 
       <section className="panel overflow-hidden">
@@ -61,12 +71,25 @@ export default async function AdminHome() {
   );
 }
 
-function Card({ title, note, href, soon }: { title: string; note: string; href: string; soon?: boolean }) {
+function Card({
+  title,
+  note,
+  href,
+  soon,
+  badge,
+}: {
+  title: string;
+  note: string;
+  href: string;
+  soon?: boolean;
+  badge?: string;
+}) {
   const inner = (
     <>
       <div className="flex items-center justify-between">
         <h3 className="font-bold">{title}</h3>
         {soon && <span className="chip !px-1.5 !py-0.5 text-[10px]">soon</span>}
+        {badge && <span className="chip !bg-[var(--bad)] !text-white !px-1.5 !py-0.5 text-[10px]">{badge}</span>}
       </div>
       <p className="mt-1 text-sm text-[var(--text-muted)]">{note}</p>
     </>

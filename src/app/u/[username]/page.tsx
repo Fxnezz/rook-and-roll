@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { prisma, isDbConfigured } from "@/lib/db/prisma";
 import { ProfileRatings } from "@/components/profile/ProfileRatings";
 import { UnifiedGameStats } from "@/components/profile/UnifiedGameStats";
+import { ReportButton } from "@/components/profile/ReportButton";
 import { DbNotice } from "@/components/ui/DbNotice";
+import { auth } from "@/lib/auth/auth";
 
 const HIGHER_IS_BETTER_GAMES = ["snake", "tetris", "2048"];
 const LOWER_IS_BETTER_GAMES = ["racing", "platformer"];
@@ -31,6 +33,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     },
   });
   if (!user) notFound();
+
+  const session = await auth();
+  const canReport = session?.user?.id && session.user.id !== user.id;
 
   const orFilter = [{ whiteId: user.id }, { blackId: user.id }];
   const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats] = await Promise.all([
@@ -96,9 +101,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             {user.createdAt.toLocaleDateString(undefined, { year: "numeric", month: "long" })}
           </p>
         </div>
-        <Link href="/games" className="btn ml-auto">
-          Game history
-        </Link>
+        <div className="ml-auto flex flex-col items-end gap-2">
+          <Link href="/games" className="btn">
+            Game history
+          </Link>
+          {canReport && <ReportButton username={user.username!} />}
+        </div>
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
