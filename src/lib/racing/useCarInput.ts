@@ -5,12 +5,12 @@ import type { CarInput } from "./carPhysics";
 
 /** Shared input state for keyboard + on-screen touch controls, read each frame. */
 export function useCarInput() {
-  const inputRef = useRef<CarInput>({ throttle: 0, steer: 0 });
+  const inputRef = useRef<CarInput>({ throttle: 0, steer: 0, drift: 0 });
   const keys = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d"].includes(e.key)) e.preventDefault();
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", " ", "Shift"].includes(e.key)) e.preventDefault();
       keys.current.add(e.key.toLowerCase());
       recompute();
     };
@@ -26,7 +26,8 @@ export function useCarInput() {
       if (k.has("arrowdown") || k.has("s")) throttle -= 1;
       if (k.has("arrowleft") || k.has("a")) steer -= 1;
       if (k.has("arrowright") || k.has("d")) steer += 1;
-      inputRef.current = { throttle, steer };
+      const drift = k.has("shift") || k.has(" ") ? 1 : 0;
+      inputRef.current = { throttle, steer, drift };
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);

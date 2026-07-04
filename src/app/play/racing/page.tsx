@@ -5,7 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { RaceScene, type RaceCallbacks } from "@/components/racing/RaceScene";
 import { useCarInput } from "@/lib/racing/useCarInput";
 import { useHighScore } from "@/lib/arcade/useHighScore";
-import { TOTAL_LAPS, trackOutline } from "@/lib/racing/track";
+import { TRACK_DEFS, getTrack, type Track } from "@/lib/racing/track";
 
 function fmtTime(ms: number): string {
   const totalSec = ms / 1000;
@@ -17,8 +17,8 @@ function fmtTime(ms: number): string {
 const MINI_MAP_SIZE = 96;
 const MINI_MAP_PAD = 8;
 
-function buildMiniMap() {
-  const { center } = trackOutline();
+function buildMiniMap(track: Track) {
+  const { center } = track.trackOutline();
   const xs = center.map((p) => p.x);
   const zs = center.map((p) => p.z);
   const minX = Math.min(...xs);
@@ -35,19 +35,62 @@ function buildMiniMap() {
   return { path, toXY };
 }
 
+function TrackSelect({ onPick }: { onPick: (id: string) => void }) {
+  return (
+    <div className="mx-auto max-w-4xl px-4 py-6">
+      <h1 className="mb-1 text-2xl font-bold">Circuit Dash</h1>
+      <p className="mb-4 text-sm text-[var(--text-muted)]">Pick a track — original circuits, each with its own best-lap board.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {TRACK_DEFS.map((def) => (
+          <TrackCard key={def.id} id={def.id} name={def.name} blurb={def.blurb} laps={def.laps} onPick={() => onPick(def.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TrackCard({
+  id,
+  name,
+  blurb,
+  laps,
+  onPick,
+}: {
+  id: string;
+  name: string;
+  blurb: string;
+  laps: number;
+  onPick: () => void;
+}) {
+  const { best } = useHighScore("racing", { level: id, higherIsBetter: false });
+  return (
+    <button onClick={onPick} className="panel flex flex-col items-start gap-1 p-4 text-left transition-colors hover:bg-[var(--bg-elev)]">
+      <span className="font-bold">{name}</span>
+      <span className="text-xs text-[var(--text-muted)]">{blurb}</span>
+      <span className="mt-1 text-xs text-[var(--text-faint)]">
+        {laps} laps · {best != null ? `Best lap: ${fmtTime(best)}` : "No lap set yet"}
+      </span>
+    </button>
+  );
+}
+
 export default function RacingPage() {
   const { inputRef, setTouch } = useCarInput();
-  const { best, submit } = useHighScore("racing", { higherIsBetter: false });
+  const [trackId, setTrackId] = useState<string | null>(null);
+  const track = useMemo(() => (trackId ? getTrack(trackId) : null), [trackId]);
+  const { best, submit } = useHighScore("racing", { level: trackId ?? undefined, higherIsBetter: false });
   const [phase, setPhase] = useState<"idle" | "countdown" | "racing" | "done">("idle");
   const [count, setCount] = useState(3);
   const [lap, setLap] = useState(1);
   const [elapsed, setElapsed] = useState(0);
   const [offTrack, setOffTrack] = useState(false);
+  const [speed, setSpeed] = useState(0);
+  const [driftFactor, setDriftFactor] = useState(0);
   const [lastLapTime, setLastLapTime] = useState<number | null>(null);
   const [bestLapThisRace, setBestLapThisRace] = useState<number | null>(null);
   const [finishTime, setFinishTime] = useState<number | null>(null);
-  const [carPos, setCarPos] = useState({ x: 0, y: 0, heading: 0 });
-  const miniMap = useMemo(() => buildMiniMap(), []);
+  const [carPos, setCarPos] = useState({ x: 0, y: 0 });
+  const miniMap = useMemo(() => (track ? buildMiniMap(track) : null), [track]);
 
   const callbacksRef = useRef<RaceCallbacks>({
     onLap: (lapMs, completedLap) => {
@@ -60,11 +103,15 @@ export default function RacingPage() {
       setFinishTime(totalMs);
       setPhase("done");
     },
-    onProgress: (ms, off, x, z, heading) => {
-      setElapsed(ms);
+    onProgress: ({ elapsedMs, offTrack: off, x, z, speed: s, driftFactor: df }) => {
+      setElapsed(elapsedMs);
       setOffTrack(off);
-      const { x: mx, y: my } = miniMap.toXY(x, z);
-      setCarPos({ x: mx, y: my, heading });
+      setSpeed(s);
+      setDriftFactor(df);
+      if (miniMap) {
+        const { x: mx, y: my } = miniMap.toXY(x, z);
+        setCarPos({ x: mx, y: my });
+      }
     },
   });
 
@@ -88,27 +135,35 @@ export default function RacingPage() {
     }, 800);
   }, []);
 
+  if (!track) return <TrackSelect onPick={setTrackId} />;
+
   const running = phase === "racing";
+  const speedPct = Math.min(1, speed / 46);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
-      <h1 className="mb-1 text-2xl font-bold">Circuit Dash</h1>
+      <div className="mb-1 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Circuit Dash — {track.name}</h1>
+        <button className="btn btn-ghost !py-1 text-xs" onClick={() => setTrackId(null)}>
+          Change track
+        </button>
+      </div>
       <p className="mb-4 text-sm text-[var(--text-muted)]">
-        An original arcade racer — {TOTAL_LAPS} laps, best lap wins bragging rights.
+        {track.blurb} · {track.laps} laps.
       </p>
 
       <div className="relative overflow-hidden rounded-2xl bg-[#0a0e14]" style={{ aspectRatio: "16/10" }}>
         <Canvas shadows camera={{ fov: 62, position: [0, 6, -12] }}>
           <color attach="background" args={["#3a5a8c"]} />
           <fog attach="fog" args={["#3a5a8c", 90, 260]} />
-          <RaceScene inputRef={inputRef} running={running} callbacks={callbacksRef} />
+          <RaceScene track={track} inputRef={inputRef} running={running} callbacks={callbacksRef} />
         </Canvas>
 
         {/* HUD overlay */}
         {(phase === "racing" || phase === "countdown") && (
           <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-3 text-white">
             <div className="rounded-lg bg-black/50 px-3 py-1.5 font-mono text-sm">
-              Lap {Math.min(lap, TOTAL_LAPS)}/{TOTAL_LAPS}
+              Lap {Math.min(lap, track.laps)}/{track.laps}
             </div>
             <div className="rounded-lg bg-black/50 px-3 py-1.5 font-mono text-sm">{fmtTime(elapsed)}</div>
           </div>
@@ -125,6 +180,30 @@ export default function RacingPage() {
         )}
 
         {phase === "racing" && (
+          <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1.5">
+            <div className="w-32 rounded bg-black/50 px-2 py-1">
+              <div className="mb-0.5 flex items-center justify-between text-[10px] font-bold text-white/70">
+                <span>SPEED</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/15">
+                <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${speedPct * 100}%` }} />
+              </div>
+            </div>
+            {driftFactor > 0.15 && (
+              <div className="w-32 rounded bg-black/50 px-2 py-1">
+                <div className="mb-0.5 text-[10px] font-bold text-white/70">DRIFT</div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/15">
+                  <div
+                    className="h-full rounded-full bg-[var(--warn)] transition-[width]"
+                    style={{ width: `${driftFactor * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {phase === "racing" && miniMap && (
           <div className="pointer-events-none absolute bottom-3 right-3 rounded-lg bg-black/50 p-1.5">
             <svg width={MINI_MAP_SIZE} height={MINI_MAP_SIZE} viewBox={`0 0 ${MINI_MAP_SIZE} ${MINI_MAP_SIZE}`}>
               <path d={miniMap.path} fill="none" stroke="#8a93a6" strokeWidth={3} strokeLinejoin="round" />
@@ -148,7 +227,7 @@ export default function RacingPage() {
                 <p className="text-sm text-white/80">Best lap this race: {bestLapThisRace ? fmtTime(bestLapThisRace) : "—"}</p>
               </>
             ) : (
-              <p className="text-xl font-bold text-white">Circuit Dash</p>
+              <p className="text-xl font-bold text-white">{track.name}</p>
             )}
             {best != null && <p className="text-xs text-white/60">Best lap ever: {fmtTime(best)}</p>}
             <button className="btn btn-primary" onClick={start}>
@@ -165,6 +244,7 @@ export default function RacingPage() {
               <TouchBtn label="▶" onDown={() => setTouch("steer", 1)} onUp={() => setTouch("steer", 0)} />
             </div>
             <div className="flex gap-2">
+              <TouchBtn label="✧" onDown={() => setTouch("drift", 1)} onUp={() => setTouch("drift", 0)} />
               <TouchBtn label="▼" onDown={() => setTouch("throttle", -1)} onUp={() => setTouch("throttle", 0)} />
               <TouchBtn label="▲" onDown={() => setTouch("throttle", 1)} onUp={() => setTouch("throttle", 0)} />
             </div>
@@ -172,7 +252,7 @@ export default function RacingPage() {
         )}
       </div>
       <p className="mt-3 text-center text-xs text-[var(--text-faint)]">
-        Arrow keys / WASD to drive, or the on-screen buttons on mobile.
+        Arrow keys / WASD to drive, Shift or Space to drift, or the on-screen buttons on mobile.
       </p>
     </div>
   );
