@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { Color, PieceSymbol, Square } from "chess.js";
 import { Board } from "@/components/board/Board";
+import type { Arrow } from "@/components/board/ArrowLayer";
 import { MoveList } from "@/components/game/MoveList";
 import { CapturedTray } from "@/components/game/CapturedTray";
 import { GameControls } from "@/components/game/GameControls";
@@ -21,6 +22,11 @@ import { getEngine } from "@/lib/engine/stockfish";
 import { getTier, chooseMove } from "@/lib/engine/bots";
 import { analyzeGame, type GameAnalysis } from "@/lib/engine/analysis";
 import { IconFlag, IconPlus } from "@/components/ui/icons";
+import { CheatGate } from "@/components/cheats/CheatGate";
+import { CheatPanel, type CheatLogEntry } from "@/components/cheats/CheatPanel";
+import { CheatEffects, VOICE_LINES } from "@/components/cheats/CheatEffects";
+import { illegalCastleFen, clonePieceFen, swapPiecesFen, promoteAnyPawnFen } from "@/lib/cheats/moveManipulation";
+import { DEFAULT_BOT_OVERRIDE, resolveOverriddenMove, type BotOverride } from "@/lib/cheats/botManipulation";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -63,6 +69,31 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
   const botFenRef = useRef<string | null>(null);
   const startedRef = useRef(false);
   const savedRef = useRef(false);
+  const boardWrapperRef = useRef<HTMLDivElement>(null);
+
+  // --- cheat panel state (bot games only — see CheatGate/CheatPanel) ---
+  const [botOverride, setBotOverride] = useState<BotOverride>(DEFAULT_BOT_OVERRIDE);
+  const [showPredictedMove, setShowPredictedMove] = useState(false);
+  const [predictedArrow, setPredictedArrow] = useState<Arrow | null>(null);
+  const [cheatEffects, setCheatEffects] = useState({
+    explodeCaptures: false,
+    confettiOnCheckmate: false,
+    dramaticZoom: false,
+    pieceVoiceLines: false,
+  });
+  const [captureSeq, setCaptureSeq] = useState(0);
+  const [checkmateSeq, setCheckmateSeq] = useState(0);
+  const [zoomSeq, setZoomSeq] = useState(0);
+  const [voiceLine, setVoiceLine] = useState<{ text: string; seq: number } | null>(null);
+  const voiceSeqRef = useRef(0);
+  const [cheatLog, setCheatLog] = useState<CheatLogEntry[]>([]);
+  const cheatLogSeq = useRef(0);
+  const [assistRunning, setAssistRunning] = useState(false);
+
+  const logCheat = useCallback((text: string) => {
+    cheatLogSeq.current += 1;
+    setCheatLog((log) => [...log.slice(-49), { id: cheatLogSeq.current, text, ts: Date.now() }]);
+  }, []);
 
   const saveGame = useCallback(
     (finalStatus: GameStatus) => {
@@ -151,6 +182,15 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
       }
       playMoveSound(move.san, move.flags, move.promotion, false);
       clock.moved(move.color);
+
+      const isCapture = move.flags.includes("e") || move.flags.includes("c");
+      const isCheckmate = move.san.includes("#");
+      if (isCapture) setCaptureSeq((s) => s + 1);
+      if (isCheckmate) setCheckmateSeq((s) => s + 1);
+      if (isCapture || isCheckmate || move.san.includes("+")) setZoomSeq((s) => s + 1);
+      voiceSeqRef.current += 1;
+      setVoiceLine({ text: VOICE_LINES[Math.floor(Math.random() * VOICE_LINES.length)], seq: voiceSeqRef.current });
+
       return move;
     },
     [game, clock],
@@ -165,7 +205,10 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
     [applyMove, status.over, snapshot.turn, humanColor],
   );
 
-  // Bot move loop.
+  // Bot move loop. Respects the cheat panel's bot override (blunder mode /
+  // personality / skill override) and, if the "predicted move" toggle is on,
+  // briefly shows the chosen move as a ghost arrow before actually playing it
+  // — reusing the exact same search result rather than a second engine call.
   useEffect(() => {
     if (status.over || !snapshot.isLive || snapshot.turn !== botColor) return;
     if (botFenRef.current === snapshot.fen) return;
@@ -175,9 +218,14 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
     (async () => {
       setThinking(true);
       const engine = getEngine();
+      await engine.setSkillLevel(botOverride.skillOverride ?? tier.skill);
       const t0 = performance.now();
       try {
-        const res = await engine.go(snapshot.fen, { depth: tier.depth, multipv: tier.multipv });
+        const wantsWiderPool = botOverride.blunderMode || botOverride.personality !== "normal";
+        const res = await engine.go(snapshot.fen, {
+          depth: tier.depth,
+          multipv: wantsWiderPool ? Math.max(tier.multipv, 4) : tier.multipv,
+        });
         if (cancelled) return;
         // update eval bar from the bot's own search
         const l0 = res.lines[0];
@@ -185,13 +233,20 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
           const sign = snapshot.turn === "w" ? 1 : -1;
           setEvalScore({ cp: l0.cp != null ? l0.cp * sign : null, mate: l0.mate != null ? l0.mate * sign : null });
         }
-        const uci = chooseMove(res.lines, tier);
-        const elapsed = performance.now() - t0;
-        if (elapsed < 380) await sleep(380 - elapsed);
-        if (cancelled) return;
+        const uci = resolveOverriddenMove(snapshot.fen, res.lines, botOverride, () => chooseMove(res.lines, tier));
         const from = uci.slice(0, 2) as Square;
         const to = uci.slice(2, 4) as Square;
         const promotion = uci.length > 4 ? (uci[4] as PieceSymbol) : undefined;
+
+        if (showPredictedMove) {
+          setPredictedArrow({ from, to, color: "#5aa8e0" });
+          await sleep(650);
+          if (cancelled) return;
+        }
+        const elapsed = performance.now() - t0;
+        if (elapsed < 380) await sleep(380 - elapsed);
+        if (cancelled) return;
+        setPredictedArrow(null);
         applyMove(from, to, promotion);
         done = true;
       } finally {
@@ -203,7 +258,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
       if (!done) botFenRef.current = null; // allow re-run (dev StrictMode / interruptions)
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot.fen, snapshot.turn, snapshot.isLive, status.over, botColor]);
+  }, [snapshot.fen, snapshot.turn, snapshot.isLive, status.over, botColor, botOverride, showPredictedMove]);
 
   // Eval bar on the human's turn.
   useEffect(() => {
@@ -231,6 +286,121 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
       reason: "Resignation",
     });
   };
+
+  // --- cheat panel action handlers (bot games only) ---
+  const cheatIllegalCastle = useCallback(
+    (side: "k" | "q") => {
+      const fen = illegalCastleFen(game.getFen(), snapshot.turn, side);
+      if (fen) {
+        game.loadFen(fen);
+        logCheat(`Illegal castle (${side === "k" ? "O-O" : "O-O-O"}) for ${snapshot.turn === "w" ? "White" : "Black"}`);
+      } else {
+        logCheat("Illegal castle failed — no king/rook on the expected squares");
+      }
+    },
+    [game, snapshot.turn, logCheat],
+  );
+
+  const cheatClonePiece = useCallback(
+    (from: Square, to: Square) => {
+      const fen = clonePieceFen(game.getFen(), from, to);
+      if (fen) {
+        game.loadFen(fen);
+        logCheat(`Cloned the piece on ${from} onto ${to}`);
+      } else {
+        logCheat(`Clone failed — no piece on ${from}`);
+      }
+    },
+    [game, logCheat],
+  );
+
+  const cheatSwapPieces = useCallback(
+    (sq1: Square, sq2: Square) => {
+      const fen = swapPiecesFen(game.getFen(), sq1, sq2);
+      game.loadFen(fen);
+      logCheat(`Swapped ${sq1} ↔ ${sq2}`);
+    },
+    [game, logCheat],
+  );
+
+  const cheatReverseMoves = useCallback(
+    (n: number) => {
+      const targetPly = Math.max(0, snapshot.moves.length - n);
+      game.goToPly(targetPly);
+      logCheat(`Rewound ${n} half-move${n === 1 ? "" : "s"} (make a move to branch from here)`);
+    },
+    [game, snapshot.moves.length, logCheat],
+  );
+
+  const cheatPromotePawn = useCallback(
+    (square: Square, piece: "q" | "r" | "b" | "n") => {
+      const fen = promoteAnyPawnFen(game.getFen(), square, piece);
+      if (fen) {
+        game.loadFen(fen);
+        logCheat(`Promoted the pawn on ${square} to ${piece.toUpperCase()}`);
+      } else {
+        logCheat(`Promote failed — no pawn on ${square}`);
+      }
+    },
+    [game, logCheat],
+  );
+
+  const cheatBotOverrideChange = useCallback(
+    (patch: Partial<BotOverride>) => {
+      setBotOverride((o) => ({ ...o, ...patch }));
+      const [key, value] = Object.entries(patch)[0] ?? [];
+      logCheat(`Bot override: ${key} → ${JSON.stringify(value)}`);
+    },
+    [logCheat],
+  );
+
+  const cheatFreezeClock = useCallback(
+    (side: "w" | "b", frozen: boolean) => {
+      clock.setFrozen(side, frozen);
+      logCheat(`${frozen ? "Froze" : "Unfroze"} ${side === "w" ? "White" : "Black"}'s clock`);
+    },
+    [clock, logCheat],
+  );
+
+  const cheatAddTime = useCallback(
+    (side: "w" | "b", seconds: number) => {
+      clock.addTime(side, seconds * 1000);
+      logCheat(`${seconds >= 0 ? "+" : ""}${seconds}s to ${side === "w" ? "White" : "Black"}`);
+    },
+    [clock, logCheat],
+  );
+
+  const cheatInstantResult = useCallback(
+    (result: "win" | "loss" | "draw") => {
+      if (result === "win") {
+        setOverride({ over: true, result: humanColor === "w" ? "1-0" : "0-1", winner: humanColor, reason: "Cheat: instant win" });
+      } else if (result === "loss") {
+        setOverride({ over: true, result: humanColor === "w" ? "0-1" : "1-0", winner: botColor, reason: "Cheat: instant loss" });
+      } else {
+        setOverride({ over: true, result: "1/2-1/2", reason: "Cheat: instant draw" });
+      }
+      logCheat(`Instant ${result}`);
+    },
+    [humanColor, botColor, logCheat],
+  );
+
+  const cheatStockfishAssist = useCallback(async () => {
+    if (status.over || snapshot.turn !== humanColor) return;
+    setAssistRunning(true);
+    try {
+      const res = await getEngine().go(snapshot.fen, { depth: 10 });
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) {
+        const from = uci.slice(0, 2) as Square;
+        const to = uci.slice(2, 4) as Square;
+        const promotion = uci.length > 4 ? (uci[4] as PieceSymbol) : undefined;
+        applyMove(from, to, promotion);
+        logCheat(`Stockfish assist (depth 10) played ${uci}`);
+      }
+    } finally {
+      setAssistRunning(false);
+    }
+  }, [status.over, snapshot.turn, snapshot.fen, humanColor, applyMove, logCheat]);
 
   const runAnalysis = useCallback(async () => {
     setTab("analysis");
@@ -303,7 +473,32 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-5">
+    <CheatGate>
+      {(cheatPanelOpen, setCheatPanelOpen) => (
+        <div className="mx-auto max-w-6xl px-4 py-5">
+      {cheatPanelOpen && (
+        <CheatPanel
+          onClose={() => setCheatPanelOpen(false)}
+          log={cheatLog}
+          onIllegalCastle={cheatIllegalCastle}
+          onClonePiece={cheatClonePiece}
+          onSwapPieces={cheatSwapPieces}
+          onReverseMoves={cheatReverseMoves}
+          onPromotePawn={cheatPromotePawn}
+          botOverride={botOverride}
+          onBotOverrideChange={cheatBotOverrideChange}
+          showPredictedMove={showPredictedMove}
+          onShowPredictedMoveChange={setShowPredictedMove}
+          onFreezeClock={cheatFreezeClock}
+          frozenSides={clock.frozen}
+          onAddTime={cheatAddTime}
+          onInstantResult={cheatInstantResult}
+          effects={cheatEffects}
+          onEffectsChange={(patch) => setCheatEffects((e) => ({ ...e, ...patch }))}
+          onStockfishAssist={cheatStockfishAssist}
+          assistRunning={assistRunning}
+        />
+      )}
       <div className="mb-4 flex items-center justify-between gap-3">
         <button className="btn btn-ghost" onClick={onExit}>
           ← New opponent
@@ -331,19 +526,30 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
           )}
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <PlayerBar side={botColor} />
-            <Board
-              snapshot={snapshot}
-              orientation={orientation}
-              theme={theme}
-              pieceSet={settings.pieceSet}
-              legalMovesFrom={game.legalMovesFrom}
-              onMove={onHumanMove}
-              movableColor={humanColor}
-              showCoordinates={settings.showCoordinates}
-              showLegalMoves={settings.showLegalMoves}
-              highlightLastMove={settings.highlightLastMove}
-              animate={settings.animate}
-            />
+            <div ref={boardWrapperRef} className="relative">
+              <Board
+                snapshot={snapshot}
+                orientation={orientation}
+                theme={theme}
+                pieceSet={settings.pieceSet}
+                legalMovesFrom={game.legalMovesFrom}
+                onMove={onHumanMove}
+                movableColor={humanColor}
+                showCoordinates={settings.showCoordinates}
+                showLegalMoves={settings.showLegalMoves}
+                highlightLastMove={settings.highlightLastMove}
+                animate={settings.animate}
+                extraArrows={predictedArrow ? [predictedArrow] : []}
+              />
+              <CheatEffects
+                captureSeq={captureSeq}
+                checkmateSeq={checkmateSeq}
+                zoomSeq={zoomSeq}
+                voiceLine={voiceLine}
+                toggles={cheatEffects}
+                zoomTargetRef={boardWrapperRef}
+              />
+            </div>
             <PlayerBar side={humanColor} />
             <div className="panel mt-1 p-2">
               <GameControls
@@ -422,6 +628,8 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
           onClose={() => setShowResult(false)}
         />
       )}
-    </div>
+        </div>
+      )}
+    </CheatGate>
   );
 }

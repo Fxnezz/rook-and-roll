@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ADMIN_KEY_SEQUENCE as SEQUENCE, ADMIN_KEY_SEQUENCE_RESET_MS as RESET_MS } from "@/lib/admin/keySequence";
 
 /**
  * Hidden admin entry point. Listens for a key sequence anywhere on the site
@@ -11,19 +12,6 @@ import { useEffect, useRef, useState } from "react";
  *
  * Sequence (Konami code): ↑ ↑ ↓ ↓ ← → ← → b a
  */
-const SEQUENCE = [
-  "ArrowUp",
-  "ArrowUp",
-  "ArrowDown",
-  "ArrowDown",
-  "ArrowLeft",
-  "ArrowRight",
-  "ArrowLeft",
-  "ArrowRight",
-  "b",
-  "a",
-];
-const RESET_MS = 2000;
 
 export function AdminGate() {
   const [open, setOpen] = useState(false);

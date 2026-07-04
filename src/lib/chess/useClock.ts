@@ -63,6 +63,11 @@ export interface UseClock {
   moved: (mover: Color) => void;
   stop: () => void;
   reset: () => void;
+  /** Cheat-panel/dev tool: add or subtract ms from a side's clock. */
+  addTime: (color: Color, ms: number) => void;
+  /** Cheat-panel/dev tool: pause a side's countdown regardless of whose turn it is. */
+  setFrozen: (color: Color, frozen: boolean) => void;
+  frozen: { w: boolean; b: boolean };
 }
 
 export function useClock(tc: TimeControl, onFlag: (loser: Color) => void): UseClock {
@@ -70,11 +75,14 @@ export function useClock(tc: TimeControl, onFlag: (loser: Color) => void): UseCl
   const [whiteMs, setWhiteMs] = useState(tc.initialMs ?? 0);
   const [blackMs, setBlackMs] = useState(tc.initialMs ?? 0);
   const [active, setActive] = useState<Color | null>(null);
+  const [frozen, setFrozenState] = useState<{ w: boolean; b: boolean }>({ w: false, b: false });
   const runningRef = useRef(false);
   const lastRef = useRef(0);
   const flaggedRef = useRef(false);
   const onFlagRef = useRef(onFlag);
   onFlagRef.current = onFlag;
+  const frozenRef = useRef(frozen);
+  frozenRef.current = frozen;
 
   useEffect(() => {
     if (untimed) return;
@@ -84,7 +92,7 @@ export function useClock(tc: TimeControl, onFlag: (loser: Color) => void): UseCl
       const dt = now - lastRef.current;
       lastRef.current = now;
       setActive((cur) => {
-        if (cur === "w") {
+        if (cur === "w" && !frozenRef.current.w) {
           setWhiteMs((m) => {
             const n = m - dt;
             if (n <= 0 && !flaggedRef.current) {
@@ -95,7 +103,7 @@ export function useClock(tc: TimeControl, onFlag: (loser: Color) => void): UseCl
             }
             return n;
           });
-        } else if (cur === "b") {
+        } else if (cur === "b" && !frozenRef.current.b) {
           setBlackMs((m) => {
             const n = m - dt;
             if (n <= 0 && !flaggedRef.current) {
@@ -146,7 +154,17 @@ export function useClock(tc: TimeControl, onFlag: (loser: Color) => void): UseCl
     setWhiteMs(tc.initialMs ?? 0);
     setBlackMs(tc.initialMs ?? 0);
     setActive(null);
+    setFrozenState({ w: false, b: false });
   }, [tc.initialMs]);
 
-  return { whiteMs, blackMs, active, untimed, start, moved, stop, reset };
+  const addTime = useCallback((color: Color, ms: number) => {
+    if (color === "w") setWhiteMs((m) => Math.max(0, m + ms));
+    else setBlackMs((m) => Math.max(0, m + ms));
+  }, []);
+
+  const setFrozen = useCallback((color: Color, value: boolean) => {
+    setFrozenState((f) => ({ ...f, [color]: value }));
+  }, []);
+
+  return { whiteMs, blackMs, active, untimed, start, moved, stop, reset, addTime, setFrozen, frozen };
 }

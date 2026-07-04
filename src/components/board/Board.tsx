@@ -29,6 +29,8 @@ export interface BoardProps {
   showLegalMoves?: boolean;
   highlightLastMove?: boolean;
   animate?: boolean;
+  /** Programmatic arrows (e.g. a cheat-panel move prediction), merged with user-drawn ones. */
+  extraArrows?: Arrow[];
 }
 
 interface DragState {
@@ -65,6 +67,7 @@ export function Board({
   showLegalMoves = true,
   highlightLastMove = true,
   animate = true,
+  extraArrows = [],
 }: BoardProps) {
   const boardRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<Square | null>(null);
@@ -380,7 +383,7 @@ export function Board({
       )}
 
       {/* Arrows */}
-      <ArrowLayer arrows={arrowDraft ? [...arrows, arrowDraft] : arrows} orientation={orientation} />
+      <ArrowLayer arrows={[...extraArrows, ...arrows, ...(arrowDraft ? [arrowDraft] : [])]} orientation={orientation} />
 
       {/* Promotion picker */}
       {promo && (
