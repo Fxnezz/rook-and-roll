@@ -11,7 +11,7 @@ import { projectToTrack, isOnTrack, START_POSITION, START_TANGENT, TOTAL_LAPS } 
 export interface RaceCallbacks {
   onLap: (lapTimeMs: number, lap: number) => void;
   onFinish: (totalMs: number) => void;
-  onProgress: (elapsedMs: number, offTrack: boolean) => void;
+  onProgress: (elapsedMs: number, offTrack: boolean, x: number, z: number, heading: number) => void;
 }
 
 const startHeading = Math.atan2(START_TANGENT.x, START_TANGENT.z);
@@ -66,7 +66,7 @@ export function RaceScene({
         callbacks.current?.onFinish(now - raceStartMs.current);
       }
     }
-    callbacks.current?.onProgress(now - raceStartMs.current, !onTrack);
+    callbacks.current?.onProgress(now - raceStartMs.current, !onTrack, state.current.x, state.current.z, state.current.heading);
 
     // apply transform to the car mesh
     if (carRef.current) {

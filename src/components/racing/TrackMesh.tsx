@@ -2,7 +2,26 @@
 
 import { useMemo } from "react";
 import * as THREE from "three";
-import { trackOutline } from "@/lib/racing/track";
+import { trackOutline, START_POSITION, START_TANGENT, TRACK_WIDTH } from "@/lib/racing/track";
+
+function checkerTexture(): THREE.CanvasTexture {
+  const size = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  const n = 8;
+  const cell = size / n;
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      ctx.fillStyle = (x + y) % 2 === 0 ? "#f2f2f2" : "#151515";
+      ctx.fillRect(x * cell, y * cell, cell, cell);
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.magFilter = THREE.NearestFilter;
+  return tex;
+}
 
 /** Builds the road surface as a triangle strip between the track's left/right edges. */
 export function TrackMesh() {
@@ -47,6 +66,9 @@ export function TrackMesh() {
     return { road: geo, stripes: stripeGeo, edges: edgeGeo };
   }, []);
 
+  const checker = useMemo(() => checkerTexture(), []);
+  const startAngle = Math.atan2(START_TANGENT.x, START_TANGENT.z);
+
   return (
     <group>
       <mesh geometry={road} receiveShadow>
@@ -58,6 +80,15 @@ export function TrackMesh() {
       <lineSegments geometry={edges}>
         <lineBasicMaterial color="#e8ecf3" />
       </lineSegments>
+      {/* checkered start/finish line */}
+      <mesh
+        position={[START_POSITION.x, 0.03, START_POSITION.z]}
+        rotation={[-Math.PI / 2, 0, -startAngle]}
+        receiveShadow
+      >
+        <planeGeometry args={[TRACK_WIDTH, 2.5]} />
+        <meshStandardMaterial map={checker} roughness={0.7} />
+      </mesh>
       {/* ground plane beyond the track */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
         <planeGeometry args={[600, 600]} />

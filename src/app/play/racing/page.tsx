@@ -1,17 +1,38 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { RaceScene, type RaceCallbacks } from "@/components/racing/RaceScene";
 import { useCarInput } from "@/lib/racing/useCarInput";
 import { useHighScore } from "@/lib/arcade/useHighScore";
-import { TOTAL_LAPS } from "@/lib/racing/track";
+import { TOTAL_LAPS, trackOutline } from "@/lib/racing/track";
 
 function fmtTime(ms: number): string {
   const totalSec = ms / 1000;
   const m = Math.floor(totalSec / 60);
   const s = (totalSec % 60).toFixed(2).padStart(5, "0");
   return `${m}:${s}`;
+}
+
+const MINI_MAP_SIZE = 96;
+const MINI_MAP_PAD = 8;
+
+function buildMiniMap() {
+  const { center } = trackOutline();
+  const xs = center.map((p) => p.x);
+  const zs = center.map((p) => p.z);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minZ = Math.min(...zs);
+  const maxZ = Math.max(...zs);
+  const span = Math.max(maxX - minX, maxZ - minZ) || 1;
+  const scale = (MINI_MAP_SIZE - MINI_MAP_PAD * 2) / span;
+  const toXY = (x: number, z: number) => ({
+    x: MINI_MAP_PAD + (x - minX) * scale,
+    y: MINI_MAP_PAD + (z - minZ) * scale,
+  });
+  const path = center.map((p, i) => `${i === 0 ? "M" : "L"}${toXY(p.x, p.z).x.toFixed(1)},${toXY(p.x, p.z).y.toFixed(1)}`).join(" ") + " Z";
+  return { path, toXY };
 }
 
 export default function RacingPage() {
@@ -25,6 +46,8 @@ export default function RacingPage() {
   const [lastLapTime, setLastLapTime] = useState<number | null>(null);
   const [bestLapThisRace, setBestLapThisRace] = useState<number | null>(null);
   const [finishTime, setFinishTime] = useState<number | null>(null);
+  const [carPos, setCarPos] = useState({ x: 0, y: 0, heading: 0 });
+  const miniMap = useMemo(() => buildMiniMap(), []);
 
   const callbacksRef = useRef<RaceCallbacks>({
     onLap: (lapMs, completedLap) => {
@@ -37,9 +60,11 @@ export default function RacingPage() {
       setFinishTime(totalMs);
       setPhase("done");
     },
-    onProgress: (ms, off) => {
+    onProgress: (ms, off, x, z, heading) => {
       setElapsed(ms);
       setOffTrack(off);
+      const { x: mx, y: my } = miniMap.toXY(x, z);
+      setCarPos({ x: mx, y: my, heading });
     },
   });
 
@@ -96,6 +121,15 @@ export default function RacingPage() {
         {lastLapTime != null && phase === "racing" && (
           <div className="pointer-events-none absolute right-3 top-14 rounded bg-black/50 px-3 py-1 font-mono text-xs text-white">
             Last lap {fmtTime(lastLapTime)}
+          </div>
+        )}
+
+        {phase === "racing" && (
+          <div className="pointer-events-none absolute bottom-3 right-3 rounded-lg bg-black/50 p-1.5">
+            <svg width={MINI_MAP_SIZE} height={MINI_MAP_SIZE} viewBox={`0 0 ${MINI_MAP_SIZE} ${MINI_MAP_SIZE}`}>
+              <path d={miniMap.path} fill="none" stroke="#8a93a6" strokeWidth={3} strokeLinejoin="round" />
+              <circle cx={carPos.x} cy={carPos.y} r={3.5} fill="#e9a23b" stroke="#fff" strokeWidth={1} />
+            </svg>
           </div>
         )}
 
