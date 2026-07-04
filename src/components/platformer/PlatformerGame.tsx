@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPlayer, stepPlayer, circleRectOverlap, type PlayerState } from "@/lib/platformer/physics";
-import { getLevel } from "@/lib/platformer/levels";
+import { getLevel, moverRectAt } from "@/lib/platformer/levels";
 import { usePlatformerInput } from "@/lib/platformer/usePlatformerInput";
 import { useHighScore } from "@/lib/arcade/useHighScore";
+import { playArcadeSound } from "@/lib/arcade/sound";
 
 const VIEW_W = 760;
 const VIEW_H = 420;
@@ -28,16 +29,22 @@ export function PlatformerGame({ levelId, onExit }: { levelId: string; onExit: (
 
   const player = useRef<PlayerState>(createPlayer(level.spawn.x, level.spawn.y));
   const collectedSet = useRef<Set<number>>(new Set());
+  const checkpointsHit = useRef<Set<number>>(new Set());
+  const lastCheckpoint = useRef({ x: level.spawn.x, y: level.spawn.y });
   const prevJumpDown = useRef(false);
   const camX = useRef(0);
   const startMs = useRef(performance.now());
   const finished = useRef(false);
   const rafRef = useRef<number>(0);
+  const wasOnGround = useRef(false);
+  const squash = useRef(1);
+  const legPhase = useRef(0);
 
   const respawn = useCallback(() => {
-    player.current = createPlayer(level.spawn.x, level.spawn.y);
+    player.current = createPlayer(lastCheckpoint.current.x, lastCheckpoint.current.y);
     setDeaths((d) => d + 1);
-  }, [level]);
+    playArcadeSound("wrong");
+  }, []);
 
   useEffect(() => {
     let last = performance.now();
@@ -46,6 +53,9 @@ export function PlatformerGame({ levelId, onExit }: { levelId: string; onExit: (
       const dt = Math.min((now - last) / 1000, 1 / 20);
       last = now;
 
+      const t = now / 1000;
+      const moverRects = (level.movers ?? []).map((m) => moverRectAt(m, t));
+
       if (!finished.current) {
         const jumpPressed = raw.current.jumpDown && !prevJumpDown.current;
         prevJumpDown.current = raw.current.jumpDown;
@@ -53,8 +63,17 @@ export function PlatformerGame({ levelId, onExit }: { levelId: string; onExit: (
           player.current,
           { left: raw.current.left, right: raw.current.right, jumpPressed },
           dt,
-          level.platforms,
+          [...level.platforms, ...moverRects],
         );
+
+        if (player.current.onGround && !wasOnGround.current) {
+          squash.current = 0.7;
+        }
+        wasOnGround.current = player.current.onGround;
+        squash.current += (1 - squash.current) * Math.min(1, dt * 14);
+        if (player.current.onGround && Math.abs(player.current.vx) > 20) {
+          legPhase.current += dt * 12;
+        }
 
         // fell off the bottom
         if (player.current.y > level.height + 100) respawn();
@@ -67,12 +86,23 @@ export function PlatformerGame({ levelId, onExit }: { levelId: string; onExit: (
           }
         }
 
+        // checkpoints
+        (level.checkpoints ?? []).forEach((cp, i) => {
+          if (checkpointsHit.current.has(i)) return;
+          if (Math.hypot(cp.x - player.current.x, cp.y - player.current.y) < 30) {
+            checkpointsHit.current.add(i);
+            lastCheckpoint.current = { x: cp.x, y: cp.y };
+            playArcadeSound("levelUp");
+          }
+        });
+
         // collectibles
         level.collectibles.forEach((c, i) => {
           if (collectedSet.current.has(i)) return;
           if (Math.hypot(c.x - player.current.x, c.y - player.current.y) < COLLECT_R + player.current.w / 2) {
             collectedSet.current.add(i);
             setCollected(collectedSet.current.size);
+            playArcadeSound("correct");
           }
         });
 
@@ -88,6 +118,7 @@ export function PlatformerGame({ levelId, onExit }: { levelId: string; onExit: (
           const total = now - startMs.current;
           setFinishMs(total);
           setPhase("won");
+          playArcadeSound("win");
           submit(total);
         }
 
@@ -98,11 +129,11 @@ export function PlatformerGame({ levelId, onExit }: { levelId: string; onExit: (
       const targetCam = Math.max(0, Math.min(level.width - VIEW_W, player.current.x - VIEW_W / 2));
       camX.current += (targetCam - camX.current) * 0.15;
 
-      draw();
+      draw(moverRects);
       rafRef.current = requestAnimationFrame(loop);
     };
 
-    function draw() {
+    function draw(moverRects: { x: number; y: number; w: number; h: number }[]) {
       const ctx = canvasRef.current?.getContext("2d");
       if (!ctx) return;
       const cam = camX.current;
@@ -113,14 +144,70 @@ export function PlatformerGame({ levelId, onExit }: { levelId: string; onExit: (
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-      // platforms
-      ctx.fillStyle = "#6f8f5a";
-      for (const p of level.platforms) {
-        ctx.fillRect(p.x - cam, p.y, p.w, p.h);
-        ctx.fillStyle = "#557048";
-        ctx.fillRect(p.x - cam, p.y, p.w, 6);
-        ctx.fillStyle = "#6f8f5a";
+      // parallax background: far hills, then nearer clouds — both scroll
+      // slower than the camera so the level feels like it has depth.
+      const hillsX = -cam * 0.25;
+      ctx.fillStyle = "#4a6b8c";
+      for (let i = -1; i < 6; i++) {
+        const bx = hillsX + i * 240;
+        ctx.beginPath();
+        ctx.ellipse(bx, VIEW_H - 40, 160, 90, 0, Math.PI, 0);
+        ctx.fill();
       }
+      const cloudX = -cam * 0.45;
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      for (let i = -1; i < 6; i++) {
+        const cx = ((cloudX + i * 300) % (300 * 7)) - 150;
+        ctx.beginPath();
+        ctx.ellipse(cx, 70 + (i % 3) * 20, 38, 16, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx + 30, 62 + (i % 3) * 20, 26, 13, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // platforms — grassy top with a dirt gradient body
+      for (const p of level.platforms) {
+        const px = p.x - cam;
+        const bodyGrad = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        bodyGrad.addColorStop(0, "#6f8f5a");
+        bodyGrad.addColorStop(0.25, "#5c7a49");
+        bodyGrad.addColorStop(1, "#3f5432");
+        ctx.fillStyle = bodyGrad;
+        ctx.fillRect(px, p.y, p.w, p.h);
+        ctx.fillStyle = "#7fae63";
+        ctx.fillRect(px, p.y, p.w, 6);
+        ctx.fillStyle = "rgba(0,0,0,0.12)";
+        for (let dx = 8; dx < p.w; dx += 22) {
+          ctx.fillRect(px + dx, p.y + 12, 3, 3);
+        }
+      }
+
+      // moving platforms — distinct blue-toned so they read as special
+      for (const m of moverRects) {
+        const mx = m.x - cam;
+        ctx.fillStyle = "#3f6ea8";
+        ctx.fillRect(mx, m.y, m.w, m.h);
+        ctx.fillStyle = "#7fb3e0";
+        ctx.fillRect(mx, m.y, m.w, 4);
+      }
+
+      // checkpoints — small flag, dimmed once already reached
+      (level.checkpoints ?? []).forEach((cp, i) => {
+        const hit = checkpointsHit.current.has(i);
+        const fx = cp.x - cam;
+        ctx.strokeStyle = hit ? "#6b7a8c" : "#3a3f4a";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(fx, cp.y);
+        ctx.lineTo(fx, cp.y - 34);
+        ctx.stroke();
+        ctx.fillStyle = hit ? "#8a97a8" : "#5aa8e0";
+        ctx.beginPath();
+        ctx.moveTo(fx, cp.y - 34);
+        ctx.lineTo(fx + 18, cp.y - 27);
+        ctx.lineTo(fx, cp.y - 20);
+        ctx.closePath();
+        ctx.fill();
+      });
 
       // hazards (spikes)
       ctx.fillStyle = "#e5604d";
@@ -161,21 +248,43 @@ export function PlatformerGame({ levelId, onExit }: { levelId: string; onExit: (
       ctx.closePath();
       ctx.fill();
 
-      // player — original round "Spark" character
+      // player — original round "Spark" character, with a landing squash and
+      // simple alternating-leg animation while running along the ground.
       const p = player.current;
       const px = p.x - cam;
       const py = p.y - p.h / 2;
+      const sq = squash.current;
+      const legSwing = Math.sin(legPhase.current) * 6;
+
+      if (p.onGround) {
+        ctx.fillStyle = "rgba(60,60,20,0.35)";
+        [-1, 1].forEach((s) => {
+          ctx.beginPath();
+          ctx.ellipse(px + s * 6 - legSwing * s * 0.3, p.y + 3, 5, 3, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#e9a23b";
+          ctx.beginPath();
+          ctx.ellipse(px + s * 6 + legSwing * s, p.y - 2, 4, 7, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "rgba(60,60,20,0.35)";
+        });
+      }
+
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.scale(1 / sq, sq);
       ctx.fillStyle = "#e9a23b";
       ctx.beginPath();
-      ctx.ellipse(px, py, p.w / 2, p.h / 2, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, p.w / 2, p.h / 2, 0, 0, Math.PI * 2);
       ctx.fill();
       // eyes (face direction)
       ctx.fillStyle = "#241a08";
       const eyeOffset = p.facing * 5;
       ctx.beginPath();
-      ctx.arc(px + eyeOffset - 3, py - 4, 3, 0, Math.PI * 2);
-      ctx.arc(px + eyeOffset + 5, py - 4, 3, 0, Math.PI * 2);
+      ctx.arc(eyeOffset - 3, -4, 3, 0, Math.PI * 2);
+      ctx.arc(eyeOffset + 5, -4, 3, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
 
     rafRef.current = requestAnimationFrame(loop);

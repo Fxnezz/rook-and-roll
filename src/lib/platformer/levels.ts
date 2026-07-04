@@ -5,6 +5,22 @@ export interface Collectible {
   y: number;
 }
 
+export interface Checkpoint {
+  x: number;
+  y: number;
+}
+
+/** A platform that oscillates back and forth along one axis (sine motion). */
+export interface MovingPlatform {
+  baseX: number;
+  baseY: number;
+  w: number;
+  h: number;
+  axis: "x" | "y";
+  range: number; // +/- distance from base position
+  speed: number; // radians/sec
+}
+
 export interface Level {
   id: string;
   name: string;
@@ -15,6 +31,19 @@ export interface Level {
   hazards: Rect[];
   collectibles: Collectible[];
   goal: Rect;
+  checkpoints?: Checkpoint[];
+  movers?: MovingPlatform[];
+}
+
+/** Computes a moving platform's current rect at time `t` (seconds). */
+export function moverRectAt(m: MovingPlatform, t: number): Rect {
+  const offset = Math.sin(t * m.speed) * m.range;
+  return {
+    x: m.baseX + (m.axis === "x" ? offset : 0),
+    y: m.baseY + (m.axis === "y" ? offset : 0),
+    w: m.w,
+    h: m.h,
+  };
 }
 
 /** Original level geometry — a small original "Spark" character's world, not
@@ -50,6 +79,7 @@ export const LEVELS: Level[] = [
       { x: 1260, y: 380 },
     ],
     goal: { x: 1330, y: 360, w: 40, h: 60 },
+    checkpoints: [{ x: 760, y: 260 }],
   },
   {
     id: "2",
@@ -88,6 +118,7 @@ export const LEVELS: Level[] = [
       { x: 1305, y: 360 },
     ],
     goal: { x: 1550, y: 400, w: 40, h: 60 },
+    checkpoints: [{ x: 820, y: 420 }],
   },
   {
     id: "3",
@@ -127,6 +158,11 @@ export const LEVELS: Level[] = [
       { x: 900, y: 80 },
     ],
     goal: { x: 1350, y: 240, w: 50, h: 60 },
+    checkpoints: [{ x: 665, y: 400 }],
+    movers: [
+      { baseX: 900, baseY: 260, w: 90, h: 20, axis: "y", range: 60, speed: 1.1 },
+      { baseX: 1140, baseY: 300, w: 100, h: 20, axis: "x", range: 70, speed: 0.9 },
+    ],
   },
 ];
 
