@@ -2,13 +2,14 @@ import type { Namespace, Socket } from "socket.io";
 import { RateLimiter } from "../anticheat.js";
 import { cleanChat } from "../chat.js";
 import { getUserModeration } from "../persistence.js";
+import { verifyAdminToken } from "../adminAuth.js";
 import { saveBoardGameResult } from "./persistence.js";
 import { MatchRoom, tryMatchQueue, type BgIdentity, type BgQueueEntry } from "./MatchRoom.js";
 import { ticTacToeEngine } from "./ticTacToe.js";
 import { connectFourEngine } from "./connectFour.js";
 import { checkersEngine } from "./checkers.js";
 import type { GameEngine } from "./engine.js";
-import type { BgClientToServer, BgServerToClient, GameKind } from "./protocol.js";
+import type { BgClientToServer, BgLiveRoomSummary, BgServerToClient, GameKind } from "./protocol.js";
 
 const ENGINES: Record<GameKind, GameEngine<unknown, unknown>> = {
   tictactoe: ticTacToeEngine as GameEngine<unknown, unknown>,
@@ -23,6 +24,7 @@ interface SocketData {
   username?: string;
   roomId?: string;
   muted?: boolean;
+  isAdmin?: boolean;
 }
 
 type BgNamespace = Namespace<BgClientToServer, BgServerToClient>;
@@ -35,6 +37,23 @@ const graceTimers = new Map<string, NodeJS.Timeout>();
 const queues = new Map<string, BgQueueEntry[]>(); // `${kind}|${rated}` -> entries
 const invites = new Map<string, { kind: GameKind; identity: BgIdentity; socketId: string }>();
 const finishedAt = new Map<string, number>(); // roomId -> when it finished, for TTL sweep
+const kickCooldown = new Map<string, number>(); // userId -> reconnect-allowed timestamp
+
+function liveBoardGames(): BgLiveRoomSummary[] {
+  return [...rooms.values()]
+    .filter((r) => !r.status)
+    .map((r) => ({
+      roomId: r.id,
+      kind: r.kind as GameKind,
+      a: r.a.username,
+      aUserId: r.a.userId,
+      b: r.b.username,
+      bUserId: r.b.userId,
+      moveCount: r.moves.length,
+      spectators: r.spectators.size,
+      over: Boolean(r.status),
+    }));
+}
 
 const moveLimiter = new RateLimiter(30, 5_000);
 const chatLimiter = new RateLimiter(8, 5_000);
@@ -109,6 +128,13 @@ export function registerBoardGameHandlers(nsp: BgNamespace) {
       socket.data.userId = identity.userId;
       socket.data.username = identity.username;
       userSocket.set(identity.userId, socket.id);
+
+      // Kick cooldown: recently force-disconnected users can't rejoin yet.
+      const cd = kickCooldown.get(identity.userId);
+      if (cd && cd > Date.now()) {
+        socket.emit("error:msg", { message: "You were removed. Try again later." });
+        return;
+      }
 
       const existingRoom = userRoom.get(identity.userId);
       if (existingRoom && rooms.get(existingRoom) && !rooms.get(existingRoom)!.status) {
@@ -301,6 +327,40 @@ export function registerBoardGameHandlers(nsp: BgNamespace) {
       const clean = cleanChat(text);
       if (!clean) return;
       nsp.to(roomId).emit("chat:message", { from: socket.data.username ?? "Anon", text: clean, ts: Date.now() });
+    });
+
+    // ---- admin: light-touch moderation (reuses the same admin token/auth as
+    // chess's god-mode socket; no force-move/freeze/clock here on purpose —
+    // just visibility into live rooms plus chat-clear and kick). ----
+    socket.on("admin:hello", async ({ token }) => {
+      if (await verifyAdminToken(token)) {
+        socket.data.isAdmin = true;
+        socket.emit("admin:ok", { games: liveBoardGames() });
+      } else {
+        socket.data.isAdmin = false;
+        socket.emit("admin:denied");
+      }
+    });
+
+    socket.on("admin:games", () => {
+      if (!socket.data.isAdmin) return;
+      socket.emit("admin:games", { games: liveBoardGames() });
+    });
+
+    socket.on("admin:clearChat", ({ roomId }) => {
+      if (!socket.data.isAdmin) return;
+      nsp.to(roomId).emit("chat:cleared");
+    });
+
+    socket.on("admin:kick", ({ userId, cooldownMs, message }) => {
+      if (!socket.data.isAdmin) return;
+      if (cooldownMs && cooldownMs > 0) kickCooldown.set(userId, Date.now() + cooldownMs);
+      const sid = userSocket.get(userId);
+      const target = sid ? nsp.sockets.get(sid) : undefined;
+      if (target) {
+        target.emit("kicked", { message: message ?? "You have been disconnected by a moderator." });
+        target.disconnect(true);
+      }
     });
 
     socket.on("disconnect", () => {

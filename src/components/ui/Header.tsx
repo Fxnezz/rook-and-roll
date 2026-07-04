@@ -11,12 +11,19 @@ import { NotificationBell } from "./NotificationBell";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 
 const NAV = [
-  { href: "/play/online", label: "Play" },
+  { href: "/play/online", label: "Play Chess" },
   { href: "/play/bot", label: "Bots" },
   { href: "/play/local", label: "Pass & Play" },
+  { href: "/play", label: "Games Hub" },
   { href: "/puzzles", label: "Puzzles" },
   { href: "/leaderboard", label: "Leaderboard" },
 ];
+
+// The bare hub link ("/play") needs an exact match so it doesn't also light
+// up on every /play/* sub-route (online, bot, local, etc.).
+function isNavActive(pathname: string, href: string): boolean {
+  return href === "/play" ? pathname === "/play" : pathname.startsWith(href);
+}
 
 export function Header() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -45,7 +52,7 @@ export function Header() {
           </Link>
           <nav className="hidden items-center gap-0.5 md:flex">
             {NAV.map((item) => {
-              const active = pathname.startsWith(item.href);
+              const active = isNavActive(pathname, item.href);
               return (
                 <Link
                   key={item.href}
@@ -78,7 +85,7 @@ export function Header() {
       <SlideOver open={menuOpen} onClose={() => setMenuOpen(false)} title="Menu">
         <nav className="flex flex-col gap-1 p-3">
           {NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
+            const active = isNavActive(pathname, item.href);
             return (
               <Link
                 key={item.href}

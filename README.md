@@ -26,6 +26,23 @@ third-party board skins.
 - **Puzzles** — 35 machine-verified tactics (mate-in-2/3s are *proven* by exhaustive
   search), puzzle rating + streaks, daily puzzle, hints
 - **Opening explorer** — 57 curated named lines with click-to-play book continuations
+- **Games Hub** (`/play`) — the platform beyond chess, same account/nav/theme throughout:
+  - **Multiplayer board games** — Connect Four, Tic-Tac-Toe, Checkers, all server-authoritative
+    on a second Socket.io namespace: matchmaking, rating-band widening, resign/draw/rematch,
+    spectate, invite links, chat. Connect Four and Checkers get their own Elo (`GameRating`
+    table); Tic-Tac-Toe is casual-only.
+  - **Arcade** — Snake, Tetris (7-bag randomizer, hold, next preview), and 2048, each with a
+    Prisma-backed high-score leaderboard (falls back to `localStorage` for guests).
+  - **Word Game** — 5-letter/6-guess daily word (deterministic per UTC date) + unlimited
+    practice mode, streaks, and a stats modal.
+  - **Circuit Dash** — an original 3D arcade racer (Three.js / React Three Fiber): procedural
+    closed-loop track, drift-y arcade physics, lap timing, best-lap leaderboard.
+  - **Spark's Climb** — an original 2D platformer: run/double-jump, collectibles, hazards,
+    multiple levels, per-level best-time leaderboard.
+  - Unified profile page (`/u/[username]`) rolls up chess ratings alongside every other
+    game's rating/high-score/streak. See [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md)
+    for sourcing decisions (all Phase 11–15 games were built from scratch; only two public,
+    permissively-licensed English word lists are used as data for the word game).
 
 ## Architecture
 
@@ -188,6 +205,10 @@ without a valid admin session.
   token; list in-progress games; attach invisibly; set FEN, place pieces, force
   moves/results, add/pause/disable clocks, freeze a side, swap sides, kick a
   player, clear chat, and read a live engine eval.
+- **Board games** (`/admin/live-boardgames`): light-touch moderation for the
+  Connect Four / Tic-Tac-Toe / Checkers namespace — list live rooms, clear a
+  room's chat, kick a player (same admin token + kick-cooldown as chess).
+  No god-mode board editing here by design; bans/mutes still live in Users.
 - **Platform** (`/admin/platform`): maintenance mode + site-wide broadcasts.
 - **Analytics** (`/admin/analytics`) and **Audit log** (`/admin/audit`).
 

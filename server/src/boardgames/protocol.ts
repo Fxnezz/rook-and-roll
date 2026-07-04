@@ -22,6 +22,19 @@ export interface BgChatMsg {
   ts: number;
 }
 
+/** Light-touch admin view of one live room — enough to identify and moderate it. */
+export interface BgLiveRoomSummary {
+  roomId: string;
+  kind: GameKind;
+  a: string;
+  aUserId: string;
+  b: string;
+  bUserId: string;
+  moveCount: number;
+  spectators: number;
+  over: boolean;
+}
+
 export interface BgClientToServer {
   "queue:join": (p: { kind: GameKind; identity: BgIdentity; rated: boolean }) => void;
   "queue:leave": (p: { kind: GameKind }) => void;
@@ -37,6 +50,10 @@ export interface BgClientToServer {
   "draw:decline": (p: { roomId: string }) => void;
   "rematch:offer": (p: { roomId: string }) => void;
   "chat:send": (p: { roomId: string; text: string }) => void;
+  "admin:hello": (p: { token: string }) => void;
+  "admin:games": () => void;
+  "admin:clearChat": (p: { roomId: string }) => void;
+  "admin:kick": (p: { userId: string; cooldownMs?: number; message?: string }) => void;
 }
 
 export interface BgServerToClient {
@@ -52,7 +69,12 @@ export interface BgServerToClient {
   "rematch:offered": (p: { from: "a" | "b" }) => void;
   "rematch:ready": (p: { roomId: string }) => void;
   "chat:message": (m: BgChatMsg) => void;
+  "chat:cleared": () => void;
+  kicked: (p: { message: string }) => void;
   "opponent:disconnected": (p: { graceMs: number }) => void;
   "opponent:reconnected": () => void;
   "error:msg": (p: { message: string }) => void;
+  "admin:ok": (p: { games: BgLiveRoomSummary[] }) => void;
+  "admin:denied": () => void;
+  "admin:games": (p: { games: BgLiveRoomSummary[] }) => void;
 }

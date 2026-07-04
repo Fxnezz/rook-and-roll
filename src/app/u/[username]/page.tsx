@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma, isDbConfigured } from "@/lib/db/prisma";
 import { ProfileRatings } from "@/components/profile/ProfileRatings";
+import { UnifiedGameStats } from "@/components/profile/UnifiedGameStats";
 import { DbNotice } from "@/components/ui/DbNotice";
+
+const HIGHER_IS_BETTER_GAMES = ["snake", "tetris", "2048"];
+const LOWER_IS_BETTER_GAMES = ["racing", "platformer"];
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +33,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   if (!user) notFound();
 
   const orFilter = [{ whiteId: user.id }, { blackId: user.id }];
-  const [wins, losses, draws, history] = await Promise.all([
+  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats] = await Promise.all([
     prisma.game.count({
       where: {
         OR: [
@@ -52,7 +56,29 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       orderBy: { createdAt: "asc" },
       select: { category: true, rating: true, createdAt: true },
     }),
+    prisma.gameRating.findMany({
+      where: { userId: user.id },
+      select: { game: true, rating: true, wins: true, losses: true, draws: true },
+    }),
+    // Snake/Tetris/2048: higher score is better.
+    prisma.highScore.groupBy({
+      by: ["game"],
+      where: { userId: user.id, game: { in: HIGHER_IS_BETTER_GAMES } },
+      _max: { score: true },
+    }),
+    // Racing/platformer: lower time is better, and platformer is per-level.
+    prisma.highScore.groupBy({
+      by: ["game", "level"],
+      where: { userId: user.id, game: { in: LOWER_IS_BETTER_GAMES } },
+      _min: { score: true },
+    }),
+    prisma.wordGameStats.findUnique({ where: { userId: user.id } }),
   ]);
+
+  const highScores = [
+    ...higherScores.map((h) => ({ game: h.game, level: null, score: h._max.score ?? 0 })),
+    ...lowerScores.map((h) => ({ game: h.game, level: h.level, score: h._min.score ?? 0 })),
+  ];
 
   const total = wins + losses + draws;
   const initial = (user.username ?? "?")[0]?.toUpperCase();
@@ -96,6 +122,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
         }}
         history={history.map((h) => ({ category: h.category, rating: h.rating }))}
       />
+
+      <UnifiedGameStats gameRatings={gameRatings} highScores={highScores} wordStats={wordStats} />
     </div>
   );
 }
