@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useBoardGameMatch } from "@/lib/boardgames/useBoardGameMatch";
 import { useGameIdentity } from "@/lib/boardgames/useGameIdentity";
-import type { GameKind, Seat } from "@/lib/boardgames/protocol";
+import type { GameKind, GameResult, Seat } from "@/lib/boardgames/protocol";
 import { ChatPanel } from "@/components/game/ChatPanel";
 import { IconFlag, IconHandshake, IconUsers } from "@/components/ui/icons";
 
@@ -18,6 +18,8 @@ export interface BoardGamePageProps<TMove, TState> {
     mySeat: Seat | null;
     interactive: boolean;
     onMove: (move: TMove) => void;
+    status: (GameResult & { adminResolved?: boolean }) | null;
+    lastMove: { move: TMove; notation: string; by: Seat; seq: number } | null;
   }) => React.ReactNode;
 }
 
@@ -207,6 +209,8 @@ export function BoardGamePage<TMove, TState>({
               mySeat: state.mySeat,
               interactive: state.phase === "playing",
               onMove: match.sendMove,
+              status: state.status,
+              lastMove: match.lastMove,
             })}
           {meInfo && <PlayerBar name={meInfo.username} rating={meInfo.rating} connected={meInfo.connected} active={state.turn === state.mySeat} />}
         </div>

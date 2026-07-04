@@ -10,8 +10,8 @@ export default function ConnectFourPage() {
       title="Connect Four"
       blurb="Four in a row — any direction — wins."
       ratedAvailable
-      renderBoard={({ state, mySeat, interactive, onMove }) => (
-        <ConnectFourBoard state={state} mySeat={mySeat} interactive={interactive} onMove={(col) => onMove({ col })} />
+      renderBoard={({ state, mySeat, interactive, onMove, status }) => (
+        <ConnectFourBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} status={status} />
       )}
     />
   );

@@ -11,8 +11,8 @@ export default function CheckersPage() {
       blurb="Standard American rules — forced capture, kings, multi-jumps."
       ratedAvailable
       supportsDraw
-      renderBoard={({ state, mySeat, interactive, onMove }) => (
-        <CheckersBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} />
+      renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
+        <CheckersBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}
     />
   );

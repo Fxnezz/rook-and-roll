@@ -10,8 +10,8 @@ export default function TicTacToePage() {
       title="Tic-Tac-Toe"
       blurb="Three in a row wins. Quick and unrated."
       ratedAvailable={false}
-      renderBoard={({ state, mySeat, interactive, onMove }) => (
-        <TicTacToeBoard state={state} mySeat={mySeat} interactive={interactive} onMove={(index) => onMove({ index })} />
+      renderBoard={({ state, mySeat, interactive, onMove, status }) => (
+        <TicTacToeBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} status={status} />
       )}
     />
   );
