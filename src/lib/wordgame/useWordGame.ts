@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { playArcadeSound } from "@/lib/arcade/sound";
 import {
   MAX_GUESSES,
   WORD_LENGTH,
@@ -151,9 +152,11 @@ export function useWordGame(mode: Mode) {
     const nextDone = isWin || isLastGuess;
     setGuesses(nextGuesses);
     setCurrent("");
+    playArcadeSound("flip");
     if (nextDone) {
       setDone(true);
       setWon(isWin);
+      setTimeout(() => playArcadeSound(isWin ? "correct" : "wrong"), 400);
       submitStats(isWin, nextGuesses.length);
     }
     persist({ guesses: nextGuesses, done: nextDone, won: isWin });

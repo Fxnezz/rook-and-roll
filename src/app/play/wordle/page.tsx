@@ -5,15 +5,29 @@ import { WordBoard } from "@/components/wordgame/WordBoard";
 import { WordKeyboard } from "@/components/wordgame/WordKeyboard";
 import { StatsModal } from "@/components/wordgame/StatsModal";
 import { useWordGame, type Mode } from "@/lib/wordgame/useWordGame";
+import { buildShareText, dailyKey } from "@/lib/wordgame";
 
 export default function WordlePage() {
   const [mode, setMode] = useState<Mode>("daily");
   const game = useWordGame(mode);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (game.done) setStatsOpen(true);
   }, [game.done]);
+
+  const share = async () => {
+    const label = mode === "daily" ? dailyKey() : "Practice";
+    const text = buildShareText(label, game.rows, game.won);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard best-effort */
+    }
+  };
 
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-6">
@@ -58,12 +72,17 @@ export default function WordlePage() {
       </div>
 
       {game.done && (
-        <button
-          className="btn btn-primary mt-4"
-          onClick={() => (mode === "daily" ? setMode("practice") : game.newPracticeWord())}
-        >
-          {mode === "daily" ? "Play practice round" : "New practice word"}
-        </button>
+        <div className="mt-4 flex gap-2">
+          <button className="btn" onClick={share}>
+            {copied ? "Copied!" : "Share result"}
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => (mode === "daily" ? setMode("practice") : game.newPracticeWord())}
+          >
+            {mode === "daily" ? "Play practice round" : "New practice word"}
+          </button>
+        </div>
       )}
 
       <StatsModal open={statsOpen} onClose={() => setStatsOpen(false)} done={game.done} won={game.won} answer={game.answer} />

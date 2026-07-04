@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { MAX_GUESSES, WORD_LENGTH, type LetterState } from "@/lib/wordgame";
 
 const COLORS: Record<LetterState, { bg: string; border: string }> = {
@@ -19,6 +20,13 @@ export function WordBoard({
 }) {
   const filledRows = [...rows];
   const emptyRowCount = MAX_GUESSES - rows.length;
+  const prevCount = useRef(0);
+  const [freshRow, setFreshRow] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (rows.length > prevCount.current) setFreshRow(rows.length - 1);
+    prevCount.current = rows.length;
+  }, [rows.length]);
 
   return (
     <div className="mx-auto flex flex-col gap-1.5">
@@ -26,11 +34,17 @@ export function WordBoard({
         <div key={i} className="flex justify-center gap-1.5">
           {r.word.split("").map((letter, j) => {
             const c = COLORS[r.states[j]];
+            const isFresh = freshRow === i;
             return (
               <div
                 key={j}
                 className="flex h-14 w-14 items-center justify-center rounded text-2xl font-bold uppercase text-white sm:h-16 sm:w-16"
-                style={{ background: c.bg, borderColor: c.border, borderWidth: 2 }}
+                style={{
+                  background: c.bg,
+                  borderColor: c.border,
+                  borderWidth: 2,
+                  animation: isFresh ? `word-flip 0.5s ease ${j * 0.12}s both` : undefined,
+                }}
               >
                 {letter}
               </div>
@@ -44,7 +58,10 @@ export function WordBoard({
             <div
               key={j}
               className="flex h-14 w-14 items-center justify-center rounded border-2 text-2xl font-bold uppercase sm:h-16 sm:w-16"
-              style={{ borderColor: current[j] ? "var(--text-faint)" : "var(--border)" }}
+              style={{
+                borderColor: current[j] ? "var(--text-faint)" : "var(--border)",
+                animation: current[j] ? "word-pop 0.1s ease-out" : undefined,
+              }}
             >
               {current[j] ?? ""}
             </div>
@@ -58,6 +75,17 @@ export function WordBoard({
           ))}
         </div>
       ))}
+      <style>{`
+        @keyframes word-flip {
+          0% { transform: rotateX(0deg); }
+          50% { transform: rotateX(90deg); }
+          100% { transform: rotateX(0deg); }
+        }
+        @keyframes word-pop {
+          0% { transform: scale(0.85); }
+          100% { transform: scale(1); }
+        }
+      `}</style>
     </div>
   );
 }

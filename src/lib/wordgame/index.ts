@@ -66,6 +66,18 @@ export function scoreGuess(guess: string, answer: string): LetterState[] {
   return result;
 }
 
+/** Builds a Wordle-style shareable result: emoji grid, no letters revealed. */
+export function buildShareText(
+  label: string,
+  rows: { states: LetterState[] }[],
+  won: boolean,
+): string {
+  const EMOJI: Record<LetterState, string> = { correct: "🟩", present: "🟨", absent: "⬜" };
+  const guessLine = won ? `${rows.length}/${MAX_GUESSES}` : `X/${MAX_GUESSES}`;
+  const grid = rows.map((r) => r.states.map((s) => EMOJI[s]).join("")).join("\n");
+  return `Rook & Roll Word Game — ${label} ${guessLine}\n${grid}`;
+}
+
 /** Merge a new guess's letter states into a running best-known keyboard state. */
 export function mergeKeyboardState(
   cur: Record<string, LetterState>,
