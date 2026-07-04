@@ -6,8 +6,9 @@
  * arcade feel), but holding the drift input drops lateral grip and kicks in
  * a small sideways velocity impulse, letting the car slide through a turn
  * with a boosted turn rate — a controllable handbrake drift, not a spin-out.
- * Pure function of (state, input, dt) so it's trivially unit-testable
- * without React or Three.js.
+ * Pure function of (state, input, dt, stats) so it's trivially unit-testable
+ * without React or Three.js. `stats` (car type + modifier) is folded in as a
+ * multiplier set so different cars/modifiers reuse the exact same model.
  */
 
 export interface CarState {
@@ -25,29 +26,45 @@ export interface CarInput {
   drift: number; // 0 or 1 — handbrake held
 }
 
-const MAX_SPEED = 46;
-const MAX_REVERSE = 14;
-const ACCEL = 26;
-const BRAKE = 40;
+export interface CarStats {
+  maxSpeed: number;
+  maxReverse: number;
+  accel: number;
+  brake: number;
+  turnRate: number; // rad/s at low speed
+  driftTurnBoost: number; // extra yaw multiplier while drifting
+  lateralGrip: number; // 1/s, normal (non-drift) lateral slip decay
+  driftGrip: number; // 1/s, lateral slip decay while drifting (lower = looser)
+  offTrackGrip: number; // 0..1, fraction of full grip retained off-track (higher = more stable off-road)
+}
+
+export const DEFAULT_STATS: CarStats = {
+  maxSpeed: 46,
+  maxReverse: 14,
+  accel: 26,
+  brake: 40,
+  turnRate: 2.4,
+  driftTurnBoost: 1.55,
+  lateralGrip: 18,
+  driftGrip: 2.2,
+  offTrackGrip: 0.45,
+};
+
 const FRICTION = 10;
-const MAX_TURN_RATE = 2.4; // rad/s at low speed
-const DRIFT_TURN_BOOST = 1.55; // extra yaw rate while drifting
-const OFF_TRACK_GRIP = 0.45;
 const DRIFT_MIN_SPEED = 8; // can't initiate a drift below this forward speed
-const NORMAL_LATERAL_GRIP = 18; // 1/s — how fast lateral slip is killed when not drifting
-const DRIFT_LATERAL_GRIP = 2.2; // much looser while drifting
 const DRIFT_KICK = 0.35; // fraction of forward speed converted to an initial sideways impulse
 
 export function updateCar(
   state: CarState,
   input: CarInput,
   dt: number,
-  opts: { onTrack: boolean } = { onTrack: true },
+  opts: { onTrack: boolean; stats?: CarStats } = { onTrack: true },
 ): CarState {
+  const stats = opts.stats ?? DEFAULT_STATS;
   const throttle = Math.max(-1, Math.min(1, input.throttle));
   const steer = Math.max(-1, Math.min(1, input.steer));
   const wantsDrift = input.drift > 0.5;
-  const grip = opts.onTrack ? 1 : OFF_TRACK_GRIP;
+  const grip = opts.onTrack ? 1 : stats.offTrackGrip;
 
   const fwd = { x: Math.sin(state.heading), z: Math.cos(state.heading) };
   const right = { x: Math.cos(state.heading), z: -Math.sin(state.heading) };
@@ -57,14 +74,14 @@ export function updateCar(
 
   // --- forward/reverse throttle ---
   if (throttle > 0) {
-    fSpeed += throttle * ACCEL * grip * dt;
+    fSpeed += throttle * stats.accel * grip * dt;
   } else if (throttle < 0) {
-    fSpeed += throttle * (fSpeed > 0.5 ? BRAKE : ACCEL) * grip * dt;
+    fSpeed += throttle * (fSpeed > 0.5 ? stats.brake : stats.accel) * grip * dt;
   } else {
     const decel = FRICTION * dt;
     fSpeed = fSpeed > 0 ? Math.max(0, fSpeed - decel) : Math.min(0, fSpeed + decel);
   }
-  fSpeed = Math.max(-MAX_REVERSE, Math.min(MAX_SPEED, fSpeed));
+  fSpeed = Math.max(-stats.maxReverse, Math.min(stats.maxSpeed, fSpeed));
 
   const isDrifting = wantsDrift && Math.abs(fSpeed) > DRIFT_MIN_SPEED && steer !== 0;
 
@@ -75,14 +92,14 @@ export function updateCar(
   }
 
   // --- steering / heading ---
-  const speedFactor = Math.min(1, Math.abs(fSpeed) / MAX_SPEED);
-  const baseTurnRate = MAX_TURN_RATE * (1 - 0.55 * speedFactor) * grip;
-  const turnRate = isDrifting ? baseTurnRate * DRIFT_TURN_BOOST : baseTurnRate;
+  const speedFactor = Math.min(1, Math.abs(fSpeed) / stats.maxSpeed);
+  const baseTurnRate = stats.turnRate * (1 - 0.55 * speedFactor) * grip;
+  const turnRate = isDrifting ? baseTurnRate * stats.driftTurnBoost : baseTurnRate;
   const direction = fSpeed >= 0 ? 1 : -1;
   const heading = state.heading + steer * turnRate * direction * dt;
 
   // --- lateral grip: strong when driving normally, loose while drifting ---
-  const lateralGrip = (isDrifting ? DRIFT_LATERAL_GRIP : NORMAL_LATERAL_GRIP) * grip;
+  const lateralGrip = (isDrifting ? stats.driftGrip : stats.lateralGrip) * grip;
   lSpeed *= Math.max(0, 1 - lateralGrip * dt);
 
   const newFwd = { x: Math.sin(heading), z: Math.cos(heading) };
@@ -92,7 +109,7 @@ export function updateCar(
 
   const x = state.x + vx * dt;
   const z = state.z + vz * dt;
-  const driftFactor = Math.max(0, Math.min(1, Math.abs(lSpeed) / (MAX_SPEED * 0.5)));
+  const driftFactor = Math.max(0, Math.min(1, Math.abs(lSpeed) / (stats.maxSpeed * 0.5)));
 
   return { x, z, heading, vx, vz, driftFactor };
 }

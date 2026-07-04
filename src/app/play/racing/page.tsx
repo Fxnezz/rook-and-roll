@@ -6,6 +6,7 @@ import { RaceScene, type RaceCallbacks } from "@/components/racing/RaceScene";
 import { useCarInput } from "@/lib/racing/useCarInput";
 import { useHighScore } from "@/lib/arcade/useHighScore";
 import { TRACK_DEFS, getTrack, type Track } from "@/lib/racing/track";
+import { CAR_TYPES, MODIFIERS, getCarType, getModifier } from "@/lib/racing/cars";
 
 function fmtTime(ms: number): string {
   const totalSec = ms / 1000;
@@ -74,10 +75,93 @@ function TrackCard({
   );
 }
 
+function StatBar({ label, value, max }: { label: string; value: number; max: number }) {
+  return (
+    <div className="flex items-center gap-2 text-[10px]">
+      <span className="w-10 text-[var(--text-faint)]">{label}</span>
+      <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, (value / max) * 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function CarSelect({
+  trackName,
+  onBack,
+  onPick,
+}: {
+  trackName: string;
+  onBack: () => void;
+  onPick: (carId: string, modifierId: string) => void;
+}) {
+  const [carId, setCarId] = useState(CAR_TYPES[0].id);
+  const [modifierId, setModifierId] = useState("none");
+
+  return (
+    <div className="mx-auto max-w-4xl px-4 py-6">
+      <div className="mb-1 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">{trackName}</h1>
+        <button className="btn btn-ghost !py-1 text-xs" onClick={onBack}>
+          Change track
+        </button>
+      </div>
+      <p className="mb-4 text-sm text-[var(--text-muted)]">Pick a car and a modifier.</p>
+
+      <div className="mb-2 text-sm font-semibold">Car</div>
+      <div className="mb-5 grid gap-3 sm:grid-cols-2">
+        {CAR_TYPES.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setCarId(c.id)}
+            className="panel flex flex-col gap-1.5 p-3 text-left transition-colors hover:bg-[var(--bg-elev)]"
+            style={{ borderColor: carId === c.id ? c.color : undefined, borderWidth: carId === c.id ? 2 : undefined }}
+          >
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full" style={{ background: c.color }} />
+              <span className="font-bold">{c.name}</span>
+            </div>
+            <span className="text-xs text-[var(--text-muted)]">{c.blurb}</span>
+            <div className="mt-1 flex flex-col gap-1">
+              <StatBar label="Speed" value={c.stats.maxSpeed} max={60} />
+              <StatBar label="Accel" value={c.stats.accel} max={32} />
+              <StatBar label="Grip" value={c.stats.lateralGrip} max={26} />
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-2 text-sm font-semibold">Modifier</div>
+      <div className="mb-6 grid gap-2 sm:grid-cols-2">
+        {MODIFIERS.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => setModifierId(m.id)}
+            className="panel flex flex-col gap-0.5 p-3 text-left transition-colors hover:bg-[var(--bg-elev)]"
+            style={{ borderColor: modifierId === m.id ? "var(--accent)" : undefined, borderWidth: modifierId === m.id ? 2 : undefined }}
+          >
+            <span className="font-bold">{m.name}</span>
+            <span className="text-xs text-[var(--text-muted)]">{m.blurb}</span>
+          </button>
+        ))}
+      </div>
+
+      <button className="btn btn-primary w-full" onClick={() => onPick(carId, modifierId)}>
+        Continue
+      </button>
+    </div>
+  );
+}
+
 export default function RacingPage() {
   const { inputRef, setTouch } = useCarInput();
   const [trackId, setTrackId] = useState<string | null>(null);
+  const [carId, setCarId] = useState<string | null>(null);
+  const [modifierId, setModifierId] = useState("none");
   const track = useMemo(() => (trackId ? getTrack(trackId) : null), [trackId]);
+  const car = useMemo(() => getCarType(carId ?? CAR_TYPES[0].id), [carId]);
+  const modifier = useMemo(() => getModifier(modifierId), [modifierId]);
+  const stats = useMemo(() => modifier.apply(car.stats), [car, modifier]);
   const { best, submit } = useHighScore("racing", { level: trackId ?? undefined, higherIsBetter: false });
   const [phase, setPhase] = useState<"idle" | "countdown" | "racing" | "done">("idle");
   const [count, setCount] = useState(3);
@@ -136,27 +220,45 @@ export default function RacingPage() {
   }, []);
 
   if (!track) return <TrackSelect onPick={setTrackId} />;
+  if (!carId) {
+    return (
+      <CarSelect
+        trackName={track.name}
+        onBack={() => setTrackId(null)}
+        onPick={(c, m) => {
+          setCarId(c);
+          setModifierId(m);
+        }}
+      />
+    );
+  }
 
   const running = phase === "racing";
-  const speedPct = Math.min(1, speed / 46);
+  const speedPct = Math.min(1, speed / stats.maxSpeed);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
       <div className="mb-1 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Circuit Dash — {track.name}</h1>
-        <button className="btn btn-ghost !py-1 text-xs" onClick={() => setTrackId(null)}>
-          Change track
-        </button>
+        <div className="flex gap-2">
+          <button className="btn btn-ghost !py-1 text-xs" onClick={() => setCarId(null)}>
+            Change car
+          </button>
+          <button className="btn btn-ghost !py-1 text-xs" onClick={() => setTrackId(null)}>
+            Change track
+          </button>
+        </div>
       </div>
       <p className="mb-4 text-sm text-[var(--text-muted)]">
-        {track.blurb} · {track.laps} laps.
+        {track.blurb} · {track.laps} laps · {car.name}
+        {modifier.id !== "none" ? ` · ${modifier.name}` : ""}.
       </p>
 
       <div className="relative overflow-hidden rounded-2xl bg-[#0a0e14]" style={{ aspectRatio: "16/10" }}>
         <Canvas shadows camera={{ fov: 62, position: [0, 6, -12] }}>
           <color attach="background" args={["#3a5a8c"]} />
           <fog attach="fog" args={["#3a5a8c", 90, 260]} />
-          <RaceScene track={track} inputRef={inputRef} running={running} callbacks={callbacksRef} />
+          <RaceScene track={track} car={car} stats={stats} inputRef={inputRef} running={running} callbacks={callbacksRef} />
         </Canvas>
 
         {/* HUD overlay */}

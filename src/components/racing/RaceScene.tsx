@@ -4,9 +4,11 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { TrackMesh } from "./TrackMesh";
+import { TrackScenery } from "./TrackScenery";
 import { Car } from "./Car";
-import { updateCar, initialCarState, carSpeed, type CarInput } from "@/lib/racing/carPhysics";
+import { updateCar, initialCarState, carSpeed, type CarInput, type CarStats } from "@/lib/racing/carPhysics";
 import type { Track } from "@/lib/racing/track";
+import type { CarType } from "@/lib/racing/cars";
 
 export interface RaceCallbacks {
   onLap: (lapTimeMs: number, lap: number) => void;
@@ -16,11 +18,15 @@ export interface RaceCallbacks {
 
 export function RaceScene({
   track,
+  car,
+  stats,
   inputRef,
   running,
   callbacks,
 }: {
   track: Track;
+  car: CarType;
+  stats: CarStats;
   inputRef: React.RefObject<CarInput>;
   running: boolean;
   callbacks: React.RefObject<RaceCallbacks>;
@@ -43,7 +49,7 @@ export function RaceScene({
 
     const proj = track.projectToTrack(new THREE.Vector3(state.current.x, 0, state.current.z));
     const onTrack = track.isOnTrack(proj.lateral);
-    state.current = updateCar(state.current, inputRef.current, clampedDt, { onTrack });
+    state.current = updateCar(state.current, inputRef.current, clampedDt, { onTrack, stats });
 
     // lap counting via unwrapped track parameter
     const proj2 = track.projectToTrack(new THREE.Vector3(state.current.x, 0, state.current.z));
@@ -111,7 +117,8 @@ export function RaceScene({
       <hemisphereLight args={["#6f9fe0", "#1c2b1c", 0.9]} />
       <directionalLight position={[60, 90, 30]} intensity={1.4} castShadow />
       <TrackMesh track={track} />
-      <Car ref={carRef} />
+      <TrackScenery track={track} />
+      <Car ref={carRef} color={car.color} scale={car.scale} variant={car.variant} />
     </>
   );
 }
