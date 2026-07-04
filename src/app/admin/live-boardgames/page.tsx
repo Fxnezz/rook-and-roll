@@ -16,6 +16,7 @@ const KIND_LABEL: Record<string, string> = {
   tictactoe: "Tic-Tac-Toe",
   connect4: "Connect Four",
   checkers: "Checkers",
+  othello: "Othello",
 };
 
 export default function AdminLiveBoardGamesPage() {

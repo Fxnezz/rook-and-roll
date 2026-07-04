@@ -8,6 +8,7 @@ import { MatchRoom, tryMatchQueue, type BgIdentity, type BgQueueEntry } from "./
 import { ticTacToeEngine } from "./ticTacToe.js";
 import { connectFourEngine } from "./connectFour.js";
 import { checkersEngine } from "./checkers.js";
+import { othelloEngine } from "./othello.js";
 import type { GameEngine } from "./engine.js";
 import type { BgClientToServer, BgLiveRoomSummary, BgServerToClient, GameKind } from "./protocol.js";
 
@@ -15,6 +16,7 @@ const ENGINES: Record<GameKind, GameEngine<unknown, unknown>> = {
   tictactoe: ticTacToeEngine as GameEngine<unknown, unknown>,
   connect4: connectFourEngine as GameEngine<unknown, unknown>,
   checkers: checkersEngine as GameEngine<unknown, unknown>,
+  othello: othelloEngine as GameEngine<unknown, unknown>,
 };
 
 const GRACE_MS = 30_000;

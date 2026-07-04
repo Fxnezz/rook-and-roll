@@ -64,6 +64,16 @@ const MULTIPLAYER_GAMES: GameCard[] = [
       { href: "/play/checkers/local", label: "Pass & Play" },
     ],
   },
+  {
+    title: "Othello",
+    blurb: "Flank a line of discs to flip them — most discs when the board settles wins. Rated, vs bot, or pass & play.",
+    emoji: "🟢",
+    links: [
+      { href: "/play/othello", label: "Play Online" },
+      { href: "/play/othello/bot", label: "vs Bot" },
+      { href: "/play/othello/local", label: "Pass & Play" },
+    ],
+  },
 ];
 
 const ARCADE_GAMES: GameCard[] = [

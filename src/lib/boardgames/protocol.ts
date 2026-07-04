@@ -2,7 +2,7 @@
 // Socket.IO namespace — Tic-Tac-Toe, Connect Four, Checkers).
 
 export type Seat = "a" | "b";
-export type GameKind = "tictactoe" | "connect4" | "checkers";
+export type GameKind = "tictactoe" | "connect4" | "checkers" | "othello";
 
 export interface BgIdentity {
   userId: string;
