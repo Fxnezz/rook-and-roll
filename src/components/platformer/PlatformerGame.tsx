@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPlayer, stepPlayer, circleRectOverlap, type PlayerState } from "@/lib/platformer/physics";
-import { getLevel, moverRectAt } from "@/lib/platformer/levels";
+import { getLevel, moverRectAt, type Level } from "@/lib/platformer/levels";
+import type { LevelSkin } from "@/lib/platformer/generate";
 import { usePlatformerInput } from "@/lib/platformer/usePlatformerInput";
 import { useHighScore } from "@/lib/arcade/useHighScore";
 import { playArcadeSound } from "@/lib/arcade/sound";
@@ -11,15 +12,32 @@ const VIEW_W = 760;
 const VIEW_H = 420;
 const COLLECT_R = 12;
 
+const SKIN_PALETTES: Record<LevelSkin, { sky: [string, string]; hill: string; ground: string }> = {
+  meadow: { sky: ["#5a8cd8", "#bcd9f0"], hill: "#4a6b8c", ground: "#6f8f5a" },
+  dusk: { sky: ["#7a4a8c", "#e0a878"], hill: "#5a3f6e", ground: "#8a6f4a" },
+  frost: { sky: ["#4a7ca8", "#d8ecf5"], hill: "#3f5f78", ground: "#7a97a0" },
+};
+
 function fmtTime(ms: number): string {
   return (ms / 1000).toFixed(2) + "s";
 }
 
-export function PlatformerGame({ levelId, onExit }: { levelId: string; onExit: () => void }) {
-  const level = getLevel(levelId);
+export function PlatformerGame({
+  levelId,
+  level: levelProp,
+  scoreKey,
+  onExit,
+}: {
+  levelId?: string;
+  level?: Level & { skin?: LevelSkin };
+  scoreKey?: string;
+  onExit: () => void;
+}) {
+  const level = levelProp ?? getLevel(levelId!);
+  const skin = SKIN_PALETTES[(level as { skin?: LevelSkin }).skin ?? "meadow"];
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { raw, setTouch } = usePlatformerInput();
-  const { best, submit } = useHighScore("platformer", { level: levelId, higherIsBetter: false });
+  const { best, submit } = useHighScore("platformer", { level: scoreKey ?? levelId ?? level.id, higherIsBetter: false });
 
   const [phase, setPhase] = useState<"playing" | "won">("playing");
   const [deaths, setDeaths] = useState(0);
@@ -139,15 +157,15 @@ export function PlatformerGame({ levelId, onExit }: { levelId: string; onExit: (
       const cam = camX.current;
       // sky
       const grad = ctx.createLinearGradient(0, 0, 0, VIEW_H);
-      grad.addColorStop(0, "#5a8cd8");
-      grad.addColorStop(1, "#bcd9f0");
+      grad.addColorStop(0, skin.sky[0]);
+      grad.addColorStop(1, skin.sky[1]);
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
       // parallax background: far hills, then nearer clouds — both scroll
       // slower than the camera so the level feels like it has depth.
       const hillsX = -cam * 0.25;
-      ctx.fillStyle = "#4a6b8c";
+      ctx.fillStyle = skin.hill;
       for (let i = -1; i < 6; i++) {
         const bx = hillsX + i * 240;
         ctx.beginPath();
@@ -168,7 +186,7 @@ export function PlatformerGame({ levelId, onExit }: { levelId: string; onExit: (
       for (const p of level.platforms) {
         const px = p.x - cam;
         const bodyGrad = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
-        bodyGrad.addColorStop(0, "#6f8f5a");
+        bodyGrad.addColorStop(0, skin.ground);
         bodyGrad.addColorStop(0.25, "#5c7a49");
         bodyGrad.addColorStop(1, "#3f5432");
         ctx.fillStyle = bodyGrad;
