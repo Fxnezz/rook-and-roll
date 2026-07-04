@@ -4,6 +4,7 @@ import { useState } from "react";
 import { LEVELS } from "@/lib/platformer/levels";
 import { generateLevel, randomSeed, type GeneratedLevel } from "@/lib/platformer/generate";
 import { PlatformerGame } from "@/components/platformer/PlatformerGame";
+import { InfiniteRunGame } from "@/components/platformer/InfiniteRunGame";
 import { useHighScore } from "@/lib/arcade/useHighScore";
 
 function LevelCard({ id, name, onPlay }: { id: string; name: string; onPlay: () => void }) {
@@ -27,11 +28,31 @@ function RandomLevelCard({ onPlay }: { onPlay: () => void }) {
   );
 }
 
+function InfiniteRunCard({ onPlay }: { onPlay: () => void }) {
+  const { best } = useHighScore("platformer", { level: "infinite", higherIsBetter: true });
+  return (
+    <button onClick={onPlay} className="panel flex flex-col items-start gap-1 border border-dashed border-[var(--accent)] p-4 text-left transition-colors hover:bg-[var(--bg-elev)]">
+      <span className="font-bold">♾️ Infinite Run</span>
+      <span className="text-xs text-[var(--text-muted)]">Endless generated ground — how far can you get?</span>
+      <span className="text-xs text-[var(--text-faint)]">{best != null ? `Best: ${best}m` : "Not run yet"}</span>
+    </button>
+  );
+}
+
 export default function PlatformerPage() {
   const [levelId, setLevelId] = useState<string | null>(null);
   const [randomLevel, setRandomLevel] = useState<GeneratedLevel | null>(null);
+  const [infinite, setInfinite] = useState(false);
 
   const playRandom = () => setRandomLevel(generateLevel(randomSeed()));
+
+  if (infinite) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-6">
+        <InfiniteRunGame onExit={() => setInfinite(false)} />
+      </div>
+    );
+  }
 
   if (randomLevel) {
     return (
@@ -69,6 +90,7 @@ export default function PlatformerPage() {
           <LevelCard key={l.id} id={l.id} name={l.name} onPlay={() => setLevelId(l.id)} />
         ))}
         <RandomLevelCard onPlay={playRandom} />
+        <InfiniteRunCard onPlay={() => setInfinite(true)} />
       </div>
     </div>
   );

@@ -15,7 +15,10 @@ export async function GET(req: Request) {
   if (!isDbConfigured) return NextResponse.json({ best: null, leaderboard: [] });
 
   const session = await auth();
-  const higherIsBetter = game !== "racing" && game !== "platformer";
+  // Platformer is time-based (lower is better) per hand-built/random level,
+  // except the "infinite" bucket which scores distance (higher is better).
+  const higherIsBetter =
+    game === "platformer" ? level === "infinite" : game !== "racing";
 
   const [best, leaderboard] = await Promise.all([
     session?.user?.id

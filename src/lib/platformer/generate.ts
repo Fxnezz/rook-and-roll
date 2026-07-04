@@ -1,4 +1,5 @@
-import type { Level } from "./levels";
+import type { Level, Collectible } from "./levels";
+import type { Rect } from "./physics";
 
 /**
  * Procedural level generator — builds a guaranteed-completable run of
@@ -9,9 +10,10 @@ import type { Level } from "./levels";
  * deriving a reachability envelope from the physics constants directly.
  *
  * Deterministic per seed (mulberry32), so the same seed always regenerates
- * the same layout.
+ * the same layout. The same per-platform step logic (`nextPlatformStep`)
+ * backs both the finite "Random Run" mode and the endless Infinite Run mode.
  */
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return function () {
     a |= 0;
@@ -44,6 +46,52 @@ export interface GeneratedLevel extends Level {
   skin: LevelSkin;
 }
 
+export interface PlatformStep {
+  platform: Rect;
+  hazard: Rect | null;
+  collectible: Collectible | null;
+  prevEnd: number;
+  prevY: number;
+}
+
+/**
+ * Picks the next platform given where the previous one ended. `hazardChance`
+ * and `widthBias` (0..1, shrinks the width range) are exposed so Infinite
+ * Run can ramp difficulty gently with distance while staying inside the
+ * same proven-reachable gap/step bounds.
+ */
+export function nextPlatformStep(
+  rng: () => number,
+  prevEnd: number,
+  prevY: number,
+  opts: { hazardChance?: number; widthBias?: number } = {},
+): PlatformStep {
+  const hazardChance = opts.hazardChance ?? HAZARD_CHANCE;
+  const widthBias = opts.widthBias ?? 0;
+
+  const gap = MIN_GAP + rng() * (MAX_GAP - MIN_GAP);
+  const maxW = MAX_WIDTH - (MAX_WIDTH - MIN_WIDTH) * widthBias * 0.5;
+  const width = MIN_WIDTH + rng() * (maxW - MIN_WIDTH);
+  let y = prevY + (rng() * 2 - 1) * MAX_STEP;
+  y = Math.max(MIN_Y, Math.min(MAX_Y, y));
+
+  const x = prevEnd + gap;
+  const platform: Rect = { x, y, w: width, h: PLATFORM_H };
+
+  let hazard: Rect | null = null;
+  if (gap > 95 && rng() < hazardChance) {
+    const hazardW = Math.min(gap - 20, 70);
+    hazard = { x: prevEnd + (gap - hazardW) / 2, y: Math.max(prevY, y) + 40, w: hazardW, h: 20 };
+  }
+
+  let collectible: Collectible | null = null;
+  if (rng() < 0.75) {
+    collectible = { x: x + width / 2, y: y - 40 };
+  }
+
+  return { platform, hazard, collectible, prevEnd: x + width, prevY: y };
+}
+
 export function generateLevel(seed: number): GeneratedLevel {
   const rng = mulberry32(seed);
   const count = PLATFORM_COUNT_MIN + Math.floor(rng() * (PLATFORM_COUNT_MAX - PLATFORM_COUNT_MIN + 1));
@@ -53,36 +101,17 @@ export function generateLevel(seed: number): GeneratedLevel {
   const collectibles: Level["collectibles"] = [];
 
   // First platform is a wide, comfortable starting ledge.
-  let x = 0;
-  let y = 400;
-  platforms.push({ x, y, w: 260, h: PLATFORM_H + 30 });
-  let prevEnd = x + 260;
-  let prevY = y;
+  platforms.push({ x: 0, y: 400, w: 260, h: PLATFORM_H + 30 });
+  let prevEnd = 260;
+  let prevY = 400;
 
   for (let i = 1; i < count; i++) {
-    const gap = MIN_GAP + rng() * (MAX_GAP - MIN_GAP);
-    const width = MIN_WIDTH + rng() * (MAX_WIDTH - MIN_WIDTH);
-    let nextY = prevY + (rng() * 2 - 1) * MAX_STEP;
-    nextY = Math.max(MIN_Y, Math.min(MAX_Y, nextY));
-
-    x = prevEnd + gap;
-    y = nextY;
-    platforms.push({ x, y, w: width, h: PLATFORM_H });
-
-    // A hazard in the gap between this platform and the previous one —
-    // skip it if the gap is too tight to look/feel fair.
-    if (gap > 95 && rng() < HAZARD_CHANCE) {
-      const hazardW = Math.min(gap - 20, 70);
-      hazards.push({ x: prevEnd + (gap - hazardW) / 2, y: Math.max(prevY, y) + 40, w: hazardW, h: 20 });
-    }
-
-    // A collectible floats above most platforms.
-    if (rng() < 0.75) {
-      collectibles.push({ x: x + width / 2, y: y - 40 });
-    }
-
-    prevEnd = x + width;
-    prevY = y;
+    const step = nextPlatformStep(rng, prevEnd, prevY);
+    platforms.push(step.platform);
+    if (step.hazard) hazards.push(step.hazard);
+    if (step.collectible) collectibles.push(step.collectible);
+    prevEnd = step.prevEnd;
+    prevY = step.prevY;
   }
 
   const goal: Level["goal"] = { x: prevEnd - 50, y: prevY, w: 40, h: 60 };
