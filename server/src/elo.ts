@@ -11,8 +11,8 @@ function expected(r: number, o: number): number {
   return 1 / (1 + Math.pow(10, (o - r) / 400));
 }
 
-export function updateElo(rating: number, opp: number, score: 1 | 0.5 | 0, games = 30) {
-  const k = kFactor(rating, games);
+export function updateElo(rating: number, opp: number, score: 1 | 0.5 | 0, games = 30, kMultiplier = 1) {
+  const k = kFactor(rating, games) * kMultiplier;
   const delta = Math.round(k * (score - expected(rating, opp)));
   return { rating: rating + delta, delta };
 }

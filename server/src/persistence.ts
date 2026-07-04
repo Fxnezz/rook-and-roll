@@ -19,6 +19,9 @@ type PrismaLike = {
     count: (a: unknown) => Promise<number>;
   };
   ratingHistory: { create: (a: unknown) => Promise<unknown> };
+  appConfig: { findUnique: (a: unknown) => Promise<{ key: string; value: string } | null> };
+  report?: { create: (a: unknown) => Promise<unknown> };
+  adminAuditLog?: { create: (a: unknown) => Promise<unknown> };
 };
 
 let prisma: PrismaLike | null = null;
@@ -77,6 +80,33 @@ export async function getUserModeration(
   }
 }
 
+/** Append to the shared AdminAuditLog table (best-effort, never throws). */
+export async function auditAdminAction(
+  action: string,
+  targetType?: string,
+  targetId?: string,
+  detail?: Record<string, unknown>,
+): Promise<void> {
+  if (!enabled || !prisma?.adminAuditLog) return;
+  try {
+    await prisma.adminAuditLog.create({
+      data: { actor: "admin", action, targetType: targetType ?? null, targetId: targetId ?? null, detail: detail ?? null },
+    });
+  } catch (e) {
+    console.error("[persistence] failed to write admin audit log", (e as Error).message);
+  }
+}
+
+/** Auto-generated report surfaced in the same queue as player-filed reports. */
+export async function fileAutomatedReport(reportedId: string, reason: string, detail: string): Promise<void> {
+  if (!enabled || !prisma?.report || reportedId.startsWith("guest:")) return;
+  try {
+    await prisma.report.create({ data: { reporterId: null, reportedId, reason, detail } });
+  } catch (e) {
+    console.error("[persistence] failed to file automated report", (e as Error).message);
+  }
+}
+
 const FIELD: Record<string, string> = {
   bullet: "ratingBullet",
   blitz: "ratingBlitz",
@@ -93,11 +123,13 @@ const RESULT_ENUM: Record<string, string> = {
 /** Persist a finished room and update Elo. Returns rating deltas if applied. */
 export async function saveFinishedGame(
   room: GameRoom,
+  kFactorMultiplier: Record<string, number> = {},
 ): Promise<{ white: number; black: number } | null> {
   if (!enabled || !prisma || !room.status) return null;
   const cat = room.timeControl.category;
   const field = FIELD[cat];
   const result = room.status.result;
+  const kMult = kFactorMultiplier[cat] ?? 1;
 
   let whiteBefore: number | null = null;
   let blackBefore: number | null = null;
@@ -123,8 +155,8 @@ export async function saveFinishedGame(
           prisma.game.count({ where: { OR: [{ whiteId: room.white.userId }, { blackId: room.white.userId }], rated: true, category: cat } }),
           prisma.game.count({ where: { OR: [{ whiteId: room.black.userId }, { blackId: room.black.userId }], rated: true, category: cat } }),
         ]);
-        const wUpd = updateElo(wr, br, wScore as 1 | 0.5 | 0, wGames);
-        const bUpd = updateElo(br, wr, bScore, bGames);
+        const wUpd = updateElo(wr, br, wScore as 1 | 0.5 | 0, wGames, kMult);
+        const bUpd = updateElo(br, wr, bScore, bGames, kMult);
         whiteBefore = wr;
         blackBefore = br;
         whiteAfter = wUpd.rating;

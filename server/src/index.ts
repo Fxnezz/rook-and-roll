@@ -5,7 +5,8 @@ import { Server, type Socket } from "socket.io";
 import { GameRoom } from "./GameRoom.js";
 import { cleanChat } from "./chat.js";
 import { RateLimiter, CorrelationTracker } from "./anticheat.js";
-import { initPersistence, saveFinishedGame, getUserModeration } from "./persistence.js";
+import { initPersistence, saveFinishedGame, getUserModeration, auditAdminAction, fileAutomatedReport } from "./persistence.js";
+import { getLiveMatchConfig } from "./liveConfig.js";
 import { verifyAdminToken } from "./adminAuth.js";
 import { registerBoardGameHandlers } from "./boardgames/socketHandlers.js";
 import type { BgClientToServer, BgServerToClient } from "./boardgames/protocol.js";
@@ -20,7 +21,6 @@ const PORT = Number(process.env.PORT ?? 4000);
 const CLIENT_ORIGIN = (process.env.CLIENT_ORIGIN ?? "http://localhost:3000")
   .split(",")
   .map((s) => s.trim());
-const GRACE_MS = 30_000;
 
 const app = express();
 app.use(cors({ origin: CLIENT_ORIGIN }));
@@ -68,7 +68,9 @@ interface SocketData {
 }
 
 function liveGames() {
-  return [...rooms.values()].filter((r) => !r.status).map((r) => r.summary());
+  return [...rooms.values()]
+    .filter((r) => !r.status)
+    .map((r) => r.summary((userId) => correlation.suspicion(userId)));
 }
 
 // ---- health ----------------------------------------------------------------
@@ -89,12 +91,16 @@ function bucketKey(tc: TimeControlSpec, rated: boolean) {
   return `${tc.id}|${rated ? "rated" : "casual"}`;
 }
 
-function ratingBand(waitMs: number) {
-  // start ±100, widen by 100 every 5s, cap ±1000
-  return Math.min(1000, 100 + Math.floor(waitMs / 5000) * 100);
+function ratingBand(waitMs: number, mm: { startBand: number; widenAmount: number; widenIntervalSec: number; maxBand: number }) {
+  return Math.min(mm.maxBand, mm.startBand + Math.floor(waitMs / (mm.widenIntervalSec * 1000)) * mm.widenAmount);
 }
 
-function tryMatch(bucket: string, tc: TimeControlSpec, rated: boolean) {
+function tryMatch(
+  bucket: string,
+  tc: TimeControlSpec,
+  rated: boolean,
+  mm: { startBand: number; widenAmount: number; widenIntervalSec: number; maxBand: number },
+) {
   const q = queues.get(bucket);
   if (!q || q.length < 2) return;
   const now = Date.now();
@@ -103,12 +109,12 @@ function tryMatch(bucket: string, tc: TimeControlSpec, rated: boolean) {
       const a = q[i];
       const b = q[j];
       const diff = Math.abs(a.identity.rating - b.identity.rating);
-      const band = Math.max(ratingBand(now - a.joinedAt), ratingBand(now - b.joinedAt));
+      const band = Math.max(ratingBand(now - a.joinedAt, mm), ratingBand(now - b.joinedAt, mm));
       if (diff <= band) {
         q.splice(j, 1);
         q.splice(i, 1);
         createGame(a, b, tc, rated);
-        return tryMatch(bucket, tc, rated); // keep pairing
+        return tryMatch(bucket, tc, rated, mm); // keep pairing
       }
     }
   }
@@ -142,14 +148,23 @@ function removeFromQueues(socketId: string) {
 // ---- game end + persistence -----------------------------------------------
 async function endGame(room: GameRoom) {
   if (!room.status) return;
-  const deltas = await saveFinishedGame(room);
+  const cfg = await getLiveMatchConfig();
+  const deltas = room.voided ? null : await saveFinishedGame(room, cfg.kFactorMultiplier);
   const over = { ...room.status, ratingDelta: deltas ?? undefined };
   io.to(room.id).emit("game:over", over);
   io.to(room.id).emit("game:state", { ...room.toState(), status: over });
-  // review flag for suspicious play
-  for (const p of [room.white, room.black]) {
-    const s = correlation.suspicion(p.userId);
-    if (s > 0.6) console.warn(`[anticheat] review ${p.username} (${p.userId}) suspicion=${s.toFixed(2)} room=${room.id}`);
+  // auto-flag suspicious play as a report in the same admin queue as player reports
+  if (cfg.anticheat.enabled && !room.voided) {
+    for (const p of [room.white, room.black]) {
+      const s = correlation.suspicion(p.userId);
+      if (s > cfg.anticheat.suspicionThreshold) {
+        await fileAutomatedReport(
+          p.userId,
+          "Automated anti-cheat flag",
+          `Move-timing suspicion score ${s.toFixed(2)} (threshold ${cfg.anticheat.suspicionThreshold}) in room ${room.id}.`,
+        );
+      }
+    }
   }
   userRoom.delete(room.white.userId);
   userRoom.delete(room.black.userId);
@@ -190,6 +205,16 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     socket.data.username = identity.username;
     userSocket.set(identity.userId, socket.id);
 
+    const cfg = await getLiveMatchConfig();
+    if (identity.guest && !cfg.allowGuestPlay) {
+      socket.emit("error:msg", { message: "Guest play is currently disabled — please sign in." });
+      return;
+    }
+    if (cfg.enabledTimeControls && !cfg.enabledTimeControls.includes(timeControl.id)) {
+      socket.emit("error:msg", { message: "This time control is currently disabled." });
+      return;
+    }
+
     // Kick cooldown: recently force-disconnected users can't rejoin yet.
     const cd = kickCooldown.get(identity.userId);
     if (cd && cd > Date.now()) {
@@ -219,7 +244,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     }
     queues.set(bucket, q);
     socket.emit("queue:waiting", { position: q.length, playersSearching: q.length });
-    tryMatch(bucket, timeControl, isRated);
+    tryMatch(bucket, timeControl, isRated, cfg.matchmaking);
   });
 
   socket.on("queue:leave", () => removeFromQueues(socket.id));
@@ -250,24 +275,30 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     socket.emit("game:state", room.toState());
   });
 
-  socket.on("room:spectate", ({ roomId, identity }) => {
+  socket.on("room:spectate", async ({ roomId, identity }) => {
     const room = rooms.get(roomId);
     if (!room) return socket.emit("error:msg", { message: "Room not found" });
+    const cfg = await getLiveMatchConfig();
+    if (!cfg.allowSpectators) return socket.emit("error:msg", { message: "Spectating is currently disabled." });
     socket.data.roomId = roomId;
     socket.data.userId = identity.userId;
     socket.join(roomId);
     room.spectators.add(socket.id);
+    room.spectatorIdentities.set(socket.id, { userId: identity.userId, username: identity.username });
     socket.emit("game:state", room.toState());
     io.to(roomId).emit("game:state", room.toState());
   });
 
   socket.on("room:leave", ({ roomId }) => {
     const room = rooms.get(roomId);
-    if (room) room.spectators.delete(socket.id);
+    if (room) {
+      room.spectators.delete(socket.id);
+      room.spectatorIdentities.delete(socket.id);
+    }
     socket.leave(roomId);
   });
 
-  socket.on("move", ({ roomId, from, to, promotion }) => {
+  socket.on("move", async ({ roomId, from, to, promotion }) => {
     const room = rooms.get(roomId);
     if (!room) return;
     const userId = socket.data.userId;
@@ -285,7 +316,22 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
       return;
     }
     correlation.record(userId);
-    io.to(roomId).emit("game:move", { san: res.san, from, to, promotion, clock: room.clockState() });
+    const movePayload = { san: res.san, from, to, promotion, clock: room.clockState() };
+    const wSock = userSocket.get(room.white.userId);
+    const bSock = userSocket.get(room.black.userId);
+    for (const sid of [wSock, bSock, ...room.adminObservers]) {
+      if (sid) io.to(sid).emit("game:move", movePayload);
+    }
+    const cfg = await getLiveMatchConfig();
+    const delayMs = cfg.spectatorBroadcastDelaySec * 1000;
+    const spectatorIds = [...room.spectators].filter((sid) => sid !== wSock && sid !== bSock);
+    if (delayMs > 0) {
+      setTimeout(() => {
+        for (const sid of spectatorIds) io.to(sid).emit("game:move", movePayload);
+      }, delayMs);
+    } else {
+      for (const sid of spectatorIds) io.to(sid).emit("game:move", movePayload);
+    }
     if (room.status) void endGame(room);
   });
 
@@ -358,10 +404,17 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (offers.has("w") && offers.has("b")) startRematch(room);
   });
 
-  socket.on("chat:send", ({ roomId, text }) => {
+  socket.on("chat:send", async ({ roomId, text }) => {
     const room = rooms.get(roomId);
     if (!room) return;
     if (socket.data.muted) return; // muted users can play but not chat
+    const userId = socket.data.userId;
+    if (userId) {
+      const color = room.playerColor(userId);
+      if (color && room.roomMuted[color]) return; // moderator muted this side for this game
+    }
+    const cfg = await getLiveMatchConfig();
+    if (!cfg.allowChat) return;
     if (!chatLimiter.allow(socket.id)) return;
     const clean = cleanChat(text);
     if (!clean) return;
@@ -390,6 +443,12 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
 
   const resync = (room: GameRoom) => io.to(room.id).emit("game:state", room.toState());
 
+  /** Best-effort audit trail for every admin:* action, gated by the config toggle. */
+  const logAdmin = async (action: string, targetId?: string, detail?: Record<string, unknown>, targetType = "game") => {
+    const cfg = await getLiveMatchConfig();
+    if (cfg.logAdminSocketActions) await auditAdminAction(action, targetType, targetId, detail);
+  };
+
   socket.on("admin:games", () => {
     if (!socket.data.isAdmin) return;
     socket.emit("admin:games", { games: liveGames() });
@@ -397,17 +456,26 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
 
   // Invisible spectate: join the room without appearing in the spectator count
   // or player list.
-  socket.on("admin:attach", ({ roomId }) => {
+  socket.on("admin:attach", async ({ roomId }) => {
     const room = adminRoom(roomId);
     if (!room) return;
     socket.join(roomId);
+    room.adminObservers.add(socket.id);
     socket.emit("game:state", room.toState());
+    void logAdmin("admin_attach", roomId);
+    const cfg = await getLiveMatchConfig();
+    if (cfg.notifyPlayersOnAdminAttach) {
+      io.to(roomId).emit("chat:message", { from: "System", text: "A moderator has joined to observe this game.", ts: Date.now(), system: true });
+    }
   });
 
   socket.on("admin:setFen", ({ roomId, fen }) => {
     const room = adminRoom(roomId);
     if (!room) return;
-    if (room.adminSetFen(fen)) resync(room);
+    if (room.adminSetFen(fen)) {
+      resync(room);
+      void logAdmin("game_set_fen", roomId, { fen });
+    }
   });
 
   socket.on("admin:place", ({ roomId, square, piece }) => {
@@ -415,6 +483,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!room) return;
     room.adminPlace(square, piece);
     resync(room);
+    void logAdmin("game_place_piece", roomId, { square, piece });
   });
 
   socket.on("admin:forceMove", ({ roomId, from, to, promotion }) => {
@@ -423,6 +492,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     room.adminForceMove(from, to, promotion);
     io.to(roomId).emit("game:move", { san: `${from}${to}`, from, to, promotion, clock: room.clockState() });
     resync(room);
+    void logAdmin("game_force_move", roomId, { from, to, promotion });
   });
 
   socket.on("admin:forceResult", ({ roomId, result }) => {
@@ -430,6 +500,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!room) return;
     room.adminForceResult(result);
     void endGame(room);
+    void logAdmin("game_force_result", roomId, { result });
   });
 
   socket.on("admin:clock", ({ roomId, color, addSeconds, pause, disable }) => {
@@ -437,6 +508,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!room) return;
     room.adminClock(color, { addSeconds, pause, disable });
     resync(room);
+    void logAdmin("game_clock", roomId, { color, addSeconds, pause, disable });
   });
 
   socket.on("admin:freeze", ({ roomId, color, frozen }) => {
@@ -444,6 +516,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!room) return;
     room.adminFreeze(color, frozen);
     resync(room);
+    void logAdmin("game_freeze", roomId, { color, frozen });
   });
 
   socket.on("admin:swap", ({ roomId }) => {
@@ -451,11 +524,13 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!room) return;
     room.adminSwap();
     resync(room);
+    void logAdmin("game_swap_sides", roomId);
   });
 
   socket.on("admin:clearChat", ({ roomId }) => {
     if (!socket.data.isAdmin) return;
     io.to(roomId).emit("chat:cleared");
+    void logAdmin("game_clear_chat", roomId);
   });
 
   socket.on("admin:kick", ({ userId, cooldownMs, message }) => {
@@ -467,28 +542,129 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
       target.emit("kicked", { message: message ?? "You have been disconnected by a moderator." });
       target.disconnect(true);
     }
+    void logAdmin("user_kick_live", userId, { cooldownMs, message }, "user");
   });
 
-  socket.on("disconnect", () => {
+  socket.on("admin:systemMessage", ({ roomId, text }) => {
+    if (!socket.data.isAdmin) return;
+    const clean = text.trim().slice(0, 300);
+    if (!clean) return;
+    io.to(roomId).emit("chat:message", { from: "Moderator", text: clean, ts: Date.now(), system: true });
+    void logAdmin("game_system_message", roomId, { text: clean });
+  });
+
+  socket.on("admin:whisper", ({ roomId, color, text }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    const clean = text.trim().slice(0, 300);
+    if (!clean) return;
+    const target = color === "w" ? room.white : room.black;
+    const sid = userSocket.get(target.userId);
+    if (sid) io.to(sid).emit("chat:message", { from: "Moderator (private)", text: clean, ts: Date.now(), system: true });
+    void logAdmin("game_whisper", roomId, { color, text: clean });
+  });
+
+  socket.on("admin:pause", ({ roomId, paused }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    room.adminPause(paused);
+    resync(room);
+    io.to(roomId).emit("chat:message", {
+      from: "System",
+      text: paused ? "Game paused by a moderator." : "Game resumed.",
+      ts: Date.now(),
+      system: true,
+    });
+    void logAdmin(paused ? "game_pause" : "game_resume", roomId);
+  });
+
+  socket.on("admin:void", ({ roomId, reason }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    room.adminVoid(reason);
+    void endGame(room);
+    void logAdmin("game_void", roomId, { reason });
+  });
+
+  socket.on("admin:muteChat", ({ roomId, color, muted }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    room.adminMuteChat(color, muted);
+    resync(room);
+    void logAdmin(muted ? "game_mute_chat" : "game_unmute_chat", roomId, { color });
+  });
+
+  socket.on("admin:extendBoth", ({ roomId, addSeconds }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    room.adminExtendBoth(addSeconds);
+    resync(room);
+    void logAdmin("game_extend_both", roomId, { addSeconds });
+  });
+
+  socket.on("admin:resetClocks", ({ roomId }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    room.adminResetClocks();
+    resync(room);
+    void logAdmin("game_reset_clocks", roomId);
+  });
+
+  socket.on("admin:forceRematch", ({ roomId }) => {
+    const room = adminRoom(roomId);
+    if (!room || !room.status) return;
+    startRematch(room);
+    void logAdmin("game_force_rematch", roomId);
+  });
+
+  socket.on("admin:cancelGame", ({ roomId }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    for (const p of [room.white, room.black]) {
+      const sid = userSocket.get(p.userId);
+      const target = sid ? io.sockets.sockets.get(sid) : undefined;
+      if (target) target.emit("kicked", { message: "This game was cancelled by a moderator." });
+    }
+    userRoom.delete(room.white.userId);
+    userRoom.delete(room.black.userId);
+    rooms.delete(roomId);
+    io.to(roomId).emit("admin:games", { games: liveGames() });
+    void logAdmin("game_cancel", roomId);
+  });
+
+  socket.on("admin:flagReview", ({ roomId, flagged }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    room.adminFlagReview(flagged);
+    void logAdmin(flagged ? "game_flag_review" : "game_unflag_review", roomId);
+  });
+
+  socket.on("disconnect", async () => {
     removeFromQueues(socket.id);
     const userId = socket.data.userId;
     const roomId = socket.data.roomId;
     if (userId) userSocket.delete(userId);
+    if (socket.data.isAdmin) {
+      for (const room of rooms.values()) room.adminObservers.delete(socket.id);
+    }
     if (!roomId || !userId) return;
     const room = rooms.get(roomId);
     if (!room) return;
     room.spectators.delete(socket.id);
+    room.spectatorIdentities.delete(socket.id);
     const color = room.playerColor(userId);
     if (!color || room.status) return;
     room.setConnected(userId, false);
-    socket.to(roomId).emit("opponent:disconnected", { graceMs: GRACE_MS });
+    const cfg = await getLiveMatchConfig();
+    const graceMs = cfg.disconnectGraceSec * 1000;
+    socket.to(roomId).emit("opponent:disconnected", { graceMs });
     const timer = setTimeout(() => {
       if (!room.status) {
         room.abandonment(color);
         void endGame(room);
       }
       graceTimers.delete(userId);
-    }, GRACE_MS);
+    }, graceMs);
     graceTimers.set(userId, timer);
   });
 

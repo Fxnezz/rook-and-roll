@@ -48,6 +48,12 @@ export interface GameStateMsg {
   drawOfferFrom?: Color | null;
   rated: boolean;
   frozen?: { w: boolean; b: boolean };
+  paused?: boolean;
+  roomMuted?: { w: boolean; b: boolean };
+  moveTimesMs?: number[];
+  /** epoch ms a side's disconnect grace period started, or null if connected */
+  disconnectedSince?: { w: number | null; b: number | null };
+  spectatorList?: { username: string }[];
 }
 
 export interface GameOverMsg {
@@ -55,6 +61,8 @@ export interface GameOverMsg {
   winner: Color | null;
   reason: string;
   ratingDelta?: { white: number; black: number };
+  /** Voided by a moderator: no rating/history impact, shown distinctly to both players. */
+  voided?: boolean;
 }
 
 export interface ChatMsg {
@@ -78,8 +86,12 @@ export interface LiveGameSummary {
   ply: number;
   fen: string;
   timeControl: string;
+  category: string;
+  rated: boolean;
   over: boolean;
   spectators: number;
+  reviewFlagged: boolean;
+  suspicion: { w: number; b: number };
 }
 
 // ---- client → server events ----
@@ -111,6 +123,16 @@ export interface ClientToServer {
   "admin:swap": (p: { roomId: string }) => void;
   "admin:kick": (p: { userId: string; cooldownMs?: number; message?: string }) => void;
   "admin:clearChat": (p: { roomId: string }) => void;
+  "admin:systemMessage": (p: { roomId: string; text: string }) => void;
+  "admin:whisper": (p: { roomId: string; color: Color; text: string }) => void;
+  "admin:pause": (p: { roomId: string; paused: boolean }) => void;
+  "admin:void": (p: { roomId: string; reason?: string }) => void;
+  "admin:muteChat": (p: { roomId: string; color: Color; muted: boolean }) => void;
+  "admin:extendBoth": (p: { roomId: string; addSeconds: number }) => void;
+  "admin:resetClocks": (p: { roomId: string }) => void;
+  "admin:forceRematch": (p: { roomId: string }) => void;
+  "admin:cancelGame": (p: { roomId: string }) => void;
+  "admin:flagReview": (p: { roomId: string; flagged: boolean }) => void;
 }
 
 // ---- server → client events ----

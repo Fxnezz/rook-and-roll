@@ -35,11 +35,23 @@ export class GameRoom {
   status: GameOverMsg | null = null;
   drawOfferFrom: Color | null = null;
   spectators = new Set<string>();
+  /** socketId -> identity, for admin visibility into who's watching */
+  spectatorIdentities = new Map<string, { userId: string; username: string }>();
+  /** admin sockets invisibly attached — get moves instantly, never delayed, never counted as spectators */
+  adminObservers = new Set<string>();
 
   // Admin god-mode state
   frozen = { w: false, b: false };
   private clockDisabled = false;
   adminResolved = false;
+  paused = false;
+  roomMuted = { w: false, b: false };
+  reviewFlagged = false;
+  voided = false;
+  /** ms spent on each ply, index-aligned with chess.history() */
+  moveTimesMs: number[] = [];
+  private lastMoveAt = 0;
+  disconnectedSince: { w: number | null; b: number | null } = { w: null, b: null };
 
   constructor(a: Identity, b: Identity, tc: TimeControlSpec, rated: boolean) {
     this.timeControl = tc;
@@ -65,14 +77,21 @@ export class GameRoom {
   }
 
   setConnected(userId: string, connected: boolean) {
-    if (this.white.userId === userId) this.white.connected = connected;
-    if (this.black.userId === userId) this.black.connected = connected;
+    if (this.white.userId === userId) {
+      this.white.connected = connected;
+      this.disconnectedSince.w = connected ? null : Date.now();
+    }
+    if (this.black.userId === userId) {
+      this.black.connected = connected;
+      this.disconnectedSince.b = connected ? null : Date.now();
+    }
   }
 
   /** Begin the game clock (call once both players are present). */
   start() {
     if (this.started) return;
     this.started = true;
+    this.lastMoveAt = Date.now();
     if (!this.untimed) {
       this.activeColor = "w";
       this.lastTickTs = Date.now();
@@ -112,6 +131,7 @@ export class GameRoom {
     promotion?: string,
   ): { ok: true; san: string } | { ok: false; error: string } {
     if (this.status) return { ok: false, error: "Game is over" };
+    if (this.paused) return { ok: false, error: "Game is paused by a moderator" };
     if (this.frozen[color]) return { ok: false, error: "Your side is frozen" };
     if (this.chess.turn() !== color) return { ok: false, error: "Not your turn" };
     const now = Date.now();
@@ -128,6 +148,9 @@ export class GameRoom {
       return { ok: false, error: "Illegal move" };
     }
     if (!move) return { ok: false, error: "Illegal move" };
+
+    this.moveTimesMs.push(now - this.lastMoveAt);
+    this.lastMoveAt = now;
 
     // clock: charge the mover, add increment, switch
     if (!this.untimed) {
@@ -178,10 +201,11 @@ export class GameRoom {
     this.finish("1/2-1/2", null, "Draw by agreement");
   }
 
-  private finish(result: GameOverMsg["result"], winner: Color | null, reason: string) {
+  private finish(result: GameOverMsg["result"], winner: Color | null, reason: string, voided = false) {
     this.running = false;
     this.activeColor = null;
-    this.status = { result, winner, reason };
+    this.voided = voided;
+    this.status = { result, winner, reason, voided: voided || undefined };
   }
 
   moves() {
@@ -253,6 +277,38 @@ export class GameRoom {
     this.finish(result, winner, "Admin-resolved");
   }
 
+  /** Ends the game with no rating/history impact — for bugs or disputes, not a chosen winner. */
+  adminVoid(reason?: string) {
+    this.adminResolved = true;
+    this.finish("1/2-1/2", null, reason?.trim() || "Voided by moderator", true);
+  }
+
+  adminPause(paused: boolean) {
+    if (this.status) return;
+    this.paused = paused;
+    this.running = !paused;
+    this.lastTickTs = Date.now();
+  }
+
+  adminMuteChat(color: Color, muted: boolean) {
+    this.roomMuted[color] = muted;
+  }
+
+  adminExtendBoth(addSeconds: number) {
+    this.whiteMs += addSeconds * 1000;
+    this.blackMs += addSeconds * 1000;
+  }
+
+  adminResetClocks() {
+    this.whiteMs = this.timeControl.initialMs ?? 0;
+    this.blackMs = this.timeControl.initialMs ?? 0;
+    this.lastTickTs = Date.now();
+  }
+
+  adminFlagReview(flagged: boolean) {
+    this.reviewFlagged = flagged;
+  }
+
   adminClock(color: Color, opts: { addSeconds?: number; pause?: boolean; disable?: boolean }) {
     if (opts.disable !== undefined) {
       this.clockDisabled = opts.disable;
@@ -286,7 +342,7 @@ export class GameRoom {
     this.black = { userId: w.userId, username: w.username, rating: w.rating, color: "b", connected: w.connected };
   }
 
-  summary() {
+  summary(suspicionOf: (userId: string) => number = () => 0) {
     return {
       roomId: this.id,
       white: this.white.username,
@@ -296,8 +352,12 @@ export class GameRoom {
       ply: this.chess.history().length,
       fen: this.chess.fen(),
       timeControl: this.timeControl.id,
+      category: this.timeControl.category,
+      rated: this.rated,
       over: Boolean(this.status),
       spectators: this.spectators.size,
+      reviewFlagged: this.reviewFlagged,
+      suspicion: { w: suspicionOf(this.white.userId), b: suspicionOf(this.black.userId) },
     };
   }
 
@@ -316,6 +376,11 @@ export class GameRoom {
       drawOfferFrom: this.drawOfferFrom,
       rated: this.rated,
       frozen: { ...this.frozen },
+      paused: this.paused,
+      roomMuted: { ...this.roomMuted },
+      moveTimesMs: [...this.moveTimesMs],
+      disconnectedSince: { ...this.disconnectedSince },
+      spectatorList: [...this.spectatorIdentities.values()].map((s) => ({ username: s.username })),
     };
   }
 }

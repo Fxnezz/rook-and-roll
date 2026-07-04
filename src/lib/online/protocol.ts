@@ -36,6 +36,7 @@ export interface GameOverMsg {
   winner: Color | null;
   reason: string;
   ratingDelta?: { white: number; black: number };
+  voided?: boolean;
 }
 
 export interface GameStateMsg {
@@ -52,6 +53,11 @@ export interface GameStateMsg {
   drawOfferFrom?: Color | null;
   rated: boolean;
   frozen?: { w: boolean; b: boolean };
+  paused?: boolean;
+  roomMuted?: { w: boolean; b: boolean };
+  moveTimesMs?: number[];
+  disconnectedSince?: { w: number | null; b: number | null };
+  spectatorList?: { username: string }[];
 }
 
 export interface AdminPiece {
@@ -68,8 +74,12 @@ export interface LiveGameSummary {
   ply: number;
   fen: string;
   timeControl: string;
+  category: string;
+  rated: boolean;
   over: boolean;
   spectators: number;
+  reviewFlagged: boolean;
+  suspicion: { w: number; b: number };
 }
 
 export interface ChatMsg {
@@ -127,6 +137,16 @@ export interface ClientToServerEvents {
   "admin:swap": (p: { roomId: string }) => void;
   "admin:kick": (p: { userId: string; cooldownMs?: number; message?: string }) => void;
   "admin:clearChat": (p: { roomId: string }) => void;
+  "admin:systemMessage": (p: { roomId: string; text: string }) => void;
+  "admin:whisper": (p: { roomId: string; color: Color; text: string }) => void;
+  "admin:pause": (p: { roomId: string; paused: boolean }) => void;
+  "admin:void": (p: { roomId: string; reason?: string }) => void;
+  "admin:muteChat": (p: { roomId: string; color: Color; muted: boolean }) => void;
+  "admin:extendBoth": (p: { roomId: string; addSeconds: number }) => void;
+  "admin:resetClocks": (p: { roomId: string }) => void;
+  "admin:forceRematch": (p: { roomId: string }) => void;
+  "admin:cancelGame": (p: { roomId: string }) => void;
+  "admin:flagReview": (p: { roomId: string; flagged: boolean }) => void;
 }
 
 export const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "http://localhost:4000";
