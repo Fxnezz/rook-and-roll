@@ -6,8 +6,7 @@ interface GameCard {
   title: string;
   blurb: string;
   emoji: string;
-  primary: { href: string; label: string };
-  secondary?: { href: string; label: string };
+  links: { href: string; label: string }[];
 }
 
 const CHESS_GAMES: GameCard[] = [
@@ -15,41 +14,55 @@ const CHESS_GAMES: GameCard[] = [
     title: "Chess",
     blurb: "Play online with live matchmaking, ratings, chat, and spectating.",
     emoji: "♟️",
-    primary: { href: "/play/online", label: "Play Online" },
-    secondary: { href: "/play/bot", label: "vs Bot" },
+    links: [
+      { href: "/play/online", label: "Play Online" },
+      { href: "/play/bot", label: "vs Bot" },
+    ],
   },
   {
     title: "Pass & Play",
     blurb: "Two players, one screen — no account needed.",
     emoji: "🪑",
-    primary: { href: "/play/local", label: "Play" },
+    links: [{ href: "/play/local", label: "Play" }],
   },
   {
     title: "Puzzles",
     blurb: "Daily tactics puzzle plus unlimited practice, with streaks.",
     emoji: "🧩",
-    primary: { href: "/puzzles", label: "Solve" },
+    links: [{ href: "/puzzles", label: "Solve" }],
   },
 ];
 
 const MULTIPLAYER_GAMES: GameCard[] = [
   {
     title: "Connect Four",
-    blurb: "Four in a row, any direction. Rated matchmaking + invite links.",
+    blurb: "Four in a row, any direction. Rated matchmaking, vs bot, or pass & play.",
     emoji: "🔴",
-    primary: { href: "/play/connect-four", label: "Play Online" },
+    links: [
+      { href: "/play/connect-four", label: "Play Online" },
+      { href: "/play/connect-four/bot", label: "vs Bot" },
+      { href: "/play/connect-four/local", label: "Pass & Play" },
+    ],
   },
   {
     title: "Tic-Tac-Toe",
-    blurb: "Quick and casual — matchmaking or a friend invite link.",
+    blurb: "Quick and casual — matchmaking, an unbeatable bot, or pass & play.",
     emoji: "✕⭕",
-    primary: { href: "/play/tic-tac-toe", label: "Play Online" },
+    links: [
+      { href: "/play/tic-tac-toe", label: "Play Online" },
+      { href: "/play/tic-tac-toe/bot", label: "vs Bot" },
+      { href: "/play/tic-tac-toe/local", label: "Pass & Play" },
+    ],
   },
   {
     title: "Checkers",
-    blurb: "Standard rules — forced capture, kings, multi-jumps. Rated.",
+    blurb: "Standard rules — forced capture, kings, multi-jumps. Rated, vs bot, or pass & play.",
     emoji: "⚫",
-    primary: { href: "/play/checkers", label: "Play Online" },
+    links: [
+      { href: "/play/checkers", label: "Play Online" },
+      { href: "/play/checkers/bot", label: "vs Bot" },
+      { href: "/play/checkers/local", label: "Pass & Play" },
+    ],
   },
 ];
 
@@ -58,40 +71,40 @@ const ARCADE_GAMES: GameCard[] = [
     title: "Snake",
     blurb: "Classic grid snake with a rising speed curve.",
     emoji: "🐍",
-    primary: { href: "/play/snake", label: "Play" },
+    links: [{ href: "/play/snake", label: "Play" }],
   },
   {
     title: "Tetris",
     blurb: "7-bag randomizer, hold, next preview, level curve.",
     emoji: "🧱",
-    primary: { href: "/play/tetris", label: "Play" },
+    links: [{ href: "/play/tetris", label: "Play" }],
   },
   {
     title: "2048",
     blurb: "Merge tiles to 2048 — and keep going if you want more.",
     emoji: "🔢",
-    primary: { href: "/play/2048", label: "Play" },
+    links: [{ href: "/play/2048", label: "Play" }],
   },
   {
     title: "Word Game",
     blurb: "Five letters, six guesses. One daily word for everyone.",
     emoji: "🔤",
-    primary: { href: "/play/wordle", label: "Play" },
+    links: [{ href: "/play/wordle", label: "Play" }],
   },
 ];
 
 const ORIGINAL_GAMES: GameCard[] = [
   {
     title: "Circuit Dash",
-    blurb: "An original 3D arcade racer — drift an original circuit for the best lap.",
+    blurb: "An original 3D arcade racer — pick a track, drift for the best lap.",
     emoji: "🏎️",
-    primary: { href: "/play/racing", label: "Race" },
+    links: [{ href: "/play/racing", label: "Race" }],
   },
   {
     title: "Spark's Climb",
     blurb: "An original platformer — run, double-jump, grab gems, reach the flag.",
     emoji: "✨",
-    primary: { href: "/play/platformer", label: "Play" },
+    links: [{ href: "/play/platformer", label: "Play" }],
   },
 ];
 
@@ -107,15 +120,16 @@ function Section({ title, games }: { title: string; games: GameCard[] }) {
               <h3 className="font-bold">{g.title}</h3>
             </div>
             <p className="flex-1 text-sm text-[var(--text-muted)]">{g.blurb}</p>
-            <div className="flex gap-2">
-              <Link href={g.primary.href} className="btn btn-primary flex-1 !py-2 text-sm">
-                {g.primary.label}
-              </Link>
-              {g.secondary && (
-                <Link href={g.secondary.href} className="btn flex-1 !py-2 text-sm">
-                  {g.secondary.label}
+            <div className="flex flex-wrap gap-2">
+              {g.links.map((link, i) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`btn flex-1 !py-2 text-sm ${i === 0 ? "btn-primary" : ""}`}
+                >
+                  {link.label}
                 </Link>
-              )}
+              ))}
             </div>
           </div>
         ))}
