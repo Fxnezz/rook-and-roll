@@ -57,6 +57,21 @@ export function PlatformerGame({
   const wasOnGround = useRef(false);
   const squash = useRef(1);
   const legPhase = useRef(0);
+  const particlesRef = useRef<{ x: number; y: number; vx: number; vy: number; life: number; color: string }[]>([]);
+
+  const spawnGemBurst = (cx: number, cy: number) => {
+    for (let i = 0; i < 12; i++) {
+      const a = (Math.PI * 2 * i) / 12;
+      particlesRef.current.push({
+        x: cx,
+        y: cy,
+        vx: Math.cos(a) * 90,
+        vy: Math.sin(a) * 90 - 40,
+        life: 1,
+        color: i % 3 === 0 ? "#fff3c4" : "#e9c73f",
+      });
+    }
+  };
 
   const respawn = useCallback(() => {
     player.current = createPlayer(lastCheckpoint.current.x, lastCheckpoint.current.y);
@@ -120,18 +135,25 @@ export function PlatformerGame({
           if (Math.hypot(c.x - player.current.x, c.y - player.current.y) < COLLECT_R + player.current.w / 2) {
             collectedSet.current.add(i);
             setCollected(collectedSet.current.size);
+            spawnGemBurst(c.x, c.y);
             playArcadeSound("correct");
           }
         });
 
-        // goal
+        // goal — proper AABB overlap against the flag's actual drawn hitbox
+        // (top of the pole at g.y - g.h, base at g.y). A previous version
+        // required player.y to be strictly greater than g.y, which is the
+        // player's exact resting y while standing on the goal's platform —
+        // so it only fired in a razor-thin mid-fall window and often just
+        // never triggered depending on approach angle.
         const g = level.goal;
-        if (
-          player.current.x + player.current.w / 2 > g.x &&
-          player.current.x - player.current.w / 2 < g.x + g.w &&
-          player.current.y > g.y &&
-          player.current.y - player.current.h < g.y + g.h
-        ) {
+        const playerLeft = player.current.x - player.current.w / 2;
+        const playerRight = player.current.x + player.current.w / 2;
+        const playerTop = player.current.y - player.current.h;
+        const playerBottom = player.current.y;
+        const goalTop = g.y - g.h;
+        const goalBottom = g.y + 6; // slight tolerance below the surface line
+        if (playerRight > g.x && playerLeft < g.x + g.w && playerBottom > goalTop && playerTop < goalBottom) {
           finished.current = true;
           const total = now - startMs.current;
           setFinishMs(total);
@@ -142,6 +164,12 @@ export function PlatformerGame({
 
         setElapsed(now - startMs.current);
       }
+
+      // particles keep animating even after the level ends, so a burst from
+      // the final gem doesn't freeze mid-flight.
+      particlesRef.current = particlesRef.current
+        .map((p) => ({ ...p, x: p.x + p.vx * dt, y: p.y + p.vy * dt, vy: p.vy + 260 * dt, life: p.life - dt * 1.6 }))
+        .filter((p) => p.life > 0);
 
       // camera follows player, clamped to level bounds
       const targetCam = Math.max(0, Math.min(level.width - VIEW_W, player.current.x - VIEW_W / 2));
@@ -155,6 +183,7 @@ export function PlatformerGame({
       const ctx = canvasRef.current?.getContext("2d");
       if (!ctx) return;
       const cam = camX.current;
+      const now = performance.now();
       // sky
       const grad = ctx.createLinearGradient(0, 0, 0, VIEW_H);
       grad.addColorStop(0, skin.sky[0]);
@@ -243,17 +272,41 @@ export function PlatformerGame({
         }
       }
 
-      // collectibles
+      // collectibles — idle bob + rotating shine so they read as "alive"
       level.collectibles.forEach((c, i) => {
         if (collectedSet.current.has(i)) return;
-        ctx.fillStyle = "#e9c73f";
+        const bob = Math.sin(now / 1000 * 2.4 + i) * 4;
+        const cx = c.x - cam;
+        const cy = c.y + bob;
+        const grad = ctx.createRadialGradient(cx - 3, cy - 4, 1, cx, cy, COLLECT_R);
+        grad.addColorStop(0, "#fff3c4");
+        grad.addColorStop(1, "#e9c73f");
+        ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.arc(c.x - cam, c.y, COLLECT_R, 0, Math.PI * 2);
+        ctx.arc(cx, cy, COLLECT_R, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = "#a8891a";
         ctx.lineWidth = 2;
         ctx.stroke();
+        // a small rotating shine streak
+        const shineAngle = now / 400 + i;
+        ctx.strokeStyle = "rgba(255,255,255,0.8)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(shineAngle) * 3, cy + Math.sin(shineAngle) * 3);
+        ctx.lineTo(cx + Math.cos(shineAngle) * (COLLECT_R - 2), cy + Math.sin(shineAngle) * (COLLECT_R - 2));
+        ctx.stroke();
       });
+
+      // gem-pickup particle burst
+      particlesRef.current.forEach((p) => {
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x - cam, p.y, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
 
       // goal flag
       ctx.fillStyle = "#8a5a2a";
