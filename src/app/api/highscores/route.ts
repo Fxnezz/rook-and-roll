@@ -4,7 +4,22 @@ import { auth } from "@/lib/auth/auth";
 
 export const runtime = "nodejs";
 
-const GAMES = new Set(["snake", "tetris", "2048", "racing", "platformer"]);
+const GAMES = new Set([
+  "snake",
+  "tetris",
+  "2048",
+  "racing",
+  "platformer",
+  "minesweeper",
+  "memorymatch",
+  "15puzzle",
+  "simon",
+  "sudoku",
+  "solitaire",
+  "breakout",
+  "whackamole",
+]);
+const LOWER_IS_BETTER = new Set(["minesweeper", "memorymatch", "15puzzle", "sudoku", "solitaire"]);
 
 /** Personal best (+ top-10 leaderboard) for a game, optionally scoped to a level. */
 export async function GET(req: Request) {
@@ -18,7 +33,7 @@ export async function GET(req: Request) {
   // Platformer is time-based (lower is better) per hand-built/random level,
   // except the "infinite" bucket which scores distance (higher is better).
   const higherIsBetter =
-    game === "platformer" ? level === "infinite" : game !== "racing";
+    game === "platformer" ? level === "infinite" : !(game === "racing" || LOWER_IS_BETTER.has(game));
 
   const [best, leaderboard] = await Promise.all([
     session?.user?.id

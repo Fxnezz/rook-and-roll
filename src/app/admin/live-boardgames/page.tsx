@@ -17,6 +17,8 @@ const KIND_LABEL: Record<string, string> = {
   connect4: "Connect Four",
   checkers: "Checkers",
   othello: "Othello",
+  gomoku: "Gomoku",
+  mancala: "Mancala",
 };
 
 export default function AdminLiveBoardGamesPage() {

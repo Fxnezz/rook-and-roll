@@ -74,6 +74,26 @@ const MULTIPLAYER_GAMES: GameCard[] = [
       { href: "/play/othello/local", label: "Pass & Play" },
     ],
   },
+  {
+    title: "Gomoku",
+    blurb: "Five in a row, any direction, on a 15x15 board. Rated, vs bot, or pass & play.",
+    emoji: "⚪",
+    links: [
+      { href: "/play/gomoku", label: "Play Online" },
+      { href: "/play/gomoku/bot", label: "vs Bot" },
+      { href: "/play/gomoku/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Mancala",
+    blurb: "Standard Kalah rules — sow seeds, chain extra turns, capture across the board.",
+    emoji: "🟤",
+    links: [
+      { href: "/play/mancala", label: "Play Online" },
+      { href: "/play/mancala/bot", label: "vs Bot" },
+      { href: "/play/mancala/local", label: "Pass & Play" },
+    ],
+  },
 ];
 
 const ARCADE_GAMES: GameCard[] = [
@@ -100,6 +120,54 @@ const ARCADE_GAMES: GameCard[] = [
     blurb: "Five letters, six guesses. One daily word for everyone.",
     emoji: "🔤",
     links: [{ href: "/play/wordle", label: "Play" }],
+  },
+  {
+    title: "Minesweeper",
+    blurb: "Clear the board without hitting a mine. First click is always safe.",
+    emoji: "💣",
+    links: [{ href: "/play/minesweeper", label: "Play" }],
+  },
+  {
+    title: "Memory Match",
+    blurb: "Flip two cards at a time — find every pair as fast as you can.",
+    emoji: "🃏",
+    links: [{ href: "/play/memory", label: "Play" }],
+  },
+  {
+    title: "15 Puzzle",
+    blurb: "Slide tiles into the blank space to put them back in order.",
+    emoji: "🔲",
+    links: [{ href: "/play/15puzzle", label: "Play" }],
+  },
+  {
+    title: "Simon",
+    blurb: "Repeat the growing sequence of colors and sounds.",
+    emoji: "🔴",
+    links: [{ href: "/play/simon", label: "Play" }],
+  },
+  {
+    title: "Sudoku",
+    blurb: "Every puzzle is generated fresh with a guaranteed unique solution.",
+    emoji: "9️⃣",
+    links: [{ href: "/play/sudoku", label: "Play" }],
+  },
+  {
+    title: "Solitaire",
+    blurb: "Classic Klondike, draw-1, with an auto-complete button.",
+    emoji: "♠️",
+    links: [{ href: "/play/solitaire", label: "Play" }],
+  },
+  {
+    title: "Breakout",
+    blurb: "Clear every brick without letting the ball fall past your paddle.",
+    emoji: "🧱",
+    links: [{ href: "/play/breakout", label: "Play" }],
+  },
+  {
+    title: "Whack-a-Mole",
+    blurb: "30 seconds on the clock — whack moles the instant they pop up.",
+    emoji: "🔨",
+    links: [{ href: "/play/whackamole", label: "Play" }],
   },
 ];
 
