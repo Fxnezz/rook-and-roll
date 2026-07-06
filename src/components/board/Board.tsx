@@ -46,6 +46,18 @@ export interface BoardProps {
   boardFrame?: BoardFrameName;
   /** Board render size as a percentage of its available width, 80-140. */
   zoomPercent?: number;
+  /** Require a second click on the destination square to commit a (non-drag) move. */
+  confirmMove?: boolean;
+  /** Skip the promotion picker and always promote to queen. */
+  autoQueen?: boolean;
+  /** Which input gestures the board accepts for committing moves. */
+  moveInputMode?: "drag" | "click" | "both";
+  /** Allow selecting/queuing a move for the not-yet-active side; only meaningful when movableColor is a single color. */
+  premovesEnabled?: boolean;
+  /** Currently queued premove, rendered as a highlight + ghost piece. */
+  premove?: { from: Square; to: Square } | null;
+  onSetPremove?: (from: Square, to: Square) => void;
+  onCancelPremove?: () => void;
 }
 
 interface DragState {
@@ -92,6 +104,13 @@ export function Board({
   arrowColor = ANNOTATION_COLORS.default,
   boardFrame = "none",
   zoomPercent = 100,
+  confirmMove = false,
+  autoQueen = false,
+  moveInputMode = "both",
+  premovesEnabled = false,
+  premove = null,
+  onSetPremove,
+  onCancelPremove,
 }: BoardProps) {
   const effTheme: BoardTheme = squareColorOverride
     ? { ...theme, light: squareColorOverride.light, dark: squareColorOverride.dark }
@@ -101,6 +120,10 @@ export function Board({
   const [selected, setSelected] = useState<Square | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [promo, setPromo] = useState<{ from: Square; to: Square; color: Color } | null>(null);
+  // Set alongside `selected`/`drag` when the selection is a premove pick (not a live move).
+  const [premoveDragFrom, setPremoveDragFrom] = useState<Square | null>(null);
+  // Awaiting a second click on the same destination square (confirmMove setting).
+  const [pendingConfirm, setPendingConfirm] = useState<{ from: Square; to: Square } | null>(null);
 
   // Annotations (right-click)
   const [highlights, setHighlights] = useState<Record<string, string>>({});
@@ -123,8 +146,24 @@ export function Board({
       interactive &&
       snapshot.isLive &&
       !snapshot.status.over &&
+      snapshot.turn === color &&
       (movableColor === "both" || movableColor === color),
-    [interactive, snapshot.isLive, snapshot.status.over, movableColor],
+    [interactive, snapshot.isLive, snapshot.status.over, snapshot.turn, movableColor],
+  );
+
+  // A piece can be premove-picked when it belongs to the side we control but
+  // it isn't currently that side's turn (premoves don't make sense in "both"
+  // pass-and-play mode — there's no waiting on an opponent).
+  const canPremove = useCallback(
+    (color: Color) =>
+      premovesEnabled &&
+      interactive &&
+      snapshot.isLive &&
+      !snapshot.status.over &&
+      movableColor !== "both" &&
+      movableColor === color &&
+      snapshot.turn !== color,
+    [premovesEnabled, interactive, snapshot.isLive, snapshot.status.over, movableColor, snapshot.turn],
   );
 
   // Clear transient UI whenever the shown position changes.
@@ -135,6 +174,8 @@ export function Board({
     setHighlights({});
     setArrows([]);
     setArrowDraft(null);
+    setPremoveDragFrom(null);
+    setPendingConfirm(null);
   }, [snapshot.fen]);
 
   // Trigger the slide animation for a freshly played live move.
@@ -169,13 +210,17 @@ export function Board({
       const options = legalMovesFrom(from).filter((mv) => mv.to === to);
       if (options.length === 0) return false;
       if (options.some((mv) => mv.promotion)) {
+        if (autoQueen) {
+          onMove(from, to, "q");
+          return true;
+        }
         setPromo({ from, to, color: options[0].color });
         return true;
       }
       onMove(from, to);
       return true;
     },
-    [legalMovesFrom, onMove],
+    [legalMovesFrom, onMove, autoQueen],
   );
 
   // ---- Pointer handling ------------------------------------------------
@@ -204,19 +249,62 @@ export function Board({
 
     const piece = pieceAt(sq);
 
-    if (selected && legalTargets.has(sq)) {
+    // Clicking a queued premove's origin square cancels it.
+    if (!selected && premove && sq === premove.from) {
+      onCancelPremove?.();
+      return;
+    }
+
+    // A second click on the pending-confirm destination commits the move;
+    // any other click cancels the pending confirmation.
+    if (pendingConfirm) {
+      const wasPendingTarget = sq === pendingConfirm.to;
+      setPendingConfirm(null);
+      if (wasPendingTarget) {
+        attemptMove(pendingConfirm.from, pendingConfirm.to);
+        setSelected(null);
+        return;
+      }
+    }
+
+    if (selected && legalTargets.has(sq) && moveInputMode !== "drag") {
+      if (confirmMove) {
+        setPendingConfirm({ from: selected, to: sq });
+        setSelected(null);
+        return;
+      }
       attemptMove(selected, sq);
       setSelected(null);
       return;
     }
 
+    // Premove destination click: `selected` was picked for a premove-eligible piece.
+    if (selected && premoveDragFrom === selected && sq !== selected) {
+      onSetPremove?.(selected, sq);
+      setSelected(null);
+      setPremoveDragFrom(null);
+      return;
+    }
+
     if (piece && canMove(piece.color)) {
       setSelected(sq);
-      const rect = boardRef.current!.getBoundingClientRect();
-      boardRef.current!.setPointerCapture(e.pointerId);
-      setDrag({ from: sq, piece, x: e.clientX - rect.left, y: e.clientY - rect.top });
+      setPremoveDragFrom(null);
+      if (moveInputMode !== "click") {
+        const rect = boardRef.current!.getBoundingClientRect();
+        boardRef.current!.setPointerCapture(e.pointerId);
+        setDrag({ from: sq, piece, x: e.clientX - rect.left, y: e.clientY - rect.top });
+      }
+    } else if (piece && canPremove(piece.color)) {
+      setSelected(sq);
+      setPremoveDragFrom(sq);
+      if (moveInputMode !== "click") {
+        const rect = boardRef.current!.getBoundingClientRect();
+        boardRef.current!.setPointerCapture(e.pointerId);
+        setDrag({ from: sq, piece, x: e.clientX - rect.left, y: e.clientY - rect.top });
+      }
     } else {
       setSelected(null);
+      setPremoveDragFrom(null);
     }
   };
 
@@ -267,9 +355,15 @@ export function Board({
     if (sq && sq !== from && legalTargets.has(sq)) {
       attemptMove(from, sq);
       setSelected(null);
-    } else if (sq === from) {
-      // treated as a click-select; keep selection
+      return;
     }
+    if (sq && sq !== from && premoveDragFrom === from) {
+      onSetPremove?.(from, sq);
+      setSelected(null);
+      setPremoveDragFrom(null);
+      return;
+    }
+    // dropped back on the origin square: treated as a click-select; keep selection
   };
 
   // ---- Rendering -------------------------------------------------------
@@ -315,6 +409,8 @@ export function Board({
           const isLast = lastMove && (lastMove.from === square || lastMove.to === square);
           const isSel = selected === square;
           const isCheck = snapshot.checkedKingSquare === square;
+          const isPremoveSq = premove && (premove.from === square || premove.to === square);
+          const isPendingConfirmTarget = pendingConfirm?.to === square;
           const hl = highlights[square];
           const target = legalTargets.get(square);
           const showFile = showCoordinates && row === 7;
@@ -324,6 +420,10 @@ export function Board({
             <div key={square} className="relative" style={{ background: bg }}>
               {isLast && <div className="absolute inset-0" style={{ background: effTheme.lastMove }} />}
               {isSel && <div className="absolute inset-0" style={{ background: effTheme.selected }} />}
+              {isPremoveSq && <div className="absolute inset-0" style={{ background: "rgba(90,140,220,0.4)" }} />}
+              {isPendingConfirmTarget && (
+                <div className="absolute inset-[8%] rounded-md" style={{ boxShadow: "inset 0 0 0 0.18rem var(--accent)" }} />
+              )}
               {isCheck && (
                 <div
                   className="absolute inset-0"
@@ -423,8 +523,32 @@ export function Board({
         </div>
       )}
 
+      {/* Premove ghost piece preview at the queued destination */}
+      {premove &&
+        (() => {
+          const p = pieceAt(premove.from);
+          if (!p) return null;
+          const { x, y } = squareToPercent(premove.to, orientation);
+          return (
+            <div
+              className="absolute pointer-events-none"
+              style={{ left: `${x}%`, top: `${y}%`, width: "12.5%", height: "12.5%", opacity: 0.55, zIndex: 2 }}
+            >
+              <Piece type={p.type} color={p.color} set={pieceSet} />
+            </div>
+          );
+        })()}
+
       {/* Arrows */}
-      <ArrowLayer arrows={[...extraArrows, ...arrows, ...(arrowDraft ? [arrowDraft] : [])]} orientation={orientation} />
+      <ArrowLayer
+        arrows={[
+          ...extraArrows,
+          ...(premove ? [{ from: premove.from, to: premove.to, color: "rgba(90,140,220,0.9)" }] : []),
+          ...arrows,
+          ...(arrowDraft ? [arrowDraft] : []),
+        ]}
+        orientation={orientation}
+      />
 
       {/* Promotion picker */}
       {promo && (

@@ -103,6 +103,7 @@ export default function OnlinePage() {
 
   const orientation: Color = state.myColor ?? "w";
   const lastAppliedRef = useRef<string>("");
+  const [premove, setPremove] = useState<{ from: Square; to: Square } | null>(null);
 
   // Full resync from authoritative server state.
   useEffect(() => {
@@ -147,6 +148,21 @@ export default function OnlinePage() {
   useEffect(() => {
     if (state.status) playSound("gameEnd");
   }, [state.status]);
+
+  // Fire a queued premove the moment it becomes our turn, if it's still legal;
+  // otherwise silently drop it. Also clear it whenever we leave/re-enter a game.
+  useEffect(() => {
+    setPremove(null);
+  }, [state.phase]);
+
+  useEffect(() => {
+    if (!premove || state.myColor !== snapshot.turn || state.status) return;
+    const options = game.legalMovesFrom(premove.from).filter((mv) => mv.to === premove.to);
+    setPremove(null);
+    if (options.length === 0) return;
+    onMove(premove.from, premove.to, options.some((mv) => mv.promotion) ? "q" : undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.fen, snapshot.turn, state.myColor, state.status]);
 
   const onMove = useCallback(
     (from: Square, to: Square, promotion?: PieceSymbol) => {
@@ -361,7 +377,7 @@ export default function OnlinePage() {
             legalMovesFrom={game.legalMovesFrom}
             onMove={onMove}
             movableColor={state.myColor ?? "w"}
-            interactive={state.phase === "playing" && !!state.myColor && myTurn}
+            interactive={state.phase === "playing" && !!state.myColor}
             showCoordinates={settings.showCoordinates}
             showLegalMoves={settings.showLegalMoves}
             highlightLastMove={settings.highlightLastMove}
@@ -372,6 +388,13 @@ export default function OnlinePage() {
             arrowColor={settings.arrowColor}
             boardFrame={settings.boardFrame}
             zoomPercent={settings.boardZoom}
+            confirmMove={settings.confirmMove}
+            autoQueen={settings.autoQueen}
+            moveInputMode={settings.moveInputMode}
+            premovesEnabled={settings.premovesEnabled}
+            premove={premove}
+            onSetPremove={(from, to) => setPremove({ from, to })}
+            onCancelPremove={() => setPremove(null)}
             extraArrows={
               snapshot.lastMove && settings.highlightLastMove
                 ? [{ from: snapshot.lastMove.from, to: snapshot.lastMove.to, color: "rgba(255,255,255,0.4)" }]

@@ -25,8 +25,10 @@ export interface Settings {
   reduceMotion: boolean;
   /** Require a second click on the destination square to commit a move. */
   confirmMove: boolean;
-  /** Always promote to queen without showing the picker (hold shift for the picker). */
+  /** Always promote to queen without showing the picker. */
   autoQueen: boolean;
+  /** Allow picking a move for the not-yet-active side (online/bot play only). */
+  premovesEnabled: boolean;
   /** Which input gestures the board accepts. */
   moveInputMode: MoveInputMode;
   /** Overrides the active theme's light/dark square colors when set. */
@@ -60,6 +62,7 @@ const DEFAULTS: Settings = {
   reduceMotion: false,
   confirmMove: false,
   autoQueen: false,
+  premovesEnabled: true,
   moveInputMode: "both",
   squareColorOverride: null,
   pieceSize: 100,

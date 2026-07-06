@@ -205,6 +205,18 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
     [applyMove, status.over, snapshot.turn, humanColor],
   );
 
+  // Fire a queued premove the instant it becomes the human's turn (i.e. right
+  // after the bot's move lands), if it's still legal; otherwise drop it.
+  const [premove, setPremove] = useState<{ from: Square; to: Square } | null>(null);
+  useEffect(() => {
+    if (!premove || status.over || snapshot.turn !== humanColor) return;
+    const options = game.legalMovesFrom(premove.from).filter((mv) => mv.to === premove.to);
+    setPremove(null);
+    if (options.length === 0) return;
+    onHumanMove(premove.from, premove.to, options.some((mv) => mv.promotion) ? "q" : undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.fen, snapshot.turn, status.over, humanColor]);
+
   // Bot move loop. Respects the cheat panel's bot override (blunder mode /
   // personality / skill override) and, if the "predicted move" toggle is on,
   // briefly shows the chosen move as a ghost arrow before actually playing it
@@ -550,6 +562,13 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
                 arrowColor={settings.arrowColor}
                 boardFrame={settings.boardFrame}
                 zoomPercent={settings.boardZoom}
+                confirmMove={settings.confirmMove}
+                autoQueen={settings.autoQueen}
+                moveInputMode={settings.moveInputMode}
+                premovesEnabled={settings.premovesEnabled}
+                premove={premove}
+                onSetPremove={(from, to) => setPremove({ from, to })}
+                onCancelPremove={() => setPremove(null)}
               />
               <CheatEffects
                 captureSeq={captureSeq}

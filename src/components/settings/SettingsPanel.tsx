@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useSettings, type AnimationSpeed, type BoardFrame } from "@/lib/chess/useSettings";
+import { useSettings, type AnimationSpeed, type BoardFrame, type MoveInputMode } from "@/lib/chess/useSettings";
 import { BOARD_THEMES } from "@/lib/chess/themes";
 import { PIECE_SETS, Piece } from "@/lib/pieces";
 import { IconPalette, IconVolume, IconVolumeOff, IconSparkles, IconMotion, IconRefresh, IconCheck } from "../ui/icons";
@@ -20,11 +20,17 @@ const BOARD_FRAMES: { id: BoardFrame; label: string }[] = [
   { id: "shadow", label: "Shadow" },
 ];
 
+const MOVE_INPUT_MODES: { id: MoveInputMode; label: string }[] = [
+  { id: "both", label: "Both" },
+  { id: "drag", label: "Drag" },
+  { id: "click", label: "Click" },
+];
+
 const ARROW_SWATCHES = ["#f2b544", "#e5604d", "#5aa8e0", "#5bbf7a", "#c98bd8"];
 
 function Segmented<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="grid grid-cols-4 gap-1.5">
+    <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
       {options.map((o) => {
         const active = o.id === value;
         return (
@@ -281,6 +287,31 @@ export function SettingsPanel() {
           description="Pass & play only"
           checked={settings.autoFlip}
           onChange={(v) => update({ autoFlip: v })}
+        />
+        <Toggle
+          label="Premoves"
+          description="Queue a move while waiting for your opponent"
+          checked={settings.premovesEnabled}
+          onChange={(v) => update({ premovesEnabled: v })}
+        />
+        <Toggle
+          label="Confirm moves"
+          description="Require a second click on the destination square"
+          checked={settings.confirmMove}
+          onChange={(v) => update({ confirmMove: v })}
+        />
+        <Toggle
+          label="Auto-queen"
+          description="Skip the promotion picker, always promote to queen"
+          checked={settings.autoQueen}
+          onChange={(v) => update({ autoQueen: v })}
+        />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Move input</span>
+        <Segmented
+          options={MOVE_INPUT_MODES}
+          value={settings.moveInputMode}
+          onChange={(v) => update({ moveInputMode: v })}
         />
       </Section>
 
