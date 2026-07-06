@@ -2,7 +2,7 @@ import type { PieceSymbol, Color } from "chess.js";
 import type { CSSProperties } from "react";
 import { PieceGlyph } from "./glyphs";
 
-export type PieceSetId = "monarch" | "flat";
+export type PieceSetId = "monarch" | "flat" | "neon" | "wood" | "mono";
 
 export interface PieceSetMeta {
   id: PieceSetId;
@@ -13,6 +13,9 @@ export interface PieceSetMeta {
 export const PIECE_SETS: PieceSetMeta[] = [
   { id: "monarch", name: "Monarch", description: "Bold, outlined, classic silhouettes" },
   { id: "flat", name: "Flat", description: "Minimal, flat, low-contrast lines" },
+  { id: "neon", name: "Neon", description: "High-contrast glow on dark fills" },
+  { id: "wood", name: "Classic Wood", description: "Warm, carved wooden pieces" },
+  { id: "mono", name: "Minimal Line", description: "Single-color outline, no fill" },
 ];
 
 interface Palette {
@@ -30,6 +33,18 @@ const PALETTES: Record<PieceSetId, Record<Color, Palette>> = {
   flat: {
     w: { pf: "#f1ece0", ps: "#cbc3b1", pw: 0.9, pd: "#b7ad99" },
     b: { pf: "#2c313a", ps: "#1a1d24", pw: 0.9, pd: "#5a616d" },
+  },
+  neon: {
+    w: { pf: "#7dfcff", ps: "#0d3b3d", pw: 2, pd: "#0d3b3d" },
+    b: { pf: "#ff6ac1", ps: "#3d0d2e", pw: 2, pd: "#3d0d2e" },
+  },
+  wood: {
+    w: { pf: "#e8c48a", ps: "#6b4423", pw: 1.5, pd: "#6b4423" },
+    b: { pf: "#5a3620", ps: "#2a1810", pw: 1.5, pd: "#c9a876" },
+  },
+  mono: {
+    w: { pf: "#f5f5f5", ps: "#d0d0d0", pw: 0.75, pd: "#d0d0d0" },
+    b: { pf: "#2a2a2a", ps: "#454545", pw: 0.75, pd: "#454545" },
   },
 };
 
