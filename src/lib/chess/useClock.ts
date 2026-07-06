@@ -39,6 +39,15 @@ export function categoryForMs(initialMs: number | null, incMs: number): TimeCate
   return "classical";
 }
 
+export type ClockUrgency = "normal" | "low" | "critical";
+
+/** Derived (not stored) urgency tier for low-time visual/audio feedback. */
+export function getClockUrgency(ms: number): ClockUrgency {
+  if (ms < 10_000) return "critical";
+  if (ms < 30_000) return "low";
+  return "normal";
+}
+
 export function formatClock(ms: number): string {
   const clamped = Math.max(0, ms);
   const totalSec = Math.floor(clamped / 1000);

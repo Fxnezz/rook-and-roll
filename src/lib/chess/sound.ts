@@ -15,7 +15,8 @@ export type SoundName =
   | "gameStart"
   | "gameEnd"
   | "illegal"
-  | "notify";
+  | "notify"
+  | "lowTime";
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -123,6 +124,9 @@ const RECIPES: Record<SoundName, () => void> = {
   },
   notify: () => {
     tone({ freq: 880, type: "sine", dur: 0.09, gain: 0.24 });
+  },
+  lowTime: () => {
+    tone({ freq: 1040, type: "sine", dur: 0.055, gain: 0.18 });
   },
 };
 

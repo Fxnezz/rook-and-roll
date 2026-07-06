@@ -304,6 +304,7 @@ export default function OnlinePage() {
           <Clock
             ms={color === "w" ? state.clock.whiteMs : state.clock.blackMs}
             active={state.clock.activeColor === color && !state.status}
+            tickSound={color === state.myColor}
           />
         )}
       </div>

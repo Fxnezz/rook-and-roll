@@ -466,7 +466,11 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
           </div>
         </div>
         {!tc.category.includes("untimed") && !clock.untimed && (
-          <Clock ms={isWhite ? clock.whiteMs : clock.blackMs} active={clock.active === side && !status.over} />
+          <Clock
+            ms={isWhite ? clock.whiteMs : clock.blackMs}
+            active={clock.active === side && !status.over}
+            tickSound={side === humanColor}
+          />
         )}
       </div>
     );

@@ -274,6 +274,21 @@ body {
   0%, 100% { box-shadow: 0 0 0 0 rgba(233, 162, 59, 0.35); }
   50% { box-shadow: 0 0 0 6px rgba(233, 162, 59, 0); }
 }
+@keyframes clock-pulse-low {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229, 75, 60, 0.28); }
+  50% { box-shadow: 0 0 0 5px rgba(229, 75, 60, 0); }
+}
+@keyframes clock-pulse-critical {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229, 75, 60, 0.45); }
+  50% { box-shadow: 0 0 0 7px rgba(229, 75, 60, 0); }
+}
+
+.clock-pulse-low {
+  animation: clock-pulse-low 1.4s ease-in-out infinite;
+}
+.clock-pulse-critical {
+  animation: clock-pulse-critical 0.7s ease-in-out infinite;
+}
 
 .stagger-item {
   animation: rise-in 0.32s var(--ease-out) both;
