@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import type { Color, PieceSymbol, Square } from "chess.js";
+import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { MoveList } from "@/components/game/MoveList";
 import { Clock } from "@/components/game/Clock";
 import { ChatPanel } from "@/components/game/ChatPanel";
+import { CapturedTray } from "@/components/game/CapturedTray";
+import { OpeningExplorer } from "@/components/game/OpeningExplorer";
 import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
@@ -56,7 +58,7 @@ export default function OnlinePage() {
   const [tc, setTc] = useState<TimeControl>(TIME_CONTROLS[4]); // 3+2 default
   const [rated, setRated] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number> | null>(null);
-  const [tab, setTab] = useState<"moves" | "chat">("moves");
+  const [tab, setTab] = useState<"moves" | "openings" | "chat">("moves");
 
   const loggedIn = Boolean(session?.user);
 
@@ -156,6 +158,20 @@ export default function OnlinePage() {
       online.sendMove(from, to, promotion);
     },
     [game, online, state.phase, state.myColor, state.status, snapshot.turn],
+  );
+
+  /** Play a SAN move from the opening explorer at the current view position. */
+  const playSan = useCallback(
+    (san: string) => {
+      try {
+        const probe = new Chess(snapshot.fen);
+        const mv = probe.move(san);
+        if (mv) onMove(mv.from, mv.to, mv.promotion);
+      } catch {
+        /* not legal here */
+      }
+    },
+    [snapshot.fen, onMove],
   );
 
   // ---------- lobby ----------
@@ -267,6 +283,11 @@ export default function OnlinePage() {
 
   const PlayerBar = ({ color }: { color: Color }) => {
     const p = color === "w" ? players?.white : players?.black;
+    const isWhite = color === "w";
+    const captured = isWhite ? snapshot.captured.byWhite : snapshot.captured.byBlack;
+    const adv = isWhite
+      ? Math.max(0, snapshot.captured.materialDiff)
+      : Math.max(0, -snapshot.captured.materialDiff);
     return (
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -277,6 +298,7 @@ export default function OnlinePage() {
           />
           <span className="text-sm font-semibold">{p?.username ?? "—"}</span>
           {p && <span className="text-xs text-[var(--text-faint)]">{p.rating}</span>}
+          <CapturedTray pieces={captured} color={isWhite ? "b" : "w"} set={settings.pieceSet} advantage={adv} />
         </div>
         {state.timeControl?.initialMs != null && (
           <Clock
@@ -349,22 +371,34 @@ export default function OnlinePage() {
             arrowColor={settings.arrowColor}
             boardFrame={settings.boardFrame}
             zoomPercent={settings.boardZoom}
+            extraArrows={
+              snapshot.lastMove && settings.highlightLastMove
+                ? [{ from: snapshot.lastMove.from, to: snapshot.lastMove.to, color: "rgba(255,255,255,0.4)" }]
+                : []
+            }
           />
           <PlayerBar color={bottomColor} />
         </div>
 
         <div className="panel flex w-full flex-col lg:h-[min(72vh,640px)] lg:w-[340px]">
-          <div className="border-b border-[var(--border)] px-4 py-3 text-sm font-semibold">
-            {state.status
-              ? statusText(state)
-              : myTurn
-                ? "Your move"
-                : state.phase === "spectating"
-                  ? "Spectating"
-                  : "Opponent to move"}
+          <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3 text-sm font-semibold">
+            <span>
+              {state.status
+                ? statusText(state)
+                : myTurn
+                  ? "Your move"
+                  : state.phase === "spectating"
+                    ? "Spectating"
+                    : "Opponent to move"}
+            </span>
+            {snapshot.moves.length > 0 && (
+              <span className="text-xs font-normal tabular-nums text-[var(--text-faint)]">
+                Move {Math.ceil(snapshot.moves.length / 2)}
+              </span>
+            )}
           </div>
           <div className="flex border-b border-[var(--border)]">
-            {(["moves", "chat"] as const).map((t) => (
+            {(["moves", "openings", "chat"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -379,6 +413,8 @@ export default function OnlinePage() {
           <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0">
             {tab === "moves" ? (
               <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} />
+            ) : tab === "openings" ? (
+              <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : (
               <ChatPanel messages={state.chat} onSend={online.sendChat} disabled={state.phase === "spectating"} />
             )}
