@@ -16,6 +16,8 @@ export interface Settings {
   animate: boolean;
   /** Auto-rotate board to the side to move in pass-and-play. */
   autoFlip: boolean;
+  /** Cuts UI transition/animation durations to ~0, on top of the OS-level prefers-reduced-motion. */
+  reduceMotion: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -28,6 +30,7 @@ const DEFAULTS: Settings = {
   highlightLastMove: true,
   animate: true,
   autoFlip: false,
+  reduceMotion: false,
 };
 
 const STORAGE_KEY = "rr.settings.v1";
@@ -35,6 +38,7 @@ const STORAGE_KEY = "rr.settings.v1";
 interface SettingsContextValue {
   settings: Settings;
   update: (patch: Partial<Settings>) => void;
+  reset: () => void;
   ready: boolean;
 }
 
@@ -70,12 +74,23 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSoundVolume(settings.volume);
   }, [settings, ready]);
 
+  // Reflect the reduce-motion preference as a data attribute so globals.css
+  // can kill transition/animation durations app-wide without a JS animation
+  // library to coordinate with.
+  useEffect(() => {
+    document.documentElement.dataset.motion = settings.reduceMotion ? "reduced" : "full";
+  }, [settings.reduceMotion]);
+
   const update = useCallback((patch: Partial<Settings>) => {
     setSettings((s) => ({ ...s, ...patch }));
   }, []);
 
+  const reset = useCallback(() => {
+    setSettings(DEFAULTS);
+  }, []);
+
   return (
-    <SettingsContext.Provider value={{ settings, update, ready }}>
+    <SettingsContext.Provider value={{ settings, update, reset, ready }}>
       {children}
     </SettingsContext.Provider>
   );
