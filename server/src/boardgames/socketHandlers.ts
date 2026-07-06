@@ -17,6 +17,11 @@ import { nineMensMorrisEngine } from "./ninemensmorris.js";
 import { ultimateTicTacToeEngine } from "./ultimatetictactoe.js";
 import { hexEngine } from "./hex.js";
 import { pentagoEngine } from "./pentago.js";
+import { quartoEngine } from "./quarto.js";
+import { breakthroughEngine } from "./breakthrough.js";
+import { domineeringEngine } from "./domineering.js";
+import { simEngine } from "./sim.js";
+import { connect6Engine } from "./connect6.js";
 import type { GameEngine } from "./engine.js";
 import type { BgClientToServer, BgLiveRoomSummary, BgServerToClient, GameKind } from "./protocol.js";
 
@@ -33,6 +38,11 @@ const ENGINES: Record<GameKind, GameEngine<unknown, unknown>> = {
   ultimatetictactoe: ultimateTicTacToeEngine as GameEngine<unknown, unknown>,
   hex: hexEngine as GameEngine<unknown, unknown>,
   pentago: pentagoEngine as GameEngine<unknown, unknown>,
+  quarto: quartoEngine as GameEngine<unknown, unknown>,
+  breakthrough: breakthroughEngine as GameEngine<unknown, unknown>,
+  domineering: domineeringEngine as GameEngine<unknown, unknown>,
+  sim: simEngine as GameEngine<unknown, unknown>,
+  connect6: connect6Engine as GameEngine<unknown, unknown>,
 };
 
 const GRACE_MS = 30_000;

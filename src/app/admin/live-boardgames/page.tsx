@@ -25,6 +25,11 @@ const KIND_LABEL: Record<string, string> = {
   ultimatetictactoe: "Ultimate Tic-Tac-Toe",
   hex: "Hex",
   pentago: "Pentago",
+  quarto: "Quarto",
+  breakthrough: "Breakthrough",
+  domineering: "Domineering",
+  sim: "Sim",
+  connect6: "Connect6",
 };
 
 export default function AdminLiveBoardGamesPage() {

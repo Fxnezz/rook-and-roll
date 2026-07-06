@@ -1,0 +1,21 @@
+"use client";
+
+import { LocalBoardGamePage } from "@/components/boardgames/LocalBoardGamePage";
+import { SimBoard, type SimState, type SimMove } from "@/components/boardgames/SimBoard";
+import { simEngine } from "@/lib/boardgames/engines/sim";
+import { pickSimMove } from "@/lib/boardgames/bots/simBot";
+
+export default function SimBotPage() {
+  return (
+    <LocalBoardGamePage<SimMove, SimState>
+      title="Sim"
+      blurb="Color the lines between 6 points — whoever completes a triangle in their own color loses."
+      mode="bot"
+      engine={simEngine}
+      botFn={(state, player) => pickSimMove(state, player)}
+      renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
+        <SimBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
+      )}
+    />
+  );
+}

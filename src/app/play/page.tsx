@@ -154,6 +154,56 @@ const MULTIPLAYER_GAMES: GameCard[] = [
       { href: "/play/pentago/local", label: "Pass & Play" },
     ],
   },
+  {
+    title: "Quarto",
+    blurb: "Your opponent picks the piece you must place — four in a line sharing an attribute wins.",
+    emoji: "🔷",
+    links: [
+      { href: "/play/quarto", label: "Play Online" },
+      { href: "/play/quarto/bot", label: "vs Bot" },
+      { href: "/play/quarto/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Breakthrough",
+    blurb: "Race your pawns to the far row — capture diagonally, advance straight.",
+    emoji: "⚔️",
+    links: [
+      { href: "/play/breakthrough", label: "Play Online" },
+      { href: "/play/breakthrough/bot", label: "vs Bot" },
+      { href: "/play/breakthrough/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Domineering",
+    blurb: "Vertical vs horizontal domino placement on a shared grid — whoever can't move loses.",
+    emoji: "🟦",
+    links: [
+      { href: "/play/domineering", label: "Play Online" },
+      { href: "/play/domineering/bot", label: "vs Bot" },
+      { href: "/play/domineering/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Sim",
+    blurb: "Color the lines between 6 points — complete a triangle in your color and you lose.",
+    emoji: "🔺",
+    links: [
+      { href: "/play/sim", label: "Play Online" },
+      { href: "/play/sim/bot", label: "vs Bot" },
+      { href: "/play/sim/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Connect6",
+    blurb: "Place two stones a turn (one on the opening move) — six in a row wins.",
+    emoji: "⚫",
+    links: [
+      { href: "/play/connect6", label: "Play Online" },
+      { href: "/play/connect6/bot", label: "vs Bot" },
+      { href: "/play/connect6/local", label: "Pass & Play" },
+    ],
+  },
 ];
 
 const ARCADE_GAMES: GameCard[] = [
@@ -264,6 +314,78 @@ const ARCADE_GAMES: GameCard[] = [
     blurb: "Flap through the gaps without hitting a pillar, the floor, or the ceiling.",
     emoji: "🐦",
     links: [{ href: "/play/flappy-rook", label: "Play" }],
+  },
+  {
+    title: "Peg Solitaire",
+    blurb: "Jump pegs over each other to remove them — finish with just one left.",
+    emoji: "🔴",
+    links: [{ href: "/play/peg-solitaire", label: "Play" }],
+  },
+  {
+    title: "Lights Out",
+    blurb: "Pressing a light toggles it and its neighbors — turn every light off.",
+    emoji: "💡",
+    links: [{ href: "/play/lights-out", label: "Play" }],
+  },
+  {
+    title: "Tower of Hanoi",
+    blurb: "Move the whole stack to the last peg — never place a bigger disk on a smaller one.",
+    emoji: "🗼",
+    links: [{ href: "/play/hanoi", label: "Play" }],
+  },
+  {
+    title: "Mastermind",
+    blurb: "Crack the 4-color secret code using black/white peg feedback.",
+    emoji: "🎯",
+    links: [{ href: "/play/mastermind", label: "Play" }],
+  },
+  {
+    title: "Battleship",
+    blurb: "Take turns firing at each other's fleet — sink every ship to win.",
+    emoji: "🚢",
+    links: [{ href: "/play/battleship", label: "Play" }],
+  },
+  {
+    title: "Video Poker",
+    blurb: "Jacks or Better — hold the cards you want, draw the rest, chase a paying hand.",
+    emoji: "🂡",
+    links: [{ href: "/play/video-poker", label: "Play" }],
+  },
+  {
+    title: "War",
+    blurb: "No decisions, just nerve — flip your top card, higher card takes the pile.",
+    emoji: "🃏",
+    links: [{ href: "/play/war", label: "Play" }],
+  },
+  {
+    title: "Pyramid Solitaire",
+    blurb: "Pair up exposed cards that sum to 13 to empty the pyramid.",
+    emoji: "🔺",
+    links: [{ href: "/play/pyramid-solitaire", label: "Play" }],
+  },
+  {
+    title: "Pong",
+    blurb: "The original arcade classic — first to 7 points wins.",
+    emoji: "🏓",
+    links: [{ href: "/play/pong", label: "Play" }],
+  },
+  {
+    title: "Space Invaders",
+    blurb: "Clear each descending wave of aliens before they reach you.",
+    emoji: "👾",
+    links: [{ href: "/play/space-invaders", label: "Play" }],
+  },
+  {
+    title: "Sokoban",
+    blurb: "Push every box onto a target square — you can only push, never pull.",
+    emoji: "📦",
+    links: [{ href: "/play/sokoban", label: "Play" }],
+  },
+  {
+    title: "Flood-It",
+    blurb: "Flood the board with one color from the top-left corner within the move limit.",
+    emoji: "🌊",
+    links: [{ href: "/play/flood-it", label: "Play" }],
   },
 ];
 

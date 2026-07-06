@@ -7,8 +7,41 @@ import { ReportButton } from "@/components/profile/ReportButton";
 import { DbNotice } from "@/components/ui/DbNotice";
 import { auth } from "@/lib/auth/auth";
 
-const HIGHER_IS_BETTER_GAMES = ["snake", "tetris", "2048", "simon", "breakout", "whackamole", "blackjack", "yahtzee", "hangman", "flappyrook"];
-const LOWER_IS_BETTER_GAMES = ["racing", "platformer", "minesweeper", "memorymatch", "15puzzle", "sudoku", "solitaire", "freecell", "klotski"];
+const HIGHER_IS_BETTER_GAMES = [
+  "snake",
+  "tetris",
+  "2048",
+  "simon",
+  "breakout",
+  "whackamole",
+  "blackjack",
+  "yahtzee",
+  "hangman",
+  "flappyrook",
+  "videopoker",
+  "pong",
+  "spaceinvaders",
+];
+const LOWER_IS_BETTER_GAMES = [
+  "racing",
+  "platformer",
+  "minesweeper",
+  "memorymatch",
+  "15puzzle",
+  "sudoku",
+  "solitaire",
+  "freecell",
+  "klotski",
+  "pegsolitaire",
+  "lightsout",
+  "hanoi",
+  "mastermind",
+  "battleship",
+  "war",
+  "pyramidsolitaire",
+  "sokoban",
+  "floodit",
+];
 
 export const dynamic = "force-dynamic";
 

@@ -24,8 +24,37 @@ const GAMES = new Set([
   "freecell",
   "klotski",
   "flappyrook",
+  "pegsolitaire",
+  "lightsout",
+  "hanoi",
+  "mastermind",
+  "battleship",
+  "videopoker",
+  "war",
+  "pyramidsolitaire",
+  "pong",
+  "spaceinvaders",
+  "sokoban",
+  "floodit",
 ]);
-const LOWER_IS_BETTER = new Set(["minesweeper", "memorymatch", "15puzzle", "sudoku", "solitaire", "freecell", "klotski"]);
+const LOWER_IS_BETTER = new Set([
+  "minesweeper",
+  "memorymatch",
+  "15puzzle",
+  "sudoku",
+  "solitaire",
+  "freecell",
+  "klotski",
+  "pegsolitaire",
+  "lightsout",
+  "hanoi",
+  "mastermind",
+  "battleship",
+  "war",
+  "pyramidsolitaire",
+  "sokoban",
+  "floodit",
+]);
 
 /** Personal best (+ top-10 leaderboard) for a game, optionally scoped to a level. */
 export async function GET(req: Request) {

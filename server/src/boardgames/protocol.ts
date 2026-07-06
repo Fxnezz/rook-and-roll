@@ -13,7 +13,12 @@ export type GameKind =
   | "ninemensmorris"
   | "ultimatetictactoe"
   | "hex"
-  | "pentago";
+  | "pentago"
+  | "quarto"
+  | "breakthrough"
+  | "domineering"
+  | "sim"
+  | "connect6";
 
 export interface BgStateMsg {
   roomId: string;
