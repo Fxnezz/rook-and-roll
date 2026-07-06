@@ -1,7 +1,19 @@
 import type { BgIdentity, BgPlayerInfo, MoveRecord } from "./MatchRoom.js";
 import type { GameResult } from "./engine.js";
 
-export type GameKind = "tictactoe" | "connect4" | "checkers" | "othello" | "gomoku" | "mancala";
+export type GameKind =
+  | "tictactoe"
+  | "connect4"
+  | "checkers"
+  | "othello"
+  | "gomoku"
+  | "mancala"
+  | "nim"
+  | "dotsboxes"
+  | "ninemensmorris"
+  | "ultimatetictactoe"
+  | "hex"
+  | "pentago";
 
 export interface BgStateMsg {
   roomId: string;

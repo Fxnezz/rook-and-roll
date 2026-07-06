@@ -19,6 +19,12 @@ const KIND_LABEL: Record<string, string> = {
   othello: "Othello",
   gomoku: "Gomoku",
   mancala: "Mancala",
+  nim: "Nim",
+  dotsboxes: "Dots and Boxes",
+  ninemensmorris: "Nine Men's Morris",
+  ultimatetictactoe: "Ultimate Tic-Tac-Toe",
+  hex: "Hex",
+  pentago: "Pentago",
 };
 
 export default function AdminLiveBoardGamesPage() {

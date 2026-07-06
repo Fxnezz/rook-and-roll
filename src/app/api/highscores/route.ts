@@ -18,8 +18,14 @@ const GAMES = new Set([
   "solitaire",
   "breakout",
   "whackamole",
+  "hangman",
+  "blackjack",
+  "yahtzee",
+  "freecell",
+  "klotski",
+  "flappyrook",
 ]);
-const LOWER_IS_BETTER = new Set(["minesweeper", "memorymatch", "15puzzle", "sudoku", "solitaire"]);
+const LOWER_IS_BETTER = new Set(["minesweeper", "memorymatch", "15puzzle", "sudoku", "solitaire", "freecell", "klotski"]);
 
 /** Personal best (+ top-10 leaderboard) for a game, optionally scoped to a level. */
 export async function GET(req: Request) {

@@ -11,6 +11,12 @@ import { checkersEngine } from "./checkers.js";
 import { othelloEngine } from "./othello.js";
 import { gomokuEngine } from "./gomoku.js";
 import { mancalaEngine } from "./mancala.js";
+import { nimEngine } from "./nim.js";
+import { dotsBoxesEngine } from "./dotsboxes.js";
+import { nineMensMorrisEngine } from "./ninemensmorris.js";
+import { ultimateTicTacToeEngine } from "./ultimatetictactoe.js";
+import { hexEngine } from "./hex.js";
+import { pentagoEngine } from "./pentago.js";
 import type { GameEngine } from "./engine.js";
 import type { BgClientToServer, BgLiveRoomSummary, BgServerToClient, GameKind } from "./protocol.js";
 
@@ -21,6 +27,12 @@ const ENGINES: Record<GameKind, GameEngine<unknown, unknown>> = {
   othello: othelloEngine as GameEngine<unknown, unknown>,
   gomoku: gomokuEngine as GameEngine<unknown, unknown>,
   mancala: mancalaEngine as GameEngine<unknown, unknown>,
+  nim: nimEngine as GameEngine<unknown, unknown>,
+  dotsboxes: dotsBoxesEngine as GameEngine<unknown, unknown>,
+  ninemensmorris: nineMensMorrisEngine as GameEngine<unknown, unknown>,
+  ultimatetictactoe: ultimateTicTacToeEngine as GameEngine<unknown, unknown>,
+  hex: hexEngine as GameEngine<unknown, unknown>,
+  pentago: pentagoEngine as GameEngine<unknown, unknown>,
 };
 
 const GRACE_MS = 30_000;

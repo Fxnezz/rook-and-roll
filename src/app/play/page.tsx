@@ -94,6 +94,66 @@ const MULTIPLAYER_GAMES: GameCard[] = [
       { href: "/play/mancala/local", label: "Pass & Play" },
     ],
   },
+  {
+    title: "Nim",
+    blurb: "Take turns removing tokens from a pile — whoever takes the last token wins.",
+    emoji: "🪙",
+    links: [
+      { href: "/play/nim", label: "Play Online" },
+      { href: "/play/nim/bot", label: "vs Bot" },
+      { href: "/play/nim/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Dots and Boxes",
+    blurb: "Draw a line, complete a box to claim it and go again — most boxes wins.",
+    emoji: "🔲",
+    links: [
+      { href: "/play/dots-and-boxes", label: "Play Online" },
+      { href: "/play/dots-and-boxes/bot", label: "vs Bot" },
+      { href: "/play/dots-and-boxes/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Nine Men's Morris",
+    blurb: "Place, then move your pieces to form a mill and remove an opponent piece.",
+    emoji: "⭕",
+    links: [
+      { href: "/play/nine-mens-morris", label: "Play Online" },
+      { href: "/play/nine-mens-morris/bot", label: "vs Bot" },
+      { href: "/play/nine-mens-morris/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Ultimate Tic-Tac-Toe",
+    blurb: "A 3x3 grid of tic-tac-toe boards — your move sends your opponent to the matching sub-board.",
+    emoji: "🔳",
+    links: [
+      { href: "/play/ultimate-tic-tac-toe", label: "Play Online" },
+      { href: "/play/ultimate-tic-tac-toe/bot", label: "vs Bot" },
+      { href: "/play/ultimate-tic-tac-toe/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Hex",
+    blurb: "Connect your two sides of the board with an unbroken chain — no draws are possible.",
+    emoji: "⬡",
+    links: [
+      { href: "/play/hex", label: "Play Online" },
+      { href: "/play/hex/bot", label: "vs Bot" },
+      { href: "/play/hex/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Pentago",
+    blurb: "Place a marble, then rotate a quadrant — five in a row after the rotation wins.",
+    emoji: "🌀",
+    links: [
+      { href: "/play/pentago", label: "Play Online" },
+      { href: "/play/pentago/bot", label: "vs Bot" },
+      { href: "/play/pentago/local", label: "Pass & Play" },
+    ],
+  },
 ];
 
 const ARCADE_GAMES: GameCard[] = [
@@ -168,6 +228,42 @@ const ARCADE_GAMES: GameCard[] = [
     blurb: "30 seconds on the clock — whack moles the instant they pop up.",
     emoji: "🔨",
     links: [{ href: "/play/whackamole", label: "Play" }],
+  },
+  {
+    title: "Hangman",
+    blurb: "Guess the word one letter at a time before you run out of tries.",
+    emoji: "🙈",
+    links: [{ href: "/play/hangman", label: "Play" }],
+  },
+  {
+    title: "Blackjack",
+    blurb: "Get closer to 21 than the dealer without going over. Blackjack pays 3:2.",
+    emoji: "🂡",
+    links: [{ href: "/play/blackjack", label: "Play" }],
+  },
+  {
+    title: "Yahtzee",
+    blurb: "Roll five dice up to three times each round, then lock in a category.",
+    emoji: "🎲",
+    links: [{ href: "/play/yahtzee", label: "Play" }],
+  },
+  {
+    title: "FreeCell",
+    blurb: "All 52 cards dealt face-up — almost every deal is solvable.",
+    emoji: "♠️",
+    links: [{ href: "/play/freecell", label: "Play" }],
+  },
+  {
+    title: "Klotski",
+    blurb: "The classic sliding-block puzzle — free the big block to the exit.",
+    emoji: "🧱",
+    links: [{ href: "/play/klotski", label: "Play" }],
+  },
+  {
+    title: "Flappy Rook",
+    blurb: "Flap through the gaps without hitting a pillar, the floor, or the ceiling.",
+    emoji: "🐦",
+    links: [{ href: "/play/flappy-rook", label: "Play" }],
   },
 ];
 
