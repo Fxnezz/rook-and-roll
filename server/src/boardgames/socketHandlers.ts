@@ -22,6 +22,14 @@ import { breakthroughEngine } from "./breakthrough.js";
 import { domineeringEngine } from "./domineering.js";
 import { simEngine } from "./sim.js";
 import { connect6Engine } from "./connect6.js";
+import { quoridorEngine } from "./quoridor.js";
+import { halmaEngine } from "./halma.js";
+import { lGameEngine } from "./lgame.js";
+import { yavalathEngine } from "./yavalath.js";
+import { fanoronaEngine } from "./fanorona.js";
+import { loaEngine } from "./linesofaction.js";
+import { yGameEngine } from "./ygame.js";
+import { amazonsEngine } from "./amazons.js";
 import type { GameEngine } from "./engine.js";
 import type { BgClientToServer, BgLiveRoomSummary, BgServerToClient, GameKind } from "./protocol.js";
 
@@ -43,6 +51,14 @@ const ENGINES: Record<GameKind, GameEngine<unknown, unknown>> = {
   domineering: domineeringEngine as GameEngine<unknown, unknown>,
   sim: simEngine as GameEngine<unknown, unknown>,
   connect6: connect6Engine as GameEngine<unknown, unknown>,
+  quoridor: quoridorEngine as GameEngine<unknown, unknown>,
+  halma: halmaEngine as GameEngine<unknown, unknown>,
+  lgame: lGameEngine as GameEngine<unknown, unknown>,
+  yavalath: yavalathEngine as GameEngine<unknown, unknown>,
+  fanorona: fanoronaEngine as GameEngine<unknown, unknown>,
+  loa: loaEngine as GameEngine<unknown, unknown>,
+  ygame: yGameEngine as GameEngine<unknown, unknown>,
+  amazons: amazonsEngine as GameEngine<unknown, unknown>,
 };
 
 const GRACE_MS = 30_000;

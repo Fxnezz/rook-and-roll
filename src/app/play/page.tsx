@@ -204,6 +204,86 @@ const MULTIPLAYER_GAMES: GameCard[] = [
       { href: "/play/connect6/local", label: "Pass & Play" },
     ],
   },
+  {
+    title: "Quoridor",
+    blurb: "Race to the far row, or place walls to slow your opponent — never seal off either path.",
+    emoji: "🧱",
+    links: [
+      { href: "/play/quoridor", label: "Play Online" },
+      { href: "/play/quoridor/bot", label: "vs Bot" },
+      { href: "/play/quoridor/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Halma",
+    blurb: "Hop your pieces across the board into the opposite corner — first to fill the far camp wins.",
+    emoji: "🐇",
+    links: [
+      { href: "/play/halma", label: "Play Online" },
+      { href: "/play/halma/bot", label: "vs Bot" },
+      { href: "/play/halma/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "L-Game",
+    blurb: "Reposition your L-piece and optionally nudge a neutral piece — trap your opponent's L.",
+    emoji: "🔤",
+    links: [
+      { href: "/play/l-game", label: "Play Online" },
+      { href: "/play/l-game/bot", label: "vs Bot" },
+      { href: "/play/l-game/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Yavalath",
+    blurb: "Four in a row wins. Three in a row loses — unless that same move also makes four.",
+    emoji: "⬡",
+    links: [
+      { href: "/play/yavalath", label: "Play Online" },
+      { href: "/play/yavalath/bot", label: "vs Bot" },
+      { href: "/play/yavalath/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Fanorona",
+    blurb: "Madagascar's classic capture game — slide into a gap to capture a line of enemy pieces.",
+    emoji: "⚪",
+    links: [
+      { href: "/play/fanorona", label: "Play Online" },
+      { href: "/play/fanorona/bot", label: "vs Bot" },
+      { href: "/play/fanorona/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Lines of Action",
+    blurb: "Move as far as the pieces on your line let you — connect your whole army to win.",
+    emoji: "🔵",
+    links: [
+      { href: "/play/lines-of-action", label: "Play Online" },
+      { href: "/play/lines-of-action/bot", label: "vs Bot" },
+      { href: "/play/lines-of-action/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Y",
+    blurb: "Connect all three sides of a triangle with one unbroken group of stones — no draws possible.",
+    emoji: "🔻",
+    links: [
+      { href: "/play/y-game", label: "Play Online" },
+      { href: "/play/y-game/bot", label: "vs Bot" },
+      { href: "/play/y-game/local", label: "Pass & Play" },
+    ],
+  },
+  {
+    title: "Amazons",
+    blurb: "Move a queen-like amazon, then shoot an arrow to block a square forever.",
+    emoji: "🏹",
+    links: [
+      { href: "/play/amazons", label: "Play Online" },
+      { href: "/play/amazons/bot", label: "vs Bot" },
+      { href: "/play/amazons/local", label: "Pass & Play" },
+    ],
+  },
 ];
 
 const ARCADE_GAMES: GameCard[] = [
@@ -386,6 +466,78 @@ const ARCADE_GAMES: GameCard[] = [
     blurb: "Flood the board with one color from the top-left corner within the move limit.",
     emoji: "🌊",
     links: [{ href: "/play/flood-it", label: "Play" }],
+  },
+  {
+    title: "Spider Solitaire",
+    blurb: "Two-suit Spider — build same-suit descending runs and clear all 8 King-to-Ace sequences.",
+    emoji: "🕷️",
+    links: [{ href: "/play/spider-solitaire", label: "Play" }],
+  },
+  {
+    title: "Block Puzzle",
+    blurb: "Place three pieces anywhere they fit — clear full rows, columns, or 3x3 boxes.",
+    emoji: "🧩",
+    links: [{ href: "/play/block-puzzle", label: "Play" }],
+  },
+  {
+    title: "Match-3",
+    blurb: "Swap adjacent gems to line up 3 or more — chain cascades for bonus points.",
+    emoji: "💎",
+    links: [{ href: "/play/match3", label: "Play" }],
+  },
+  {
+    title: "Asteroids",
+    blurb: "Rotate, thrust, and shoot — smaller asteroids are worth more but harder to hit.",
+    emoji: "☄️",
+    links: [{ href: "/play/asteroids", label: "Play" }],
+  },
+  {
+    title: "Frogger",
+    blurb: "Cross the road, then ride logs across the river — fill all 5 homes to advance.",
+    emoji: "🐸",
+    links: [{ href: "/play/frogger", label: "Play" }],
+  },
+  {
+    title: "Roulette",
+    blurb: "European single-zero wheel — place your bets, then spin.",
+    emoji: "🎡",
+    links: [{ href: "/play/roulette", label: "Play" }],
+  },
+  {
+    title: "Baccarat",
+    blurb: "Punto Banco rules — bet on Player, Banker, or Tie, closest to 9 wins.",
+    emoji: "🎴",
+    links: [{ href: "/play/baccarat", label: "Play" }],
+  },
+  {
+    title: "Craps",
+    blurb: "Pass Line bet — 7 or 11 wins on the come-out, 2/3/12 lose, anything else sets the point.",
+    emoji: "🎲",
+    links: [{ href: "/play/craps", label: "Play" }],
+  },
+  {
+    title: "Slot Machine",
+    blurb: "3 reels, one lever — line up three matching symbols for the big payout.",
+    emoji: "🎰",
+    links: [{ href: "/play/slot-machine", label: "Play" }],
+  },
+  {
+    title: "Rock Paper Scissors",
+    blurb: "The bot studies your patterns — stay unpredictable to keep winning.",
+    emoji: "✂️",
+    links: [{ href: "/play/rock-paper-scissors", label: "Play" }],
+  },
+  {
+    title: "Farkle",
+    blurb: "Roll six dice, bank scoring combos, and push your luck — first to 10,000 wins.",
+    emoji: "🎯",
+    links: [{ href: "/play/farkle", label: "Play" }],
+  },
+  {
+    title: "Word Search",
+    blurb: "Click the first and last letter of a hidden word to find it, in any of 8 directions.",
+    emoji: "🔎",
+    links: [{ href: "/play/word-search", label: "Play" }],
   },
 ];
 

@@ -21,6 +21,16 @@ const HIGHER_IS_BETTER_GAMES = [
   "videopoker",
   "pong",
   "spaceinvaders",
+  "blockpuzzle",
+  "match3",
+  "asteroids",
+  "frogger",
+  "roulette",
+  "baccarat",
+  "craps",
+  "slots",
+  "rps",
+  "farkle",
 ];
 const LOWER_IS_BETTER_GAMES = [
   "racing",
@@ -41,6 +51,8 @@ const LOWER_IS_BETTER_GAMES = [
   "pyramidsolitaire",
   "sokoban",
   "floodit",
+  "spidersolitaire",
+  "wordsearch",
 ];
 
 export const dynamic = "force-dynamic";

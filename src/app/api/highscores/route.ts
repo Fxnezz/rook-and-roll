@@ -36,6 +36,18 @@ const GAMES = new Set([
   "spaceinvaders",
   "sokoban",
   "floodit",
+  "spidersolitaire",
+  "blockpuzzle",
+  "match3",
+  "asteroids",
+  "frogger",
+  "roulette",
+  "baccarat",
+  "craps",
+  "slots",
+  "rps",
+  "farkle",
+  "wordsearch",
 ]);
 const LOWER_IS_BETTER = new Set([
   "minesweeper",
@@ -54,6 +66,8 @@ const LOWER_IS_BETTER = new Set([
   "pyramidsolitaire",
   "sokoban",
   "floodit",
+  "spidersolitaire",
+  "wordsearch",
 ]);
 
 /** Personal best (+ top-10 leaderboard) for a game, optionally scoped to a level. */

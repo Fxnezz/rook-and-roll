@@ -30,6 +30,14 @@ const KIND_LABEL: Record<string, string> = {
   domineering: "Domineering",
   sim: "Sim",
   connect6: "Connect6",
+  quoridor: "Quoridor",
+  halma: "Halma",
+  lgame: "L-Game",
+  yavalath: "Yavalath",
+  fanorona: "Fanorona",
+  loa: "Lines of Action",
+  ygame: "Y",
+  amazons: "Amazons",
 };
 
 export default function AdminLiveBoardGamesPage() {

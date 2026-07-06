@@ -19,7 +19,15 @@ export type GameKind =
   | "breakthrough"
   | "domineering"
   | "sim"
-  | "connect6";
+  | "connect6"
+  | "quoridor"
+  | "halma"
+  | "lgame"
+  | "yavalath"
+  | "fanorona"
+  | "loa"
+  | "ygame"
+  | "amazons";
 
 export interface BgIdentity {
   userId: string;
