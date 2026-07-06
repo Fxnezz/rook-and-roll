@@ -305,6 +305,9 @@ export default function AdminLivePage() {
                     onMove={() => {}}
                     interactive={false}
                     showCoordinates
+                    squareColorOverride={settings.squareColorOverride}
+                    pieceSizePercent={settings.pieceSize}
+                    boardFrame={settings.boardFrame}
                   />
                   <div className="mt-2 flex items-center justify-between text-sm">
                     <PlayerLine

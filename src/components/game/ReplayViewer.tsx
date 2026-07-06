@@ -55,6 +55,11 @@ export function ReplayViewer({
           showCoordinates={settings.showCoordinates}
           highlightLastMove
           animate={settings.animate}
+          squareColorOverride={settings.squareColorOverride}
+          pieceSizePercent={settings.pieceSize}
+          animationSpeed={settings.animationSpeed}
+          boardFrame={settings.boardFrame}
+          zoomPercent={settings.boardZoom}
         />
         {label(orientation === "w" ? whiteName : blackName)}
         <div className="panel mt-1 p-2">

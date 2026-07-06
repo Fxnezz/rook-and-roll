@@ -1,10 +1,70 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useSettings } from "@/lib/chess/useSettings";
+import { useSettings, type AnimationSpeed, type BoardFrame } from "@/lib/chess/useSettings";
 import { BOARD_THEMES } from "@/lib/chess/themes";
 import { PIECE_SETS, Piece } from "@/lib/pieces";
 import { IconPalette, IconVolume, IconVolumeOff, IconSparkles, IconMotion, IconRefresh, IconCheck } from "../ui/icons";
+
+const ANIM_SPEEDS: { id: AnimationSpeed; label: string }[] = [
+  { id: "instant", label: "Off" },
+  { id: "fast", label: "Fast" },
+  { id: "normal", label: "Normal" },
+  { id: "slow", label: "Slow" },
+];
+
+const BOARD_FRAMES: { id: BoardFrame; label: string }[] = [
+  { id: "none", label: "None" },
+  { id: "minimal", label: "Minimal" },
+  { id: "wood", label: "Wood" },
+  { id: "shadow", label: "Shadow" },
+];
+
+const ARROW_SWATCHES = ["#f2b544", "#e5604d", "#5aa8e0", "#5bbf7a", "#c98bd8"];
+
+function Segmented<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+  return (
+    <div className="grid grid-cols-4 gap-1.5">
+      {options.map((o) => {
+        const active = o.id === value;
+        return (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            className="hover-lift rounded-md border px-1.5 py-1.5 text-xs font-medium transition-colors"
+            style={{
+              borderColor: active ? "var(--accent)" : "var(--border)",
+              background: active ? "var(--bg-elev-2)" : "transparent",
+              color: active ? "var(--accent)" : "var(--text-muted)",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Slider({ value, min, max, step = 1, onChange, suffix = "%" }: { value: number; min: number; max: number; step?: number; onChange: (v: number) => void; suffix?: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-[var(--accent)]"
+      />
+      <span className="w-12 shrink-0 text-right text-xs tabular-nums text-[var(--text-faint)]">
+        {value}
+        {suffix}
+      </span>
+    </div>
+  );
+}
 
 function Toggle({
   label,
@@ -122,6 +182,71 @@ export function SettingsPanel() {
             );
           })}
         </div>
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Board size</span>
+        <Slider value={settings.boardZoom} min={80} max={140} step={5} onChange={(v) => update({ boardZoom: v })} />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Piece size</span>
+        <Slider value={settings.pieceSize} min={70} max={115} step={5} onChange={(v) => update({ pieceSize: v })} />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Move animation speed</span>
+        <Segmented options={ANIM_SPEEDS} value={settings.animationSpeed} onChange={(v) => update({ animationSpeed: v })} />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Board frame</span>
+        <Segmented options={BOARD_FRAMES} value={settings.boardFrame} onChange={(v) => update({ boardFrame: v })} />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Arrow color</span>
+        <div className="flex items-center gap-2">
+          {ARROW_SWATCHES.map((c) => (
+            <button
+              key={c}
+              aria-label={`Arrow color ${c}`}
+              onClick={() => update({ arrowColor: c })}
+              className="hover-lift h-7 w-7 rounded-full transition-transform"
+              style={{
+                background: c,
+                boxShadow: settings.arrowColor === c ? "0 0 0 2px var(--panel), 0 0 0 4px var(--accent)" : "none",
+              }}
+            />
+          ))}
+          <input
+            type="color"
+            value={settings.arrowColor}
+            onChange={(e) => update({ arrowColor: e.target.value })}
+            className="h-7 w-7 cursor-pointer rounded-full border border-[var(--border)] bg-transparent p-0"
+            aria-label="Custom arrow color"
+          />
+        </div>
+
+        <div className="mt-2">
+          <Toggle
+            label="Custom square colors"
+            checked={!!settings.squareColorOverride}
+            onChange={(v) => update({ squareColorOverride: v ? { light: "#ebecd0", dark: "#6f8f5a" } : null })}
+          />
+        </div>
+        {settings.squareColorOverride && (
+          <div className="mt-2 flex items-center gap-4">
+            <label className="flex items-center gap-2 text-xs text-[var(--text-faint)]">
+              Light
+              <input
+                type="color"
+                value={settings.squareColorOverride.light}
+                onChange={(e) => update({ squareColorOverride: { ...settings.squareColorOverride!, light: e.target.value } })}
+                className="h-7 w-7 cursor-pointer rounded-md border border-[var(--border)] bg-transparent p-0"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-[var(--text-faint)]">
+              Dark
+              <input
+                type="color"
+                value={settings.squareColorOverride.dark}
+                onChange={(e) => update({ squareColorOverride: { ...settings.squareColorOverride!, dark: e.target.value } })}
+                className="h-7 w-7 cursor-pointer rounded-md border border-[var(--border)] bg-transparent p-0"
+              />
+            </label>
+          </div>
+        )}
       </Section>
 
       <div className="h-px bg-[var(--border)]" />

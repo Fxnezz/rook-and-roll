@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Color, PieceSymbol, Square } from "chess.js";
 import { Piece, type PieceSetId } from "@/lib/pieces";
 import type { BoardTheme } from "@/lib/chess/themes";
@@ -14,6 +14,11 @@ import {
 import type { Move } from "chess.js";
 import { PromotionPicker } from "./PromotionPicker";
 import { ArrowLayer, type Arrow } from "./ArrowLayer";
+
+export type AnimationSpeedName = "instant" | "fast" | "normal" | "slow";
+export type BoardFrameName = "none" | "wood" | "minimal" | "shadow";
+
+const ANIM_SCALE: Record<AnimationSpeedName, number> = { instant: 0, fast: 0.5, normal: 1, slow: 1.8 };
 
 export interface BoardProps {
   snapshot: GameSnapshot;
@@ -31,6 +36,16 @@ export interface BoardProps {
   animate?: boolean;
   /** Programmatic arrows (e.g. a cheat-panel move prediction), merged with user-drawn ones. */
   extraArrows?: Arrow[];
+  /** Overrides theme.light/dark when set. */
+  squareColorOverride?: { light: string; dark: string } | null;
+  /** Piece size as a percentage of the square, 70-100. */
+  pieceSizePercent?: number;
+  animationSpeed?: AnimationSpeedName;
+  /** Default color for freshly drawn (no-modifier) arrow annotations. */
+  arrowColor?: string;
+  boardFrame?: BoardFrameName;
+  /** Board render size as a percentage of its available width, 80-140. */
+  zoomPercent?: number;
 }
 
 interface DragState {
@@ -47,11 +62,14 @@ const ANNOTATION_COLORS: Record<string, string> = {
   ctrl: "#5bbf7a",
 };
 
-function annotationColor(e: { altKey: boolean; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) {
+function annotationColor(
+  e: { altKey: boolean; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean },
+  defaultColor: string,
+) {
   if (e.altKey) return ANNOTATION_COLORS.alt;
   if (e.shiftKey) return ANNOTATION_COLORS.shift;
   if (e.ctrlKey || e.metaKey) return ANNOTATION_COLORS.ctrl;
-  return ANNOTATION_COLORS.default;
+  return defaultColor;
 }
 
 export function Board({
@@ -68,7 +86,17 @@ export function Board({
   highlightLastMove = true,
   animate = true,
   extraArrows = [],
+  squareColorOverride = null,
+  pieceSizePercent = 100,
+  animationSpeed = "normal",
+  arrowColor = ANNOTATION_COLORS.default,
+  boardFrame = "none",
+  zoomPercent = 100,
 }: BoardProps) {
+  const effTheme: BoardTheme = squareColorOverride
+    ? { ...theme, light: squareColorOverride.light, dark: squareColorOverride.dark }
+    : theme;
+  const animScale = ANIM_SCALE[animationSpeed];
   const boardRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<Square | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -115,12 +143,12 @@ export function Board({
     if (animate && snapshot.isLive && count === prevCount.current + 1 && count > 0) {
       const mv = snapshot.moves[count - 1];
       setAnim({ from: mv.from, to: mv.to, type: mv.promotion ?? mv.piece, color: mv.color });
-      const t = setTimeout(() => setAnim(null), 170);
+      const t = setTimeout(() => setAnim(null), Math.round(170 * animScale));
       prevCount.current = count;
       return () => clearTimeout(t);
     }
     prevCount.current = count;
-  }, [snapshot.moves, snapshot.isLive, animate]);
+  }, [snapshot.moves, snapshot.isLive, animate, animScale]);
 
   const legalTargets = useMemo(() => {
     if (!selected) return new Map<Square, Move>();
@@ -165,7 +193,7 @@ export function Board({
 
     // Right button → annotations
     if (e.button === 2) {
-      rightStart.current = { square: sq, color: annotationColor(e) };
+      rightStart.current = { square: sq, color: annotationColor(e, arrowColor) };
       return;
     }
     if (e.button !== 0) return;
@@ -260,7 +288,17 @@ export function Board({
   const lastMove = highlightLastMove ? snapshot.lastMove : null;
   const hiddenSquare = drag?.from ?? anim?.to ?? null;
 
+  const frameStyle: CSSProperties =
+    boardFrame === "wood"
+      ? { padding: "3.5%", background: "linear-gradient(155deg, #8a5a34, #5c3a1f)", borderRadius: 14 }
+      : boardFrame === "minimal"
+        ? { padding: "2px", background: effTheme.dark, borderRadius: 12 }
+        : boardFrame === "shadow"
+          ? { filter: "drop-shadow(0 18px 34px rgba(0,0,0,0.55))" }
+          : {};
+
   return (
+    <div style={{ width: `${zoomPercent}%`, maxWidth: "100%", margin: "0 auto", ...frameStyle }}>
     <div
       ref={boardRef}
       className="relative w-full select-none rounded-[10px] overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.45)]"
@@ -273,7 +311,7 @@ export function Board({
       {/* Square grid: colours, coordinates, highlights, hints */}
       <div className="absolute inset-0 grid grid-cols-8 grid-rows-8">
         {squares.map(({ square, light, row, col }) => {
-          const bg = light ? theme.light : theme.dark;
+          const bg = light ? effTheme.light : effTheme.dark;
           const isLast = lastMove && (lastMove.from === square || lastMove.to === square);
           const isSel = selected === square;
           const isCheck = snapshot.checkedKingSquare === square;
@@ -281,16 +319,16 @@ export function Board({
           const target = legalTargets.get(square);
           const showFile = showCoordinates && row === 7;
           const showRank = showCoordinates && col === 0;
-          const labelColor = light ? theme.labelOnLight : theme.labelOnDark;
+          const labelColor = light ? effTheme.labelOnLight : effTheme.labelOnDark;
           return (
             <div key={square} className="relative" style={{ background: bg }}>
-              {isLast && <div className="absolute inset-0" style={{ background: theme.lastMove }} />}
-              {isSel && <div className="absolute inset-0" style={{ background: theme.selected }} />}
+              {isLast && <div className="absolute inset-0" style={{ background: effTheme.lastMove }} />}
+              {isSel && <div className="absolute inset-0" style={{ background: effTheme.selected }} />}
               {isCheck && (
                 <div
                   className="absolute inset-0"
                   style={{
-                    background: `radial-gradient(circle at center, ${theme.check} 0%, rgba(229,75,60,0.35) 45%, transparent 72%)`,
+                    background: `radial-gradient(circle at center, ${effTheme.check} 0%, rgba(229,75,60,0.35) 45%, transparent 72%)`,
                   }}
                 />
               )}
@@ -305,10 +343,10 @@ export function Board({
                   {pieceAt(square) ? (
                     <div
                       className="absolute inset-[6%] rounded-full"
-                      style={{ boxShadow: `inset 0 0 0 0.35rem ${theme.hint}` }}
+                      style={{ boxShadow: `inset 0 0 0 0.35rem ${effTheme.hint}` }}
                     />
                   ) : (
-                    <div className="rounded-full" style={{ width: "30%", height: "30%", background: theme.hint }} />
+                    <div className="rounded-full" style={{ width: "30%", height: "30%", background: effTheme.hint }} />
                   )}
                 </div>
               )}
@@ -348,6 +386,7 @@ export function Board({
               height: "12.5%",
               opacity: hidden ? 0 : 1,
               zIndex: 2,
+              transform: pieceSizePercent !== 100 ? `scale(${pieceSizePercent / 100})` : undefined,
             }}
           >
             <Piece type={p.type} color={p.color} set={pieceSet} />
@@ -361,6 +400,8 @@ export function Board({
           anim={anim}
           orientation={orientation}
           pieceSet={pieceSet}
+          durationMs={Math.round(150 * animScale)}
+          pieceSizePercent={pieceSizePercent}
         />
       )}
 
@@ -373,7 +414,7 @@ export function Board({
             top: drag.y,
             width: "12.5%",
             height: "12.5%",
-            transform: "translate(-50%, -50%) scale(1.08)",
+            transform: `translate(-50%, -50%) scale(${1.08 * (pieceSizePercent / 100)})`,
             zIndex: 30,
             filter: "drop-shadow(0 6px 8px rgba(0,0,0,0.45))",
           }}
@@ -391,7 +432,7 @@ export function Board({
           promo={promo}
           orientation={orientation}
           pieceSet={pieceSet}
-          theme={theme}
+          theme={effTheme}
           onSelect={(piece) => {
             const { from, to } = promo;
             setPromo(null);
@@ -402,6 +443,7 @@ export function Board({
         />
       )}
     </div>
+    </div>
   );
 }
 
@@ -409,20 +451,26 @@ function SlidePiece({
   anim,
   orientation,
   pieceSet,
+  durationMs,
+  pieceSizePercent,
 }: {
   anim: { from: Square; to: Square; type: PieceSymbol; color: Color };
   orientation: Color;
   pieceSet: PieceSetId;
+  durationMs: number;
+  pieceSizePercent: number;
 }) {
   const to = squareToPercent(anim.to, orientation);
   const from = squareToPercent(anim.from, orientation);
   // delta expressed in units of the element's own size (1 square = 100%)
   const dx = ((from.x - to.x) / 12.5) * 100;
   const dy = ((from.y - to.y) / 12.5) * 100;
-  const [t, setT] = useState(`translate(${dx}%, ${dy}%)`);
+  const scale = pieceSizePercent !== 100 ? ` scale(${pieceSizePercent / 100})` : "";
+  const [t, setT] = useState(`translate(${dx}%, ${dy}%)${scale}`);
   useEffect(() => {
-    const id = requestAnimationFrame(() => setT("translate(0%, 0%)"));
+    const id = requestAnimationFrame(() => setT(`translate(0%, 0%)${scale}`));
     return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
     <div
@@ -433,7 +481,7 @@ function SlidePiece({
         width: "12.5%",
         height: "12.5%",
         transform: t,
-        transition: "transform 150ms ease-out",
+        transition: `transform ${durationMs}ms ease-out`,
         zIndex: 3,
       }}
     >

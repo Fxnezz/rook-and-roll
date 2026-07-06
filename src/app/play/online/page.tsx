@@ -343,6 +343,12 @@ export default function OnlinePage() {
             showLegalMoves={settings.showLegalMoves}
             highlightLastMove={settings.highlightLastMove}
             animate={settings.animate}
+            squareColorOverride={settings.squareColorOverride}
+            pieceSizePercent={settings.pieceSize}
+            animationSpeed={settings.animationSpeed}
+            arrowColor={settings.arrowColor}
+            boardFrame={settings.boardFrame}
+            zoomPercent={settings.boardZoom}
           />
           <PlayerBar color={bottomColor} />
         </div>

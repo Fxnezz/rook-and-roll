@@ -43,6 +43,8 @@ export interface Settings {
   compactMoveList: boolean;
   /** Play a sound whenever the opponent makes a move (separate from your own move sound). */
   opponentMoveSound: boolean;
+  /** Board render size as a percentage (80-140) of its available width. */
+  boardZoom: number;
 }
 
 const DEFAULTS: Settings = {
@@ -69,6 +71,7 @@ const DEFAULTS: Settings = {
   boardFrame: "none",
   compactMoveList: false,
   opponentMoveSound: true,
+  boardZoom: 100,
 };
 
 const STORAGE_KEY = "rr.settings.v1";

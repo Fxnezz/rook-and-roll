@@ -78,6 +78,11 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
               showCoordinates={settings.showCoordinates}
               highlightLastMove
               animate={settings.animate}
+              squareColorOverride={settings.squareColorOverride}
+              pieceSizePercent={settings.pieceSize}
+              animationSpeed={settings.animationSpeed}
+              boardFrame={settings.boardFrame}
+              zoomPercent={settings.boardZoom}
             />
             <Bar name={players.white.username} rating={players.white.rating} ms={state.clock.whiteMs} active={state.clock.activeColor === "w"} timed={state.timeControl?.initialMs != null} />
           </div>

@@ -161,6 +161,12 @@ export default function LocalGamePage() {
             showLegalMoves={settings.showLegalMoves}
             highlightLastMove={settings.highlightLastMove}
             animate={settings.animate}
+            squareColorOverride={settings.squareColorOverride}
+            pieceSizePercent={settings.pieceSize}
+            animationSpeed={settings.animationSpeed}
+            arrowColor={settings.arrowColor}
+            boardFrame={settings.boardFrame}
+            zoomPercent={settings.boardZoom}
           />
           <Tray playerColor={orientation} />
           <div className="panel mt-1 p-2">

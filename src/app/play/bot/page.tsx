@@ -540,6 +540,12 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
                 highlightLastMove={settings.highlightLastMove}
                 animate={settings.animate}
                 extraArrows={predictedArrow ? [predictedArrow] : []}
+                squareColorOverride={settings.squareColorOverride}
+                pieceSizePercent={settings.pieceSize}
+                animationSpeed={settings.animationSpeed}
+                arrowColor={settings.arrowColor}
+                boardFrame={settings.boardFrame}
+                zoomPercent={settings.boardZoom}
               />
               <CheatEffects
                 captureSeq={captureSeq}

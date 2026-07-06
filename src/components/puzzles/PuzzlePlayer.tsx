@@ -143,6 +143,12 @@ export function PuzzlePlayer({
           showLegalMoves={settings.showLegalMoves}
           highlightLastMove
           animate={settings.animate}
+          squareColorOverride={settings.squareColorOverride}
+          pieceSizePercent={settings.pieceSize}
+          animationSpeed={settings.animationSpeed}
+          arrowColor={settings.arrowColor}
+          boardFrame={settings.boardFrame}
+          zoomPercent={settings.boardZoom}
         />
       </div>
       <div className="flex items-center justify-between">
