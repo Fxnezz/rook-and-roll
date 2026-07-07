@@ -324,6 +324,18 @@ export function SettingsPanel() {
           checked={settings.reduceMotion}
           onChange={(v) => update({ reduceMotion: v })}
         />
+        <Toggle
+          label="High contrast"
+          description="Brighter borders and text for easier scanning"
+          checked={settings.highContrast}
+          onChange={(v) => update({ highContrast: v })}
+        />
+        <Toggle
+          label="Colorblind-friendly check highlight"
+          description="Uses blue instead of red to flag a king in check"
+          checked={settings.colorblindMode}
+          onChange={(v) => update({ colorblindMode: v })}
+        />
       </Section>
 
       <button

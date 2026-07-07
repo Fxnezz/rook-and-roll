@@ -17,6 +17,8 @@ import { playSound, primeAudio } from "@/lib/chess/sound";
 import { useOnlineGame } from "@/lib/online/useOnlineGame";
 import type { Identity } from "@/lib/online/protocol";
 import { IconFlag, IconHandshake, IconUsers, IconUndo } from "@/components/ui/icons";
+import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
+import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
 
 function soundFor(san: string) {
   if (san.includes("#")) return; // handled by game over
@@ -103,9 +105,12 @@ export default function OnlinePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const orientation: Color = state.myColor ?? "w";
+  const [manualFlip, setManualFlip] = useState(false);
+  const baseOrientation: Color = state.myColor ?? "w";
+  const orientation: Color = manualFlip ? (baseOrientation === "w" ? "b" : "w") : baseOrientation;
   const lastAppliedRef = useRef<string>("");
   const [premove, setPremove] = useState<{ from: Square; to: Square } | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Full resync from authoritative server state.
   useEffect(() => {
@@ -155,7 +160,23 @@ export default function OnlinePage() {
   // otherwise silently drop it. Also clear it whenever we leave/re-enter a game.
   useEffect(() => {
     setPremove(null);
+    setManualFlip(false);
   }, [state.phase]);
+
+  useKeyboardShortcuts({
+    onFlip: () => setManualFlip((v) => !v),
+    onStepBack: game.stepBack,
+    onStepForward: game.stepForward,
+    onGoStart: game.goStart,
+    onGoLive: game.goLive,
+    onOfferDraw: () => {
+      if (state.phase === "playing" && !state.status && state.drawOfferFrom !== state.myColor) online.offerDraw();
+    },
+    onAcceptDraw: () => {
+      if (state.drawOfferFrom && state.drawOfferFrom !== state.myColor) online.acceptDraw();
+    },
+    onToggleHelp: () => setShowShortcuts((v) => !v),
+  });
 
   useEffect(() => {
     if (!premove || state.myColor !== snapshot.turn || state.status) return;
@@ -435,6 +456,7 @@ export default function OnlinePage() {
             highlightLastMove={settings.highlightLastMove}
             animate={settings.animate}
             squareColorOverride={settings.squareColorOverride}
+            colorblindMode={settings.colorblindMode}
             pieceSizePercent={settings.pieceSize}
             animationSpeed={settings.animationSpeed}
             arrowColor={settings.arrowColor}
@@ -534,6 +556,8 @@ export default function OnlinePage() {
           </div>
         </div>
       )}
+
+      {showShortcuts && <ShortcutsHelpModal onClose={() => setShowShortcuts(false)} showDraw />}
     </div>
   );
 }

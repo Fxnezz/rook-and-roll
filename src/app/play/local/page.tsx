@@ -16,6 +16,8 @@ import { playSound, primeAudio } from "@/lib/chess/sound";
 import { getEngine } from "@/lib/engine/stockfish";
 import { classify, toCpWhite, type MoveQuality } from "@/lib/engine/analysis";
 import { IconPlus, IconUsers } from "@/components/ui/icons";
+import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
+import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
 
 const QUALITY_LABEL: Record<MoveQuality, string> = {
   best: "Best",
@@ -125,6 +127,16 @@ export default function LocalGamePage() {
 
   const flip = () => setManualOrientation((o) => (o === "w" ? "b" : "w"));
 
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  useKeyboardShortcuts({
+    onFlip: flip,
+    onStepBack: game.stepBack,
+    onStepForward: game.stepForward,
+    onGoStart: game.goStart,
+    onGoLive: game.goLive,
+    onToggleHelp: () => setShowShortcuts((v) => !v),
+  });
+
   /** Play a SAN move from the opening explorer at the current view position. */
   const playSan = useCallback(
     (san: string) => {
@@ -214,6 +226,7 @@ export default function LocalGamePage() {
             highlightLastMove={settings.highlightLastMove}
             animate={settings.animate}
             squareColorOverride={settings.squareColorOverride}
+            colorblindMode={settings.colorblindMode}
             pieceSizePercent={settings.pieceSize}
             animationSpeed={settings.animationSpeed}
             arrowColor={settings.arrowColor}
@@ -300,6 +313,8 @@ export default function LocalGamePage() {
           onClose={() => setShowResult(false)}
         />
       )}
+
+      {showShortcuts && <ShortcutsHelpModal onClose={() => setShowShortcuts(false)} />}
     </div>
   );
 }

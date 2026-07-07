@@ -43,6 +43,16 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
+/* Accessibility: high-contrast mode brightens borders/muted text for
+   easier scanning; toggled via the Accessibility setting (data-contrast
+   is set on <html> by useSettings, mirroring the data-motion pattern). */
+:root[data-contrast="high"] {
+  --border: #4d5768;
+  --border-strong: #6f7c92;
+  --text-muted: #c7cfdd;
+  --text-faint: #98a5ba;
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-bg-elev: var(--bg-elev);

@@ -79,6 +79,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
               highlightLastMove
               animate={settings.animate}
               squareColorOverride={settings.squareColorOverride}
+              colorblindMode={settings.colorblindMode}
               pieceSizePercent={settings.pieceSize}
               animationSpeed={settings.animationSpeed}
               boardFrame={settings.boardFrame}

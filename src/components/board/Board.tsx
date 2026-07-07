@@ -57,6 +57,8 @@ export interface BoardProps {
   /** Currently queued premove, rendered as a highlight + ghost piece. */
   premove?: { from: Square; to: Square } | null;
   onSetPremove?: (from: Square, to: Square) => void;
+  /** Swap the check highlight from red to blue — red-green colorblindness can make it hard to spot against green-square themes. */
+  colorblindMode?: boolean;
   onCancelPremove?: () => void;
 }
 
@@ -110,11 +112,14 @@ export function Board({
   premovesEnabled = false,
   premove = null,
   onSetPremove,
+  colorblindMode = false,
   onCancelPremove,
 }: BoardProps) {
-  const effTheme: BoardTheme = squareColorOverride
-    ? { ...theme, light: squareColorOverride.light, dark: squareColorOverride.dark }
-    : theme;
+  const effTheme: BoardTheme = {
+    ...theme,
+    ...(squareColorOverride ? { light: squareColorOverride.light, dark: squareColorOverride.dark } : {}),
+    ...(colorblindMode ? { check: "#4a7fd6" } : {}),
+  };
   const animScale = ANIM_SCALE[animationSpeed];
   const boardRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<Square | null>(null);

@@ -306,6 +306,7 @@ export default function AdminLivePage() {
                     interactive={false}
                     showCoordinates
                     squareColorOverride={settings.squareColorOverride}
+                    colorblindMode={settings.colorblindMode}
                     pieceSizePercent={settings.pieceSize}
                     boardFrame={settings.boardFrame}
                   />

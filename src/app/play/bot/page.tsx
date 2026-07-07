@@ -22,6 +22,8 @@ import { getEngine } from "@/lib/engine/stockfish";
 import { getTier, chooseMove } from "@/lib/engine/bots";
 import { analyzeGame, type GameAnalysis } from "@/lib/engine/analysis";
 import { IconFlag, IconPlus, IconSparkles } from "@/components/ui/icons";
+import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
+import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
 import { CheatGate } from "@/components/cheats/CheatGate";
 import { CheatPanel, type CheatLogEntry } from "@/components/cheats/CheatPanel";
 import { CheatEffects, VOICE_LINES } from "@/components/cheats/CheatEffects";
@@ -55,7 +57,9 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
 
   const humanColor = config.color;
   const botColor: Color = humanColor === "w" ? "b" : "w";
-  const orientation = humanColor;
+  const [manualFlip, setManualFlip] = useState(false);
+  const orientation: Color = manualFlip ? botColor : humanColor;
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   const [thinking, setThinking] = useState(false);
   const [evalScore, setEvalScore] = useState<{ cp: number | null; mate: number | null }>({ cp: 0, mate: null });
@@ -514,6 +518,15 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
   const canBack = snapshot.viewPly > 0;
   const canForward = snapshot.viewPly < snapshot.moves.length;
 
+  useKeyboardShortcuts({
+    onFlip: () => setManualFlip((v) => !v),
+    onStepBack: game.stepBack,
+    onStepForward: game.stepForward,
+    onGoStart: game.goStart,
+    onGoLive: game.goLive,
+    onToggleHelp: () => setShowShortcuts((v) => !v),
+  });
+
   const statusText = useMemo(() => {
     if (status.over) {
       const r = status.result === "1/2-1/2" ? "Draw" : status.winner === humanColor ? "You win" : `${tier.name} wins`;
@@ -656,6 +669,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
                 animate={settings.animate}
                 extraArrows={[...(predictedArrow ? [predictedArrow] : []), ...(hintArrow ? [hintArrow] : []), ...threatArrows]}
                 squareColorOverride={settings.squareColorOverride}
+                colorblindMode={settings.colorblindMode}
                 pieceSizePercent={settings.pieceSize}
                 animationSpeed={settings.animationSpeed}
                 arrowColor={settings.arrowColor}
@@ -685,7 +699,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
                 onPrev={game.stepBack}
                 onNext={game.stepForward}
                 onLast={game.goLive}
-                onFlip={() => {}}
+                onFlip={() => setManualFlip((v) => !v)}
                 onUndo={undoLastRound}
                 canBack={canBack}
                 canForward={canForward}
@@ -758,6 +772,8 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
           onClose={() => setShowResult(false)}
         />
       )}
+
+      {showShortcuts && <ShortcutsHelpModal onClose={() => setShowShortcuts(false)} />}
         </div>
       )}
     </CheatGate>
