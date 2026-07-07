@@ -345,6 +345,15 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     void endGame(room);
   });
 
+  socket.on("abort", ({ roomId }) => {
+    const room = rooms.get(roomId);
+    const userId = socket.data.userId;
+    if (!room || !userId) return;
+    const color = room.playerColor(userId);
+    if (!color) return;
+    if (room.abort()) void endGame(room);
+  });
+
   socket.on("draw:offer", ({ roomId }) => {
     const room = rooms.get(roomId);
     const userId = socket.data.userId;
@@ -370,6 +379,34 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!room) return;
     room.drawOfferFrom = null;
     socket.to(roomId).emit("draw:declined");
+  });
+
+  socket.on("takeback:offer", ({ roomId }) => {
+    const room = rooms.get(roomId);
+    const userId = socket.data.userId;
+    if (!room || !userId || room.status) return;
+    const color = room.playerColor(userId);
+    if (!color) return;
+    room.takebackOfferFrom = color;
+    socket.to(roomId).emit("takeback:offered", { from: color });
+  });
+
+  socket.on("takeback:accept", ({ roomId }) => {
+    const room = rooms.get(roomId);
+    const userId = socket.data.userId;
+    if (!room || !userId || room.status || !room.takebackOfferFrom) return;
+    const color = room.playerColor(userId);
+    if (!color || color === room.takebackOfferFrom) return; // can't accept your own
+    if (room.takeback(room.takebackOfferFrom)) {
+      io.to(roomId).emit("game:state", room.toState());
+    }
+  });
+
+  socket.on("takeback:decline", ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    room.takebackOfferFrom = null;
+    socket.to(roomId).emit("takeback:declined");
   });
 
   // rematch offers tracked per room in memory

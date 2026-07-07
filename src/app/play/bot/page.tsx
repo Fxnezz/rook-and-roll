@@ -299,6 +299,24 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
     });
   };
 
+  const [confirmingResign, setConfirmingResign] = useState(false);
+  const handleResignClick = () => {
+    if (!confirmingResign) {
+      setConfirmingResign(true);
+      setTimeout(() => setConfirmingResign(false), 3000);
+      return;
+    }
+    setConfirmingResign(false);
+    resign();
+  };
+
+  /** Undo takes back a full round trip (bot's reply + our move) so it's our turn again. */
+  const undoLastRound = useCallback(() => {
+    if (status.over || snapshot.moves.length === 0) return;
+    game.undo();
+    if (snapshot.moves.length > 1) game.undo();
+  }, [game, status.over, snapshot.moves.length]);
+
   // --- cheat panel action handlers (bot games only) ---
   const cheatIllegalCastle = useCallback(
     (side: "k" | "q") => {
@@ -521,8 +539,8 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
         </button>
         <div className="flex gap-2">
           {!status.over && snapshot.moves.length > 0 && (
-            <button className="btn btn-danger" onClick={resign}>
-              <IconFlag width={16} height={16} /> Resign
+            <button className={`btn ${confirmingResign ? "btn-danger" : ""}`} onClick={handleResignClick}>
+              <IconFlag width={16} height={16} /> {confirmingResign ? "Confirm resign?" : "Resign"}
             </button>
           )}
           {status.over && (
@@ -587,8 +605,10 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
                 onNext={game.stepForward}
                 onLast={game.goLive}
                 onFlip={() => {}}
+                onUndo={undoLastRound}
                 canBack={canBack}
                 canForward={canForward}
+                canUndo={!status.over && snapshot.moves.length > 0 && snapshot.turn === humanColor}
               />
             </div>
           </div>

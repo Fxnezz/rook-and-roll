@@ -16,7 +16,7 @@ import { TIME_CONTROLS, type TimeControl } from "@/lib/chess/useClock";
 import { playSound, primeAudio } from "@/lib/chess/sound";
 import { useOnlineGame } from "@/lib/online/useOnlineGame";
 import type { Identity } from "@/lib/online/protocol";
-import { IconFlag, IconHandshake, IconUsers } from "@/components/ui/icons";
+import { IconFlag, IconHandshake, IconUsers, IconUndo } from "@/components/ui/icons";
 
 function soundFor(san: string) {
   if (san.includes("#")) return; // handled by game over
@@ -59,6 +59,8 @@ export default function OnlinePage() {
   const [rated, setRated] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number> | null>(null);
   const [tab, setTab] = useState<"moves" | "openings" | "chat">("moves");
+  const [confirmingResign, setConfirmingResign] = useState(false);
+  const [drawCoolingDown, setDrawCoolingDown] = useState(false);
 
   const loggedIn = Boolean(session?.user);
 
@@ -336,11 +338,47 @@ export default function OnlinePage() {
         {state.phase === "spectating" && <span className="chip">👁 Spectating</span>}
         {state.phase === "playing" && !state.status && (
           <div className="flex gap-2">
-            <button className="btn" onClick={online.offerDraw} disabled={state.drawOfferFrom === state.myColor}>
+            {snapshot.moves.length > 0 && (
+              <button
+                className="btn"
+                onClick={online.offerTakeback}
+                disabled={state.takebackOfferFrom === state.myColor}
+              >
+                <IconUndo width={16} height={16} /> Takeback
+              </button>
+            )}
+            <button
+              className="btn"
+              onClick={() => {
+                online.offerDraw();
+                setDrawCoolingDown(true);
+                setTimeout(() => setDrawCoolingDown(false), 15000);
+              }}
+              disabled={state.drawOfferFrom === state.myColor || drawCoolingDown}
+            >
               <IconHandshake width={16} height={16} /> Draw
             </button>
-            <button className="btn btn-danger" onClick={online.resign}>
-              <IconFlag width={16} height={16} /> Resign
+            <button
+              className={`btn ${confirmingResign ? "btn-danger" : ""}`}
+              onClick={() => {
+                if (!confirmingResign) {
+                  setConfirmingResign(true);
+                  setTimeout(() => setConfirmingResign(false), 3000);
+                  return;
+                }
+                setConfirmingResign(false);
+                if (snapshot.moves.length <= 1) online.abort();
+                else online.resign();
+              }}
+            >
+              <IconFlag width={16} height={16} />{" "}
+              {confirmingResign
+                ? snapshot.moves.length <= 1
+                  ? "Confirm abort?"
+                  : "Confirm resign?"
+                : snapshot.moves.length <= 1
+                  ? "Abort"
+                  : "Resign"}
             </button>
           </div>
         )}
@@ -360,6 +398,20 @@ export default function OnlinePage() {
               Accept
             </button>
             <button className="btn btn-ghost !py-1" onClick={online.declineDraw}>
+              Decline
+            </button>
+          </span>
+        </div>
+      )}
+
+      {state.takebackOfferFrom && state.takebackOfferFrom !== state.myColor && !state.status && (
+        <div className="mb-3 flex items-center justify-between rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-3 py-2 text-sm">
+          <span>Your opponent would like to take back a move.</span>
+          <span className="flex gap-2">
+            <button className="btn !py-1" onClick={online.acceptTakeback}>
+              Accept
+            </button>
+            <button className="btn btn-ghost !py-1" onClick={online.declineTakeback}>
               Decline
             </button>
           </span>

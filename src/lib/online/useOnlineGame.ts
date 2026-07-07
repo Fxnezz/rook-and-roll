@@ -30,6 +30,7 @@ export interface OnlineState {
   clock: { whiteMs: number; blackMs: number; activeColor: Color | null; running: boolean };
   status: GameOverMsg | null;
   drawOfferFrom: Color | null;
+  takebackOfferFrom: Color | null;
   rematchOfferFrom: Color | null;
   opponentConnected: boolean;
   chat: ChatMsg[];
@@ -54,6 +55,7 @@ const INITIAL: OnlineState = {
   clock: { whiteMs: 0, blackMs: 0, activeColor: null, running: false },
   status: null,
   drawOfferFrom: null,
+  takebackOfferFrom: null,
   rematchOfferFrom: null,
   opponentConnected: true,
   chat: [],
@@ -113,6 +115,7 @@ export function useOnlineGame(identity: Identity) {
         timeControl: gs.timeControl,
         status: gs.status,
         drawOfferFrom: gs.drawOfferFrom ?? null,
+        takebackOfferFrom: gs.takebackOfferFrom ?? null,
         rated: gs.rated,
         clock: liveClock(gs.clock),
         stateSeq: s.stateSeq + 1,
@@ -137,10 +140,12 @@ export function useOnlineGame(identity: Identity) {
     });
     socket.on("draw:offered", ({ from }) => patch({ drawOfferFrom: from }));
     socket.on("draw:declined", () => patch({ drawOfferFrom: null }));
+    socket.on("takeback:offered", ({ from }) => patch({ takebackOfferFrom: from }));
+    socket.on("takeback:declined", () => patch({ takebackOfferFrom: null }));
     socket.on("rematch:offered", ({ from }) => patch({ rematchOfferFrom: from }));
     socket.on("rematch:ready", ({ roomId }) => {
       roomRef.current = roomId;
-      setState((s) => ({ ...s, status: null, drawOfferFrom: null, rematchOfferFrom: null, chat: [] }));
+      setState((s) => ({ ...s, status: null, drawOfferFrom: null, takebackOfferFrom: null, rematchOfferFrom: null, chat: [] }));
       socket.emit("room:join", { roomId, identity: identityRef.current });
     });
     socket.on("chat:message", (m) => setState((s) => ({ ...s, chat: [...s.chat, m].slice(-100) })));
@@ -209,11 +214,18 @@ export function useOnlineGame(identity: Identity) {
     if (rid()) socketRef.current?.emit("move", { roomId: rid()!, from, to, promotion });
   }, []);
   const resign = useCallback(() => rid() && socketRef.current?.emit("resign", { roomId: rid()! }), []);
+  const abort = useCallback(() => rid() && socketRef.current?.emit("abort", { roomId: rid()! }), []);
   const offerDraw = useCallback(() => rid() && socketRef.current?.emit("draw:offer", { roomId: rid()! }), []);
   const acceptDraw = useCallback(() => rid() && socketRef.current?.emit("draw:accept", { roomId: rid()! }), []);
   const declineDraw = useCallback(() => {
     if (rid()) socketRef.current?.emit("draw:decline", { roomId: rid()! });
     patch({ drawOfferFrom: null });
+  }, [patch]);
+  const offerTakeback = useCallback(() => rid() && socketRef.current?.emit("takeback:offer", { roomId: rid()! }), []);
+  const acceptTakeback = useCallback(() => rid() && socketRef.current?.emit("takeback:accept", { roomId: rid()! }), []);
+  const declineTakeback = useCallback(() => {
+    if (rid()) socketRef.current?.emit("takeback:decline", { roomId: rid()! });
+    patch({ takebackOfferFrom: null });
   }, [patch]);
   const offerRematch = useCallback(() => rid() && socketRef.current?.emit("rematch:offer", { roomId: rid()! }), []);
   const sendChat = useCallback((text: string) => {
@@ -241,9 +253,13 @@ export function useOnlineGame(identity: Identity) {
     spectate,
     sendMove,
     resign,
+    abort,
     offerDraw,
     acceptDraw,
     declineDraw,
+    offerTakeback,
+    acceptTakeback,
+    declineTakeback,
     offerRematch,
     sendChat,
     leave,

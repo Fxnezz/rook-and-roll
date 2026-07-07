@@ -34,6 +34,7 @@ export class GameRoom {
 
   status: GameOverMsg | null = null;
   drawOfferFrom: Color | null = null;
+  takebackOfferFrom: Color | null = null;
   spectators = new Set<string>();
   /** socketId -> identity, for admin visibility into who's watching */
   spectatorIdentities = new Map<string, { userId: string; username: string }>();
@@ -161,6 +162,7 @@ export class GameRoom {
       this.lastTickTs = now;
     }
     this.drawOfferFrom = null;
+    this.takebackOfferFrom = null;
 
     this.detectGameEnd();
     return { ok: true, san: move.san };
@@ -190,6 +192,14 @@ export class GameRoom {
     this.finish(winner === "w" ? "1-0" : "0-1", winner, "Resignation");
   }
 
+  /** Either side may cancel a game with no rating/history impact before it's really underway. */
+  abort(): boolean {
+    if (this.status) return false;
+    if (this.chess.history().length > 1) return false;
+    this.finish("1/2-1/2", null, "Aborted", true);
+    return true;
+  }
+
   abandonment(loser: Color) {
     if (this.status) return;
     const winner: Color = loser === "w" ? "b" : "w";
@@ -199,6 +209,28 @@ export class GameRoom {
   agreeDraw() {
     if (this.status) return;
     this.finish("1/2-1/2", null, "Draw by agreement");
+  }
+
+  /**
+   * Undo back to the requester's last decision point: if it's currently
+   * their turn (the opponent just replied), pop both plies so they're back
+   * to where they were before making that move; if it's the opponent's turn
+   * (the requester just moved), pop just their own last move.
+   */
+  takeback(requester: Color): boolean {
+    if (this.status) return false;
+    const plies = this.chess.turn() === requester ? 2 : 1;
+    if (this.chess.history().length < plies) return false;
+    for (let i = 0; i < plies; i++) this.chess.undo();
+    this.moveTimesMs.splice(-plies, plies);
+    this.drawOfferFrom = null;
+    this.takebackOfferFrom = null;
+    if (!this.untimed && this.started) {
+      this.activeColor = this.chess.turn();
+      this.lastTickTs = Date.now();
+      this.running = true;
+    }
+    return true;
   }
 
   private finish(result: GameOverMsg["result"], winner: Color | null, reason: string, voided = false) {
@@ -374,6 +406,7 @@ export class GameRoom {
       status: this.status,
       spectators: this.spectators.size,
       drawOfferFrom: this.drawOfferFrom,
+      takebackOfferFrom: this.takebackOfferFrom,
       rated: this.rated,
       frozen: { ...this.frozen },
       paused: this.paused,

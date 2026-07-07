@@ -46,6 +46,7 @@ export interface GameStateMsg {
   status: GameOverMsg | null;
   spectators: number;
   drawOfferFrom?: Color | null;
+  takebackOfferFrom?: Color | null;
   rated: boolean;
   frozen?: { w: boolean; b: boolean };
   paused?: boolean;
@@ -103,9 +104,13 @@ export interface ClientToServer {
   "room:leave": (p: { roomId: string }) => void;
   "move": (p: { roomId: string; from: string; to: string; promotion?: string }) => void;
   "resign": (p: { roomId: string }) => void;
+  "abort": (p: { roomId: string }) => void;
   "draw:offer": (p: { roomId: string }) => void;
   "draw:accept": (p: { roomId: string }) => void;
   "draw:decline": (p: { roomId: string }) => void;
+  "takeback:offer": (p: { roomId: string }) => void;
+  "takeback:accept": (p: { roomId: string }) => void;
+  "takeback:decline": (p: { roomId: string }) => void;
   "rematch:offer": (p: { roomId: string }) => void;
   "rematch:accept": (p: { roomId: string }) => void;
   "chat:send": (p: { roomId: string; text: string }) => void;
@@ -145,6 +150,8 @@ export interface ServerToClient {
   "clock:sync": (p: ClockState) => void;
   "draw:offered": (p: { from: Color }) => void;
   "draw:declined": () => void;
+  "takeback:offered": (p: { from: Color }) => void;
+  "takeback:declined": () => void;
   "rematch:offered": (p: { from: Color }) => void;
   "rematch:ready": (p: { roomId: string }) => void;
   "chat:message": (m: ChatMsg) => void;
