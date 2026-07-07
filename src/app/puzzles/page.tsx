@@ -10,11 +10,24 @@ import {
   puzzleElo,
   loadProgress,
   saveProgress,
+  type DifficultyFilter,
 } from "@/lib/puzzles";
 import type { PuzzleDef, PuzzleProgress } from "@/lib/puzzles/types";
 import { DEFAULT_PUZZLE_PROGRESS } from "@/lib/puzzles/types";
 
-type Mode = "practice" | "daily";
+type Mode = "practice" | "daily" | "rush";
+const RUSH_DURATION_MS = 180_000;
+
+interface HistoryEntry {
+  id: string;
+  puzzleId: string;
+  solved: boolean;
+  ratingBefore: number;
+  ratingAfter: number;
+  createdAt: string;
+  puzzleRating: number;
+  themes: string[];
+}
 
 export default function PuzzlesPage() {
   const { data: session } = useSession();
@@ -24,6 +37,15 @@ export default function PuzzlesPage() {
   const [solvedThis, setSolvedThis] = useState(false);
   const [ratingFlash, setRatingFlash] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [difficulty, setDifficulty] = useState<DifficultyFilter>("auto");
+
+  const [rushActive, setRushActive] = useState(false);
+  const [rushMsLeft, setRushMsLeft] = useState(RUSH_DURATION_MS);
+  const [rushSolved, setRushSolved] = useState(0);
+  const [rushResult, setRushResult] = useState<number | null>(null);
+
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[] | null>(null);
 
   const daily = useMemo(() => dailyPuzzle(), []);
 
@@ -34,6 +56,43 @@ export default function PuzzlesPage() {
     setPuzzle(nextPuzzle(p));
     setHydrated(true);
   }, []);
+
+  // Rush countdown
+  useEffect(() => {
+    if (!rushActive) return;
+    const iv = setInterval(() => {
+      setRushMsLeft((ms) => {
+        if (ms <= 1000) {
+          clearInterval(iv);
+          setRushActive(false);
+          setRushResult(rushSolved);
+          return 0;
+        }
+        return ms - 1000;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rushActive]);
+
+  const startRush = useCallback(() => {
+    setRushSolved(0);
+    setRushMsLeft(RUSH_DURATION_MS);
+    setRushResult(null);
+    setRushActive(true);
+    setSolvedThis(false);
+    setRatingFlash(null);
+    setPuzzle(nextPuzzle(progress, undefined, difficulty));
+  }, [progress, difficulty]);
+
+  const loadHistory = useCallback(() => {
+    setShowHistory((v) => !v);
+    if (history || !session?.user) return;
+    fetch("/api/puzzles/history")
+      .then((r) => r.json())
+      .then((d) => setHistory(d.attempts ?? []))
+      .catch(() => setHistory([]));
+  }, [history, session]);
 
   const persist = useCallback(
     (p: PuzzleProgress, puzzleId: string, solved: boolean, ratingBefore: number) => {
@@ -62,11 +121,12 @@ export default function PuzzlesPage() {
       setSolvedThis(true);
       // A clean solve counts fully; a solve after a wrong try keeps the streak
       // but gains no rating (the miss already cost rating in onFirstMistake).
+      let nextProgress: PuzzleProgress;
       if (outcome === "solved") {
         const before = progress.rating;
         const rating = puzzleElo(progress, puzzle, true);
         const streak = progress.streak + 1;
-        const p: PuzzleProgress = {
+        nextProgress = {
           ...progress,
           rating,
           streak,
@@ -75,16 +135,24 @@ export default function PuzzlesPage() {
           attempts: progress.attempts + 1,
         };
         setRatingFlash(rating - before);
-        persist(p, puzzle.id, true, before);
+        persist(nextProgress, puzzle.id, true, before);
       } else {
-        const p: PuzzleProgress = {
+        nextProgress = {
           ...progress,
           solved: [...new Set([...progress.solved, puzzle.id])],
         };
-        persist(p, puzzle.id, true, progress.rating);
+        persist(nextProgress, puzzle.id, true, progress.rating);
+      }
+
+      if (rushActive) {
+        setRushSolved((n) => n + 1);
+        setTimeout(() => {
+          setSolvedThis(false);
+          setPuzzle(nextPuzzle(nextProgress, puzzle.id, difficulty));
+        }, 500);
       }
     },
-    [puzzle, progress, persist],
+    [puzzle, progress, persist, rushActive, difficulty],
   );
 
   const onFirstMistake = useCallback(() => {
@@ -104,8 +172,8 @@ export default function PuzzlesPage() {
   const advance = useCallback(() => {
     setSolvedThis(false);
     setRatingFlash(null);
-    setPuzzle(nextPuzzle(progress, puzzle?.id));
-  }, [progress, puzzle]);
+    setPuzzle(nextPuzzle(progress, puzzle?.id, difficulty));
+  }, [progress, puzzle, difficulty]);
 
   const active = mode === "daily" ? daily : puzzle;
 
@@ -125,27 +193,86 @@ export default function PuzzlesPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex gap-1 rounded-lg bg-[var(--bg-elev)] p-1" style={{ width: "fit-content" }}>
-        {(["practice", "daily"] as Mode[]).map((m) => (
-          <button
-            key={m}
-            onClick={() => {
-              setMode(m);
-              setSolvedThis(false);
-              setRatingFlash(null);
-            }}
-            className={`rounded-md px-4 py-1.5 text-sm font-semibold capitalize transition-colors ${
-              mode === m ? "bg-[var(--accent)] text-[var(--accent-contrast)]" : "text-[var(--text-muted)]"
-            }`}
-          >
-            {m === "daily" ? "Daily puzzle" : "Practice"}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-1 rounded-lg bg-[var(--bg-elev)] p-1" style={{ width: "fit-content" }}>
+          {(["practice", "daily", "rush"] as Mode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => {
+                setMode(m);
+                setSolvedThis(false);
+                setRatingFlash(null);
+                setRushActive(false);
+                setRushResult(null);
+              }}
+              className={`rounded-md px-4 py-1.5 text-sm font-semibold capitalize transition-colors ${
+                mode === m ? "bg-[var(--accent)] text-[var(--accent-contrast)]" : "text-[var(--text-muted)]"
+              }`}
+            >
+              {m === "daily" ? "Daily puzzle" : m === "rush" ? "Puzzle Rush" : "Practice"}
+            </button>
+          ))}
+        </div>
+        {session?.user && (
+          <button className="btn btn-ghost !py-1.5 text-sm" onClick={loadHistory}>
+            {showHistory ? "Hide history" : "History"}
           </button>
-        ))}
+        )}
       </div>
+
+      {showHistory && (
+        <div className="panel mb-4 max-h-64 overflow-y-auto p-4">
+          <span className="label">Recent attempts</span>
+          {history === null ? (
+            <p className="mt-2 text-sm text-[var(--text-muted)]">Loading…</p>
+          ) : history.length === 0 ? (
+            <p className="mt-2 text-sm text-[var(--text-muted)]">No recorded attempts yet.</p>
+          ) : (
+            <div className="mt-2 flex flex-col divide-y divide-[var(--border)]">
+              {history.map((h) => {
+                const delta = h.ratingAfter - h.ratingBefore;
+                return (
+                  <div key={h.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                    <span className={h.solved ? "text-[var(--good)]" : "text-[var(--bad)]"}>
+                      {h.solved ? "Solved" : "Missed"}
+                    </span>
+                    <span className="text-xs text-[var(--text-faint)]">{h.puzzleRating} rated</span>
+                    <span className="text-xs text-[var(--text-faint)]">
+                      {new Date(h.createdAt).toLocaleDateString()}
+                    </span>
+                    <span className={`text-xs font-semibold ${delta >= 0 ? "text-[var(--good)]" : "text-[var(--bad)]"}`}>
+                      {delta >= 0 ? `+${delta}` : delta}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         <div className="w-full lg:max-w-[min(70vh,600px)]">
-          {active ? (
+          {mode === "rush" && !rushActive && rushResult === null ? (
+            <div className="panel flex aspect-square flex-col items-center justify-center gap-4 p-6 text-center">
+              <h2 className="text-xl font-bold">Puzzle Rush</h2>
+              <p className="text-sm text-[var(--text-muted)]">
+                Solve as many puzzles as you can in 3 minutes. Mistakes cost rating but won&apos;t end your run.
+              </p>
+              <button className="btn btn-primary" onClick={startRush}>
+                Start Rush
+              </button>
+            </div>
+          ) : mode === "rush" && rushResult !== null ? (
+            <div className="panel flex aspect-square flex-col items-center justify-center gap-3 p-6 text-center">
+              <h2 className="text-xl font-bold">Time&apos;s up!</h2>
+              <p className="text-3xl font-black text-[var(--accent)]">{rushResult}</p>
+              <p className="text-sm text-[var(--text-muted)]">puzzles solved</p>
+              <button className="btn btn-primary mt-2" onClick={startRush}>
+                Play again
+              </button>
+            </div>
+          ) : active ? (
             <PuzzlePlayer
               key={mode + active.id}
               puzzle={active}
@@ -160,9 +287,41 @@ export default function PuzzlesPage() {
         </div>
 
         <div className="panel w-full p-4 lg:w-[300px]">
+          {mode === "rush" && rushActive && (
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-2xl font-black tabular-nums">
+                {Math.floor(rushMsLeft / 60000)}:{String(Math.floor((rushMsLeft % 60000) / 1000)).padStart(2, "0")}
+              </span>
+              <span className="chip">{rushSolved} solved</span>
+            </div>
+          )}
+          {mode !== "daily" && (
+            <>
+              <span className="label">Difficulty</span>
+              <div className="mt-2 grid grid-cols-4 gap-1.5">
+                {(["auto", "easy", "medium", "hard"] as DifficultyFilter[]).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => {
+                      setDifficulty(d);
+                      if (mode === "practice") setPuzzle(nextPuzzle(progress, puzzle?.id, d));
+                    }}
+                    className="hover-lift rounded-md border px-1.5 py-1.5 text-xs font-medium capitalize transition-colors"
+                    style={{
+                      borderColor: difficulty === d ? "var(--accent)" : "var(--border)",
+                      background: difficulty === d ? "var(--bg-elev-2)" : "transparent",
+                      color: difficulty === d ? "var(--accent)" : "var(--text-muted)",
+                    }}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           {active && (
             <>
-              <span className="label">This puzzle</span>
+              <span className="label mt-4 block">This puzzle</span>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <span className="chip">{active.rating}</span>
                 {active.themes.map((t) => (
@@ -173,7 +332,7 @@ export default function PuzzlesPage() {
               </div>
             </>
           )}
-          {solvedThis && (
+          {solvedThis && !rushActive && (
             <button className="btn btn-primary mt-4 w-full" onClick={advance}>
               Next puzzle →
             </button>

@@ -19,13 +19,27 @@ export function dailyPuzzle(date = new Date()): PuzzleDef {
   return PUZZLES[(h >>> 0) % PUZZLES.length];
 }
 
+export type DifficultyFilter = "auto" | "easy" | "medium" | "hard";
+
+const DIFFICULTY_BANDS: Record<Exclude<DifficultyFilter, "auto">, [number, number]> = {
+  easy: [0, 1200],
+  medium: [1200, 1800],
+  hard: [1800, Infinity],
+};
+
 /**
  * Pick the next puzzle near the player's rating, preferring unsolved ones;
  * falls back to least-recently-solved when everything has been solved.
+ * `difficulty` restricts the candidate pool to a fixed rating band instead
+ * of the adaptive default ("auto").
  */
-export function nextPuzzle(progress: PuzzleProgress, excludeId?: string): PuzzleDef {
-  const unsolved = PUZZLES.filter((p) => !progress.solved.includes(p.id) && p.id !== excludeId);
-  const pool = unsolved.length > 0 ? unsolved : PUZZLES.filter((p) => p.id !== excludeId);
+export function nextPuzzle(progress: PuzzleProgress, excludeId?: string, difficulty: DifficultyFilter = "auto"): PuzzleDef {
+  const band = difficulty === "auto" ? null : DIFFICULTY_BANDS[difficulty];
+  const inBand = (p: PuzzleDef) => !band || (p.rating >= band[0] && p.rating < band[1]);
+  const base = PUZZLES.filter(inBand);
+  const candidates = base.length > 0 ? base : PUZZLES;
+  const unsolved = candidates.filter((p) => !progress.solved.includes(p.id) && p.id !== excludeId);
+  const pool = unsolved.length > 0 ? unsolved : candidates.filter((p) => p.id !== excludeId);
   const sorted = [...pool].sort(
     (a, b) => Math.abs(a.rating - progress.rating) - Math.abs(b.rating - progress.rating),
   );
