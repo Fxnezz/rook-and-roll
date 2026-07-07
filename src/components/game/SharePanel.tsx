@@ -1,7 +1,65 @@
 "use client";
 
 import { useState } from "react";
+import type { Color } from "chess.js";
 import { IconCopy, IconDownload } from "@/components/ui/icons";
+
+const PIECE_GLYPHS: Record<string, string> = {
+  p: "♟",
+  n: "♞",
+  b: "♝",
+  r: "♜",
+  q: "♛",
+  k: "♚",
+  P: "♙",
+  N: "♘",
+  B: "♗",
+  R: "♖",
+  Q: "♕",
+  K: "♔",
+};
+
+/** Draws a flat 2D rendering of a FEN position onto an offscreen canvas (no DOM screenshot library needed). */
+function renderBoardCanvas(fen: string, theme: { light: string; dark: string }, orientation: Color): HTMLCanvasElement | null {
+  const ranks = fen.split(" ")[0].split("/");
+  const grid: (string | null)[][] = ranks.map((rank) => {
+    const cells: (string | null)[] = [];
+    for (const ch of rank) {
+      if (/\d/.test(ch)) for (let i = 0; i < Number(ch); i++) cells.push(null);
+      else cells.push(ch);
+    }
+    return cells;
+  });
+  const size = 480;
+  const sq = size / 8;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < 8; f++) {
+      const isLight = (r + f) % 2 === 0;
+      const drawRow = orientation === "w" ? r : 7 - r;
+      const drawCol = orientation === "w" ? f : 7 - f;
+      ctx.fillStyle = isLight ? theme.light : theme.dark;
+      ctx.fillRect(drawCol * sq, drawRow * sq, sq, sq);
+      const piece = grid[r]?.[f];
+      if (piece) {
+        ctx.font = `${sq * 0.72}px serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = piece === piece.toUpperCase() ? "#f6f1e6" : "#1c2029";
+        ctx.strokeStyle = "rgba(0,0,0,0.5)";
+        ctx.lineWidth = 1.5;
+        const glyph = PIECE_GLYPHS[piece] ?? "";
+        ctx.strokeText(glyph, drawCol * sq + sq / 2, drawRow * sq + sq / 2 + 2);
+        ctx.fillText(glyph, drawCol * sq + sq / 2, drawRow * sq + sq / 2 + 2);
+      }
+    }
+  }
+  return canvas;
+}
 
 function useCopy() {
   const [copied, setCopied] = useState<string | null>(null);
@@ -22,11 +80,15 @@ export function SharePanel({
   pgn,
   onLoadFen,
   onLoadPgn,
+  theme = { light: "#ebecd0", dark: "#6f8f5a" },
+  orientation = "w",
 }: {
   fen: string;
   pgn: string;
   onLoadFen: (fen: string) => boolean;
   onLoadPgn: (pgn: string) => boolean;
+  theme?: { light: string; dark: string };
+  orientation?: Color;
 }) {
   const { copied, copy } = useCopy();
   const [fenInput, setFenInput] = useState("");
@@ -43,14 +105,33 @@ export function SharePanel({
     URL.revokeObjectURL(url);
   };
 
+  const downloadImage = () => {
+    const canvas = renderBoardCanvas(fen, theme, orientation);
+    if (!canvas) return;
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `rook-and-roll-${Date.now()}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  };
+
   return (
     <div className="flex flex-col gap-4 p-4 text-sm">
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="label">Current FEN</span>
-          <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => copy("fen", fen)}>
-            <IconCopy width={14} height={14} /> {copied === "fen" ? "Copied" : "Copy"}
-          </button>
+          <div className="flex gap-1">
+            <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => copy("fen", fen)}>
+              <IconCopy width={14} height={14} /> {copied === "fen" ? "Copied" : "Copy"}
+            </button>
+            <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={downloadImage}>
+              <IconDownload width={14} height={14} /> Image
+            </button>
+          </div>
         </div>
         <code className="block break-all rounded-md bg-[var(--bg)] p-2 font-mono text-xs text-[var(--text-muted)]">
           {fen}

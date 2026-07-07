@@ -18,10 +18,13 @@ export type SoundName =
   | "notify"
   | "lowTime";
 
+export type SoundPack = "classic" | "retro" | "soft" | "wood";
+
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let enabled = true;
 let volume = 0.6;
+let activePack: SoundPack = "classic";
 
 function ac(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -88,7 +91,7 @@ function click(gain = 0.35, start = 0, dur = 0.05, freq = 2200) {
   src.start(t0);
 }
 
-const RECIPES: Record<SoundName, () => void> = {
+const CLASSIC_RECIPES: Record<SoundName, () => void> = {
   move: () => {
     click(0.32, 0, 0.045, 1800);
     tone({ freq: 320, type: "triangle", dur: 0.06, gain: 0.22 });
@@ -130,13 +133,112 @@ const RECIPES: Record<SoundName, () => void> = {
   },
 };
 
+/** 8-bit-ish square-wave bleeps. */
+const RETRO_RECIPES: Record<SoundName, () => void> = {
+  move: () => tone({ freq: 440, type: "square", dur: 0.05, gain: 0.16 }),
+  capture: () => {
+    tone({ freq: 220, type: "square", dur: 0.09, gain: 0.2 });
+    tone({ freq: 140, type: "square", start: 0.06, dur: 0.08, gain: 0.18 });
+  },
+  check: () => {
+    tone({ freq: 880, type: "square", dur: 0.06, gain: 0.18 });
+    tone({ freq: 1108, type: "square", start: 0.07, dur: 0.08, gain: 0.18 });
+  },
+  castle: () => {
+    tone({ freq: 440, type: "square", dur: 0.05, gain: 0.16 });
+    tone({ freq: 440, type: "square", start: 0.08, dur: 0.05, gain: 0.16 });
+  },
+  promote: () => {
+    tone({ freq: 523, type: "square", dur: 0.06, gain: 0.2 });
+    tone({ freq: 659, type: "square", start: 0.07, dur: 0.06, gain: 0.2 });
+    tone({ freq: 880, type: "square", start: 0.14, dur: 0.1, gain: 0.2 });
+  },
+  gameStart: () => {
+    tone({ freq: 330, type: "square", dur: 0.08, gain: 0.2 });
+    tone({ freq: 660, type: "square", start: 0.09, dur: 0.12, gain: 0.2 });
+  },
+  gameEnd: () => {
+    tone({ freq: 660, type: "square", dur: 0.1, gain: 0.2 });
+    tone({ freq: 330, type: "square", start: 0.12, dur: 0.22, gain: 0.2 });
+  },
+  illegal: () => tone({ freq: 110, type: "square", dur: 0.1, gain: 0.16 }),
+  notify: () => tone({ freq: 988, type: "square", dur: 0.06, gain: 0.18 }),
+  lowTime: () => tone({ freq: 1318, type: "square", dur: 0.04, gain: 0.14 }),
+};
+
+/** Muted sine tones, longer/softer decay. */
+const SOFT_RECIPES: Record<SoundName, () => void> = {
+  move: () => tone({ freq: 300, type: "sine", dur: 0.09, gain: 0.12 }),
+  capture: () => tone({ freq: 220, type: "sine", glideTo: 140, dur: 0.16, gain: 0.14 }),
+  check: () => tone({ freq: 520, type: "sine", dur: 0.16, gain: 0.14 }),
+  castle: () => {
+    tone({ freq: 300, type: "sine", dur: 0.08, gain: 0.11 });
+    tone({ freq: 300, type: "sine", start: 0.11, dur: 0.08, gain: 0.11 });
+  },
+  promote: () => {
+    tone({ freq: 440, type: "sine", dur: 0.14, gain: 0.14 });
+    tone({ freq: 587, type: "sine", start: 0.12, dur: 0.18, gain: 0.14 });
+  },
+  gameStart: () => tone({ freq: 392, type: "sine", dur: 0.2, gain: 0.14 }),
+  gameEnd: () => {
+    tone({ freq: 440, type: "sine", dur: 0.3, gain: 0.14 });
+    tone({ freq: 330, type: "sine", start: 0.22, dur: 0.35, gain: 0.14 });
+  },
+  illegal: () => tone({ freq: 180, type: "sine", dur: 0.14, gain: 0.1 }),
+  notify: () => tone({ freq: 720, type: "sine", dur: 0.12, gain: 0.12 }),
+  lowTime: () => tone({ freq: 880, type: "sine", dur: 0.07, gain: 0.09 }),
+};
+
+/** Heavier, noise/click-forward — a wooden-set feel. */
+const WOOD_RECIPES: Record<SoundName, () => void> = {
+  move: () => click(0.45, 0, 0.06, 1200),
+  capture: () => {
+    click(0.6, 0, 0.08, 900);
+    click(0.3, 0.05, 0.05, 700);
+  },
+  check: () => {
+    click(0.4, 0, 0.05, 1600);
+    tone({ freq: 500, type: "triangle", start: 0.04, dur: 0.08, gain: 0.18 });
+  },
+  castle: () => {
+    click(0.4, 0, 0.06, 1200);
+    click(0.4, 0.1, 0.06, 1200);
+  },
+  promote: () => {
+    click(0.35, 0, 0.05, 1400);
+    tone({ freq: 659, type: "triangle", start: 0.05, dur: 0.14, gain: 0.22 });
+  },
+  gameStart: () => {
+    click(0.4, 0, 0.06, 1000);
+    tone({ freq: 392, type: "triangle", start: 0.05, dur: 0.14, gain: 0.2 });
+  },
+  gameEnd: () => {
+    click(0.4, 0, 0.07, 900);
+    tone({ freq: 330, type: "triangle", start: 0.08, dur: 0.3, gain: 0.22 });
+  },
+  illegal: () => click(0.3, 0, 0.04, 400),
+  notify: () => click(0.3, 0, 0.04, 2000),
+  lowTime: () => click(0.25, 0, 0.03, 2400),
+};
+
+const PACKS: Record<SoundPack, Record<SoundName, () => void>> = {
+  classic: CLASSIC_RECIPES,
+  retro: RETRO_RECIPES,
+  soft: SOFT_RECIPES,
+  wood: WOOD_RECIPES,
+};
+
 export function playSound(name: SoundName) {
   if (!enabled) return;
   try {
-    RECIPES[name]?.();
+    PACKS[activePack][name]?.();
   } catch {
     /* audio best-effort */
   }
+}
+
+export function setSoundPack(pack: SoundPack) {
+  activePack = pack;
 }
 
 export function setSoundEnabled(v: boolean) {

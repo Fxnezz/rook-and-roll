@@ -19,6 +19,8 @@ import type { Identity } from "@/lib/online/protocol";
 import { IconFlag, IconHandshake, IconUsers, IconUndo } from "@/components/ui/icons";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
+import { useToasts } from "@/lib/hooks/useToasts";
+import { ToastStack } from "@/components/ui/ToastStack";
 
 function soundFor(san: string) {
   if (san.includes("#")) return; // handled by game over
@@ -111,6 +113,9 @@ export default function OnlinePage() {
   const lastAppliedRef = useRef<string>("");
   const [premove, setPremove] = useState<{ from: Square; to: Square } | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const { toasts, push: pushToast } = useToasts();
+  const [notifyDismissed, setNotifyDismissed] = useState(false);
+  const prevOffersRef = useRef({ draw: state.drawOfferFrom, takeback: state.takebackOfferFrom, rematch: state.rematchOfferFrom });
 
   // Full resync from authoritative server state.
   useEffect(() => {
@@ -146,7 +151,7 @@ export default function OnlinePage() {
       return;
     }
     const applied = game.makeMove({ from: mv.from as Square, to: mv.to as Square, promotion: mv.promotion as PieceSymbol | undefined });
-    if (applied) soundFor(applied.san);
+    if (applied && settings.opponentMoveSound) soundFor(applied.san);
     lastAppliedRef.current = key;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.moveSeq]);
@@ -155,6 +160,63 @@ export default function OnlinePage() {
   useEffect(() => {
     if (state.status) playSound("gameEnd");
   }, [state.status]);
+
+  // Toast whenever the opponent makes a draw/takeback/rematch offer.
+  useEffect(() => {
+    const prev = prevOffersRef.current;
+    if (state.drawOfferFrom && state.drawOfferFrom !== state.myColor && state.drawOfferFrom !== prev.draw) {
+      pushToast("Opponent offers a draw");
+    }
+    if (state.takebackOfferFrom && state.takebackOfferFrom !== state.myColor && state.takebackOfferFrom !== prev.takeback) {
+      pushToast("Opponent requests a takeback");
+    }
+    if (state.rematchOfferFrom && state.rematchOfferFrom !== state.myColor && state.rematchOfferFrom !== prev.rematch) {
+      pushToast("Opponent wants a rematch");
+    }
+    prevOffersRef.current = { draw: state.drawOfferFrom, takeback: state.takebackOfferFrom, rematch: state.rematchOfferFrom };
+  }, [state.drawOfferFrom, state.takebackOfferFrom, state.rematchOfferFrom, state.myColor, pushToast]);
+
+  // Flash the tab title + fire a background Notification when it becomes our
+  // move while the tab is hidden/unfocused. Scoped to "tab open but not
+  // visible" — no service worker, so no closed-tab push.
+  const myTurn2 = state.myColor === snapshot.turn && !state.status && state.phase === "playing";
+  useEffect(() => {
+    if (!myTurn2) return;
+    const original = document.title;
+    let iv: ReturnType<typeof setInterval> | null = null;
+    let flip = false;
+
+    const notify = () => {
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        new Notification("Your move", { body: "It's your turn in Rook & Roll." });
+      }
+    };
+    const start = () => {
+      if (iv) return;
+      notify();
+      iv = setInterval(() => {
+        document.title = flip ? original : "♟ Your move!";
+        flip = !flip;
+      }, 1000);
+    };
+    const stop = () => {
+      if (iv) {
+        clearInterval(iv);
+        iv = null;
+      }
+      document.title = original;
+    };
+
+    if (document.hidden) start();
+    const onVisibility = () => (document.hidden ? start() : stop());
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      stop();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myTurn2]);
 
   // Fire a queued premove the moment it becomes our turn, if it's still legal;
   // otherwise silently drop it. Also clear it whenever we leave/re-enter a game.
@@ -353,12 +415,27 @@ export default function OnlinePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-5">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <button className="btn btn-ghost" onClick={online.leave}>
-          ← Leave
-        </button>
+        <div className="flex items-center gap-2">
+          <button className="btn btn-ghost" onClick={online.leave}>
+            ← Leave
+          </button>
+          {state.roomId && (
+            <button
+              className="btn btn-ghost !py-1.5 text-sm"
+              onClick={() => {
+                navigator.clipboard
+                  .writeText(`${window.location.origin}/watch/${state.roomId}`)
+                  .then(() => pushToast("Spectator link copied"))
+                  .catch(() => {});
+              }}
+            >
+              Copy spectator link
+            </button>
+          )}
+        </div>
         {state.phase === "spectating" && <span className="chip">👁 Spectating</span>}
         {state.phase === "playing" && !state.status && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             {snapshot.moves.length > 0 && (
               <button
                 className="btn"
@@ -410,6 +487,23 @@ export default function OnlinePage() {
           Opponent disconnected — waiting for them to reconnect…
         </div>
       )}
+
+      {state.phase === "playing" &&
+        !notifyDismissed &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "default" && (
+          <div className="mb-3 flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--bg-elev)] px-3 py-2 text-sm">
+            <span>Get notified when it&apos;s your move on another tab.</span>
+            <span className="flex gap-2">
+              <button className="btn !py-1" onClick={() => Notification.requestPermission().then(() => setNotifyDismissed(true))}>
+                Enable
+              </button>
+              <button className="btn btn-ghost !py-1" onClick={() => setNotifyDismissed(true)}>
+                Not now
+              </button>
+            </span>
+          </div>
+        )}
 
       {state.drawOfferFrom && state.drawOfferFrom !== state.myColor && !state.status && (
         <div className="mb-3 flex items-center justify-between rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-3 py-2 text-sm">
@@ -510,7 +604,7 @@ export default function OnlinePage() {
           </div>
           <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0">
             {tab === "moves" ? (
-              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} />
+              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} />
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : (
@@ -543,6 +637,23 @@ export default function OnlinePage() {
                 </span>
               </p>
             )}
+            {state.rated &&
+              state.myColor &&
+              state.players &&
+              (() => {
+                const myRating = state.myColor === "w" ? state.players.white.rating : state.players.black.rating;
+                const oppRating = state.myColor === "w" ? state.players.black.rating : state.players.white.rating;
+                const expected = 1 / (1 + Math.pow(10, (oppRating - myRating) / 400));
+                const K = 32;
+                const win = Math.round(K * (1 - expected));
+                const draw = Math.round(K * (0.5 - expected));
+                const loss = Math.round(K * (0 - expected));
+                return (
+                  <p className="mt-2 text-xs text-[var(--text-faint)]">
+                    Next game — win {fmtDelta(win)} · draw {fmtDelta(draw)} · loss {fmtDelta(loss)}
+                  </p>
+                );
+              })()}
             <div className="mt-5 flex gap-2">
               <button className="btn flex-1" onClick={online.leave}>
                 Lobby
@@ -558,6 +669,7 @@ export default function OnlinePage() {
       )}
 
       {showShortcuts && <ShortcutsHelpModal onClose={() => setShowShortcuts(false)} showDraw />}
+      <ToastStack toasts={toasts} />
     </div>
   );
 }

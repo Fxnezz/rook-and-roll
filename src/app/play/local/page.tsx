@@ -285,7 +285,7 @@ export default function LocalGamePage() {
           </div>
           <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0">
             {tab === "moves" ? (
-              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} />
+              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} />
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : (
@@ -295,6 +295,8 @@ export default function LocalGamePage() {
                   pgn={game.getPgn()}
                   onLoadFen={game.loadFen}
                   onLoadPgn={game.loadPgn}
+                  theme={theme}
+                  orientation={orientation}
                 />
               </div>
             )}

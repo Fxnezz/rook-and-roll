@@ -2,9 +2,17 @@
 
 import { useState, type ReactNode } from "react";
 import { useSettings, type AnimationSpeed, type BoardFrame, type MoveInputMode } from "@/lib/chess/useSettings";
+import type { SoundPack } from "@/lib/chess/sound";
 import { BOARD_THEMES } from "@/lib/chess/themes";
 import { PIECE_SETS, Piece } from "@/lib/pieces";
 import { IconPalette, IconVolume, IconVolumeOff, IconSparkles, IconMotion, IconRefresh, IconCheck } from "../ui/icons";
+
+const SOUND_PACKS: { id: SoundPack; label: string }[] = [
+  { id: "classic", label: "Classic" },
+  { id: "retro", label: "Retro" },
+  { id: "soft", label: "Soft" },
+  { id: "wood", label: "Wood" },
+];
 
 const ANIM_SPEEDS: { id: AnimationSpeed; label: string }[] = [
   { id: "instant", label: "Off" },
@@ -160,6 +168,16 @@ export function SettingsPanel() {
             );
           })}
         </div>
+        <button
+          className="btn hover-lift mt-2 !justify-start gap-2 !py-1.5 !text-xs"
+          onClick={() => {
+            const others = BOARD_THEMES.filter((t) => t.id !== settings.boardTheme);
+            const pick = others[Math.floor(Math.random() * others.length)] ?? BOARD_THEMES[0];
+            update({ boardTheme: pick.id });
+          }}
+        >
+          <IconRefresh width={13} height={13} /> Random theme
+        </button>
 
         <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Piece set</span>
         <div className="grid grid-cols-2 gap-2">
@@ -273,6 +291,16 @@ export function SettingsPanel() {
             className="w-full accent-[var(--accent)]"
           />
         </div>
+
+        <span className="mb-2 mt-3 block text-xs font-semibold text-[var(--text-muted)]">Sound pack</span>
+        <Segmented options={SOUND_PACKS} value={settings.soundPack} onChange={(v) => update({ soundPack: v })} />
+
+        <Toggle
+          label="Sound on opponent's move"
+          description="Play a sound when the opponent moves, not just you"
+          checked={settings.opponentMoveSound}
+          onChange={(v) => update({ opponentMoveSound: v })}
+        />
       </Section>
 
       <div className="h-px bg-[var(--border)]" />
@@ -305,6 +333,12 @@ export function SettingsPanel() {
           description="Skip the promotion picker, always promote to queen"
           checked={settings.autoQueen}
           onChange={(v) => update({ autoQueen: v })}
+        />
+        <Toggle
+          label="Compact move list"
+          description="Tighter rows so more moves fit on screen"
+          checked={settings.compactMoveList}
+          onChange={(v) => update({ compactMoveList: v })}
         />
 
         <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Move input</span>

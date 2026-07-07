@@ -3,12 +3,11 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { DEFAULT_THEME, type BoardThemeId } from "./themes";
 import type { PieceSetId } from "@/lib/pieces";
-import { setSoundEnabled, setSoundVolume } from "./sound";
+import { setSoundEnabled, setSoundVolume, setSoundPack, type SoundPack } from "./sound";
 
 export type MoveInputMode = "drag" | "click" | "both";
 export type AnimationSpeed = "instant" | "fast" | "normal" | "slow";
 export type BoardFrame = "none" | "wood" | "minimal" | "shadow";
-export type SoundPack = "classic" | "retro" | "soft" | "wood";
 
 export interface Settings {
   boardTheme: BoardThemeId;
@@ -124,6 +123,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
     setSoundEnabled(settings.soundEnabled);
     setSoundVolume(settings.volume);
+    setSoundPack(settings.soundPack);
   }, [settings, ready]);
 
   // Reflect the reduce-motion preference as a data attribute so globals.css

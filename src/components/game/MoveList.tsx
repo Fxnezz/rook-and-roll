@@ -7,10 +7,13 @@ export function MoveList({
   moves,
   viewPly,
   onGoToPly,
+  compact = false,
 }: {
   moves: Move[];
   viewPly: number;
   onGoToPly: (ply: number) => void;
+  /** Tighter row height + smaller text for fitting more moves on screen. */
+  compact?: boolean;
 }) {
   const activeRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -54,7 +57,7 @@ export function MoveList({
       <button
         ref={active ? activeRef : undefined}
         onClick={() => onGoToPly(ply)}
-        className={`rounded px-2 py-1 text-left font-mono text-sm transition-colors ${
+        className={`rounded text-left font-mono transition-colors ${compact ? "px-1.5 py-0.5 text-xs" : "px-2 py-1 text-sm"} ${
           active
             ? "bg-[var(--accent)] text-[var(--accent-contrast)] font-semibold"
             : "text-[var(--text)] hover:bg-[var(--bg-elev-2)]"
@@ -72,7 +75,7 @@ export function MoveList({
           key={r.num}
           className="grid grid-cols-[2.2rem_1fr_1fr] items-center gap-1 px-2 odd:bg-[var(--bg-elev)]/40"
         >
-          <span className="text-right text-xs text-[var(--text-faint)] tabular-nums">{r.num}.</span>
+          <span className={`text-right text-[var(--text-faint)] tabular-nums ${compact ? "text-[0.65rem]" : "text-xs"}`}>{r.num}.</span>
           <Cell move={r.white} ply={r.whitePly} />
           <Cell move={r.black} ply={r.blackPly} />
         </div>

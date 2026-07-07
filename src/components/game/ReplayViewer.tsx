@@ -78,7 +78,7 @@ export function ReplayViewer({
       <div className="panel flex w-full flex-col lg:h-[min(72vh,640px)] lg:w-[340px]">
         <div className="border-b border-[var(--border)] px-4 py-3 text-sm font-semibold">Moves</div>
         <div className="flex-1 overflow-hidden">
-          <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} />
+          <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} />
         </div>
       </div>
     </div>
