@@ -13,7 +13,24 @@ import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
 import { playSound, primeAudio } from "@/lib/chess/sound";
+import { getEngine } from "@/lib/engine/stockfish";
+import { classify, toCpWhite, type MoveQuality } from "@/lib/engine/analysis";
 import { IconPlus, IconUsers } from "@/components/ui/icons";
+
+const QUALITY_LABEL: Record<MoveQuality, string> = {
+  best: "Best",
+  good: "Good",
+  inaccuracy: "Inaccuracy",
+  mistake: "Mistake",
+  blunder: "Blunder",
+};
+const QUALITY_COLOR: Record<MoveQuality, string> = {
+  best: "var(--good)",
+  good: "var(--good)",
+  inaccuracy: "#e0b13b",
+  mistake: "#e08a3b",
+  blunder: "var(--bad)",
+};
 
 type Tab = "moves" | "openings" | "share";
 
@@ -26,6 +43,8 @@ export default function LocalGamePage() {
   const [manualOrientation, setManualOrientation] = useState<Color>("w");
   const [tab, setTab] = useState<Tab>("moves");
   const [showResult, setShowResult] = useState(true);
+  const [lastQuality, setLastQuality] = useState<{ ply: number; san: string; quality: MoveQuality } | null>(null);
+  const [analyzingPly, setAnalyzingPly] = useState<number | null>(null);
 
   const orientation: Color =
     settings.autoFlip && snapshot.isLive ? snapshot.turn : manualOrientation;
@@ -41,6 +60,8 @@ export default function LocalGamePage() {
   const onMove = useCallback(
     (from: Square, to: Square, promotion?: PieceSymbol) => {
       primeAudio();
+      const beforeFen = snapshot.fen;
+      const ply = snapshot.moves.length + 1;
       const move = game.makeMove({ from, to, promotion });
       if (!move) {
         playSound("illegal");
@@ -59,8 +80,39 @@ export default function LocalGamePage() {
       } else {
         playSound("move");
       }
+
+      // Lightweight, non-blocking per-move quality badge (Batch 9: "accuracy
+      // indicator in local play"). Two quick evals — before (best case) and
+      // after (what actually happened) — mirror analyzeGame's cpLoss math.
+      const afterFen = game.getFen();
+      setAnalyzingPly(ply);
+      (async () => {
+        try {
+          const engine = getEngine();
+          const [beforeRes, afterRes] = await Promise.all([
+            engine.go(beforeFen, { depth: 12 }),
+            engine.go(afterFen, { depth: 12 }),
+          ]);
+          // engine.go returns cp/mate from the perspective of the side to
+          // move in that FEN — convert to White's absolute perspective first
+          // (same as analyzeGame), then to the mover's own perspective.
+          const beforeWhiteToMove = beforeFen.split(" ")[1] === "w";
+          const afterWhiteToMove = afterFen.split(" ")[1] === "w";
+          const beforeWhite = toCpWhite(beforeRes.lines[0]?.cp ?? 0, beforeRes.lines[0]?.mate ?? null) * (beforeWhiteToMove ? 1 : -1);
+          const afterWhite = toCpWhite(afterRes.lines[0]?.cp ?? 0, afterRes.lines[0]?.mate ?? null) * (afterWhiteToMove ? 1 : -1);
+          const moverPovBefore = move.color === "w" ? beforeWhite : -beforeWhite;
+          const moverPovAfter = move.color === "w" ? afterWhite : -afterWhite;
+          const cpLoss = Math.max(0, Math.round(moverPovBefore - moverPovAfter));
+          const isBest = move.lan === beforeRes.bestmove;
+          setLastQuality({ ply, san: move.san, quality: classify(cpLoss, isBest) });
+        } catch {
+          /* best-effort — no badge if the engine call fails */
+        } finally {
+          setAnalyzingPly((p) => (p === ply ? null : p));
+        }
+      })();
     },
-    [game],
+    [game, snapshot.fen, snapshot.moves.length],
   );
 
   const newGame = useCallback(() => {
@@ -186,8 +238,22 @@ export default function LocalGamePage() {
 
         {/* Side panel */}
         <div className="panel flex w-full flex-col lg:h-[min(72vh,640px)] lg:w-[340px]">
-          <div className="border-b border-[var(--border)] px-4 py-3">
+          <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
             <p className="text-sm font-semibold">{statusText}</p>
+            {analyzingPly === snapshot.moves.length ? (
+              <span className="text-xs text-[var(--text-faint)]">Analyzing…</span>
+            ) : (
+              lastQuality &&
+              lastQuality.ply === snapshot.moves.length && (
+                <span
+                  className="rounded-full px-2 py-0.5 text-xs font-semibold"
+                  style={{ color: QUALITY_COLOR[lastQuality.quality], background: `${QUALITY_COLOR[lastQuality.quality]}22` }}
+                  title={`${lastQuality.san}: ${QUALITY_LABEL[lastQuality.quality]}`}
+                >
+                  {lastQuality.san} · {QUALITY_LABEL[lastQuality.quality]}
+                </span>
+              )
+            )}
           </div>
           <div className="flex border-b border-[var(--border)]">
             {(["moves", "openings", "share"] as Tab[]).map((t) => (

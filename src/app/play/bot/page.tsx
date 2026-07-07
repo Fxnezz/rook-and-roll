@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import type { Color, PieceSymbol, Square } from "chess.js";
+import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import type { Arrow } from "@/components/board/ArrowLayer";
 import { MoveList } from "@/components/game/MoveList";
@@ -21,7 +21,7 @@ import { playSound, primeAudio } from "@/lib/chess/sound";
 import { getEngine } from "@/lib/engine/stockfish";
 import { getTier, chooseMove } from "@/lib/engine/bots";
 import { analyzeGame, type GameAnalysis } from "@/lib/engine/analysis";
-import { IconFlag, IconPlus } from "@/components/ui/icons";
+import { IconFlag, IconPlus, IconSparkles } from "@/components/ui/icons";
 import { CheatGate } from "@/components/cheats/CheatGate";
 import { CheatPanel, type CheatLogEntry } from "@/components/cheats/CheatPanel";
 import { CheatEffects, VOICE_LINES } from "@/components/cheats/CheatEffects";
@@ -216,6 +216,61 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
     onHumanMove(premove.from, premove.to, options.some((mv) => mv.promotion) ? "q" : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot.fen, snapshot.turn, status.over, humanColor]);
+
+  // --- legit hints & threats (no cheat gate — available to everyone) ---
+  const [hintArrow, setHintArrow] = useState<Arrow | null>(null);
+  const [hintLoading, setHintLoading] = useState(false);
+  const [autoHint, setAutoHint] = useState(false);
+  const [showThreats, setShowThreats] = useState(false);
+
+  const requestHint = useCallback(async () => {
+    if (status.over || snapshot.turn !== humanColor) return;
+    setHintLoading(true);
+    try {
+      const res = await getEngine().go(snapshot.fen, { depth: 14 });
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) {
+        setHintArrow({ from: uci.slice(0, 2) as Square, to: uci.slice(2, 4) as Square, color: "#5bbf7a" });
+      }
+    } finally {
+      setHintLoading(false);
+    }
+  }, [status.over, snapshot.turn, humanColor, snapshot.fen]);
+
+  // Auto-hint: recompute the suggested move whenever it becomes the human's
+  // turn, instead of waiting for a manual click.
+  useEffect(() => {
+    setHintArrow(null);
+    if (!autoHint || status.over || snapshot.turn !== humanColor) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getEngine().go(snapshot.fen, { depth: 14 });
+      if (cancelled) return;
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) setHintArrow({ from: uci.slice(0, 2) as Square, to: uci.slice(2, 4) as Square, color: "#5bbf7a" });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.fen, autoHint, status.over, humanColor]);
+
+  // Threats: arrows from each of the opponent's attacking pieces to a human
+  // piece they currently attack, for the "show threats" toggle.
+  const threatArrows = useMemo<Arrow[]>(() => {
+    if (!showThreats) return [];
+    const probe = new Chess(snapshot.fen);
+    const opponentColor: Color = humanColor === "w" ? "b" : "w";
+    const arrows: Arrow[] = [];
+    for (const row of snapshot.board) {
+      for (const cell of row) {
+        if (!cell || cell.color !== humanColor) continue;
+        const attackers = probe.attackers(cell.square, opponentColor);
+        for (const from of attackers) arrows.push({ from, to: cell.square, color: "#e5604d" });
+      }
+    }
+    return arrows;
+  }, [showThreats, snapshot.fen, snapshot.board, humanColor]);
 
   // Bot move loop. Respects the cheat panel's bot override (blunder mode /
   // personality / skill override) and, if the "predicted move" toggle is on,
@@ -537,7 +592,33 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
         <button className="btn btn-ghost" onClick={onExit}>
           ← New opponent
         </button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
+          {!status.over && (
+            <>
+              <button
+                className="btn"
+                onClick={requestHint}
+                disabled={hintLoading || snapshot.turn !== humanColor}
+                title="Show the engine's suggested move as an arrow"
+              >
+                <IconSparkles width={16} height={16} /> {hintLoading ? "Thinking…" : "Hint"}
+              </button>
+              <button
+                className={`btn ${autoHint ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`}
+                onClick={() => setAutoHint((v) => !v)}
+                title="Always show the suggested move on your turn"
+              >
+                Auto-hint
+              </button>
+              <button
+                className={`btn ${showThreats ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`}
+                onClick={() => setShowThreats((v) => !v)}
+                title="Highlight your pieces currently under attack"
+              >
+                Threats
+              </button>
+            </>
+          )}
           {!status.over && snapshot.moves.length > 0 && (
             <button className={`btn ${confirmingResign ? "btn-danger" : ""}`} onClick={handleResignClick}>
               <IconFlag width={16} height={16} /> {confirmingResign ? "Confirm resign?" : "Resign"}
@@ -573,7 +654,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
                 showLegalMoves={settings.showLegalMoves}
                 highlightLastMove={settings.highlightLastMove}
                 animate={settings.animate}
-                extraArrows={predictedArrow ? [predictedArrow] : []}
+                extraArrows={[...(predictedArrow ? [predictedArrow] : []), ...(hintArrow ? [hintArrow] : []), ...threatArrows]}
                 squareColorOverride={settings.squareColorOverride}
                 pieceSizePercent={settings.pieceSize}
                 animationSpeed={settings.animationSpeed}

@@ -24,12 +24,12 @@ export interface GameAnalysis {
 
 const MATE_CP = 10_000;
 
-function toCpWhite(cp: number | null, mate: number | null): number {
+export function toCpWhite(cp: number | null, mate: number | null): number {
   if (mate != null) return mate > 0 ? MATE_CP - mate : -MATE_CP - mate;
   return cp ?? 0;
 }
 
-function classify(cpLoss: number, isBest: boolean): MoveQuality {
+export function classify(cpLoss: number, isBest: boolean): MoveQuality {
   if (isBest || cpLoss < 20) return "best";
   if (cpLoss < 70) return "good";
   if (cpLoss < 150) return "inaccuracy";
