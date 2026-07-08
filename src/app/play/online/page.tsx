@@ -440,6 +440,15 @@ export default function OnlinePage() {
   const topColor: Color = orientation === "w" ? "b" : "w";
   const bottomColor: Color = orientation;
 
+  const opponentColor: Color | null = state.myColor === "w" ? "b" : state.myColor === "b" ? "w" : null;
+  const opponentUsername = (opponentColor === "w" ? players?.white?.username : players?.black?.username) ?? "Opponent";
+  const opponentMuted = Boolean(opponentColor && state.fullState?.roomMuted?.[opponentColor]);
+  const toggleMute = () => {
+    const next = !opponentMuted;
+    online.modMuteChat(next);
+    pushToast(next ? `Muted ${opponentUsername}'s chat` : `Unmuted ${opponentUsername}'s chat`);
+  };
+
   const PlayerBar = ({ color }: { color: Color }) => {
     const p = color === "w" ? players?.white : players?.black;
     const isWhite = color === "w";
@@ -692,6 +701,7 @@ export default function OnlinePage() {
                 myUsername={identity.username}
                 focusSignal={chatFocusSignal}
                 isModerator={isModerator}
+                onModMute={() => !opponentMuted && toggleMute()}
               />
             )}
           </div>
@@ -756,8 +766,10 @@ export default function OnlinePage() {
       {isModerator && modPanelOpen && state.phase === "playing" && (
         <ModPanel
           onClose={() => setModPanelOpen(false)}
-          opponentUsername={(state.myColor === "w" ? players?.black?.username : players?.white?.username) ?? "Opponent"}
+          opponentUsername={opponentUsername}
           flaggedMessages={state.chat.filter((m) => m.flagged).map((m) => ({ from: m.from, text: m.text, ts: m.ts }))}
+          opponentMuted={opponentMuted}
+          onToggleMute={toggleMute}
         />
       )}
       <ToastStack toasts={toasts} />

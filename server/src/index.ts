@@ -12,6 +12,7 @@ import { registerBoardGameHandlers } from "./boardgames/socketHandlers.js";
 import type { BgClientToServer, BgServerToClient } from "./boardgames/protocol.js";
 import type {
   ClientToServer,
+  Color,
   Identity,
   ServerToClient,
   TimeControlSpec,
@@ -619,6 +620,27 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     const cfg = await getLiveMatchConfig();
     if (cfg.logAdminSocketActions) await auditAdminAction(action, targetType, targetId, detail);
   };
+
+  // ---- in-game moderator (distinct from admin god-mode) ---------------------
+  // socket.data.isModerator is a cached DB lookup the client cannot set, and
+  // every mod:* handler additionally requires the caller to be one of the two
+  // players in the room they're targeting — never cross-room, unlike admin.
+  const modRoom = (roomId: string): { room: GameRoom; myColor: Color } | null => {
+    if (!socket.data.isModerator) return null;
+    const room = rooms.get(roomId);
+    if (!room) return null;
+    const myColor = socket.data.userId ? room.playerColor(socket.data.userId) : null;
+    if (!myColor) return null;
+    return { room, myColor };
+  };
+
+  socket.on("mod:muteChat", ({ roomId, muted }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    const oppColor = ctx.myColor === "w" ? "b" : "w";
+    ctx.room.adminMuteChat(oppColor, muted);
+    resync(ctx.room);
+  });
 
   socket.on("admin:games", () => {
     if (!socket.data.isAdmin) return;
