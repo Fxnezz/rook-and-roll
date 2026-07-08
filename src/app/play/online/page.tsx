@@ -68,6 +68,7 @@ export default function OnlinePage() {
   const [confirmingResign, setConfirmingResign] = useState(false);
   const [drawCoolingDown, setDrawCoolingDown] = useState(false);
   const [lastSeenChatCount, setLastSeenChatCount] = useState(0);
+  const [chatFocusSignal, setChatFocusSignal] = useState(0);
 
   const loggedIn = Boolean(session?.user);
 
@@ -288,6 +289,10 @@ export default function OnlinePage() {
       if (state.drawOfferFrom && state.drawOfferFrom !== state.myColor) online.acceptDraw();
     },
     onToggleHelp: () => setShowShortcuts((v) => !v),
+    onFocusChat: () => {
+      setTab("chat");
+      setChatFocusSignal((n) => n + 1);
+    },
   });
 
   useEffect(() => {
@@ -664,7 +669,7 @@ export default function OnlinePage() {
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : (
-              <ChatPanel messages={state.chat} onSend={online.sendChat} disabled={state.phase === "spectating"} myUsername={identity.username} />
+              <ChatPanel messages={state.chat} onSend={online.sendChat} disabled={state.phase === "spectating"} myUsername={identity.username} focusSignal={chatFocusSignal} />
             )}
           </div>
         </div>
@@ -724,7 +729,7 @@ export default function OnlinePage() {
         </div>
       )}
 
-      {showShortcuts && <ShortcutsHelpModal onClose={() => setShowShortcuts(false)} showDraw />}
+      {showShortcuts && <ShortcutsHelpModal onClose={() => setShowShortcuts(false)} showDraw showChat />}
       <ToastStack toasts={toasts} />
     </div>
   );

@@ -3,7 +3,15 @@
 import { useEffect } from "react";
 import { IconClose } from "./icons";
 
-export function ShortcutsHelpModal({ onClose, showDraw = false }: { onClose: () => void; showDraw?: boolean }) {
+export function ShortcutsHelpModal({
+  onClose,
+  showDraw = false,
+  showChat = false,
+}: {
+  onClose: () => void;
+  showDraw?: boolean;
+  showChat?: boolean;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -15,6 +23,7 @@ export function ShortcutsHelpModal({ onClose, showDraw = false }: { onClose: () 
     ["← / →", "Step through move history"],
     ["Home / End", "Jump to start / latest move"],
     ...(showDraw ? ([["D", "Offer draw"], ["A", "Accept a pending draw offer"]] as [string, string][]) : []),
+    ...(showChat ? ([["/", "Focus the chat input"]] as [string, string][]) : []),
     ["?", "Toggle this help"],
   ];
 

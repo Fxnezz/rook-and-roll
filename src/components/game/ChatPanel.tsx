@@ -20,12 +20,15 @@ export function ChatPanel({
   onSend,
   disabled,
   myUsername,
+  focusSignal,
 }: {
   messages: ChatMsg[];
   onSend: (text: string) => void;
   disabled?: boolean;
   /** Used to tell "my" messages apart from the opponent's when muting, and to gate reporting/spectator-chat controls to players. */
   myUsername?: string;
+  /** Bump this (e.g. from a keyboard shortcut) to focus the message input. */
+  focusSignal?: number;
 }) {
   const [text, setText] = useState("");
   const [muteOpponent, setMuteOpponent] = useState(false);
@@ -34,7 +37,12 @@ export function ChatPanel({
   const [atBottom, setAtBottom] = useState(true);
   const [newSinceScroll, setNewSinceScroll] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const prevLenRef = useRef(messages.length);
+
+  useEffect(() => {
+    if (focusSignal) inputRef.current?.focus();
+  }, [focusSignal]);
 
   const visibleMessages = messages.filter((m) => {
     if (m.system) return true;
@@ -202,6 +210,7 @@ export function ChatPanel({
       >
         <div className="flex gap-1">
           <input
+            ref={inputRef}
             className="input !py-1.5 !font-sans text-sm"
             placeholder={disabled ? "Chat unavailable" : "Message…"}
             value={text}

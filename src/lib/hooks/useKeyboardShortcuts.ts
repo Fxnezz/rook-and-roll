@@ -11,6 +11,8 @@ export interface ShortcutHandlers {
   onOfferDraw?: () => void;
   onAcceptDraw?: () => void;
   onToggleHelp?: () => void;
+  /** Online play only: switch to the Chat tab and focus its message input. */
+  onFocusChat?: () => void;
 }
 
 /** Global chess-page keyboard shortcuts. Ignored while typing in an input/textarea. */
@@ -51,6 +53,9 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
           break;
         case "?":
           h.onToggleHelp?.();
+          break;
+        case "/":
+          h.onFocusChat?.();
           break;
         default:
           return;

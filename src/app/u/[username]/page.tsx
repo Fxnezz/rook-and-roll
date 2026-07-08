@@ -7,6 +7,7 @@ import { ReportButton } from "@/components/profile/ReportButton";
 import { DbNotice } from "@/components/ui/DbNotice";
 import { auth } from "@/lib/auth/auth";
 import { ACHIEVEMENTS } from "@/lib/achievements/catalog";
+import { fetchUserRank } from "@/lib/leaderboard/query";
 
 const HIGHER_IS_BETTER_GAMES = [
   "snake",
@@ -82,9 +83,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
 
   const session = await auth();
   const canReport = session?.user?.id && session.user.id !== user.id;
+  const isOwnProfile = session?.user?.id === user.id;
 
   const orFilter = [{ whiteId: user.id }, { blackId: user.id }];
-  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats, earnedAchievements] = await Promise.all([
+  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats, earnedAchievements, streakGames, myRank] = await Promise.all([
     prisma.game.count({
       where: {
         OR: [
@@ -125,7 +127,30 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     }),
     prisma.wordGameStats.findUnique({ where: { userId: user.id } }),
     prisma.userAchievement.findMany({ where: { userId: user.id }, select: { achievementId: true, earnedAt: true } }),
+    prisma.game.findMany({
+      where: { OR: orFilter, NOT: { result: "ABORTED" } },
+      orderBy: { createdAt: "asc" },
+      select: { result: true, whiteId: true },
+    }),
+    isOwnProfile ? fetchUserRank({ field: "ratingBlitz", period: "all", userId: user.id }) : Promise.resolve(null),
   ]);
+
+  let currentStreak = 0;
+  let bestStreak = 0;
+  {
+    let running = 0;
+    for (const g of streakGames) {
+      const isWhite = g.whiteId === user.id;
+      const won = (g.result === "WHITE_WINS") === isWhite;
+      if (won) {
+        running++;
+        bestStreak = Math.max(bestStreak, running);
+      } else {
+        running = 0;
+      }
+    }
+    currentStreak = running;
+  }
 
   const highScores = [
     ...higherScores.map((h) => ({ game: h.game, level: null, score: h._max.score ?? 0 })),
@@ -149,6 +174,11 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           </p>
         </div>
         <div className="ml-auto flex flex-col items-end gap-2">
+          {isOwnProfile && myRank && (
+            <span className="chip !px-2.5 !py-1 text-xs">
+              #{myRank.rank} Blitz · {myRank.value}
+            </span>
+          )}
           <Link href={`/games?user=${user.username}`} className="btn">
             Game history
           </Link>
@@ -162,9 +192,22 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
         <Stat label="Draws" value={draws} accent="var(--text-muted)" />
       </div>
       {total > 0 && (
-        <p className="mt-2 text-center text-sm text-[var(--text-muted)]">
-          {total} games · {Math.round((wins / total) * 100)}% win rate
-        </p>
+        <>
+          <p className="mt-2 text-center text-sm text-[var(--text-muted)]">
+            {total} games · {Math.round((wins / total) * 100)}% win rate
+          </p>
+          <WinLossDrawBar wins={wins} losses={losses} draws={draws} />
+          <div className="mt-3 flex justify-center gap-6 text-center text-sm">
+            <div>
+              <div className="text-xl font-black text-[var(--accent)]">{currentStreak}</div>
+              <div className="label mt-0.5">Current streak</div>
+            </div>
+            <div>
+              <div className="text-xl font-black text-[var(--accent)]">{bestStreak}</div>
+              <div className="label mt-0.5">Best streak</div>
+            </div>
+          </div>
+        </>
       )}
 
       <ProfileRatings
@@ -221,6 +264,21 @@ function Stat({ label, value, accent }: { label: string; value: number; accent: 
         {value}
       </div>
       <div className="label mt-1">{label}</div>
+    </div>
+  );
+}
+
+function WinLossDrawBar({ wins, losses, draws }: { wins: number; losses: number; draws: number }) {
+  const total = wins + losses + draws;
+  if (total === 0) return null;
+  const wPct = (wins / total) * 100;
+  const lPct = (losses / total) * 100;
+  const dPct = (draws / total) * 100;
+  return (
+    <div className="mt-4 flex h-2.5 w-full overflow-hidden rounded-full bg-[var(--bg-elev)]">
+      {wPct > 0 && <div style={{ width: `${wPct}%`, background: "var(--good)" }} title={`${wins} wins`} />}
+      {dPct > 0 && <div style={{ width: `${dPct}%`, background: "var(--text-faint)" }} title={`${draws} draws`} />}
+      {lPct > 0 && <div style={{ width: `${lPct}%`, background: "var(--bad)" }} title={`${losses} losses`} />}
     </div>
   );
 }
