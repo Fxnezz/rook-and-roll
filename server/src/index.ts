@@ -642,6 +642,20 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     resync(ctx.room);
   });
 
+  // Private — delivered only to the opponent's own socket, never broadcast to
+  // the room (unlike admin:whisper, which is visible to admin observers too).
+  socket.on("mod:warn", ({ roomId, text }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    const clean = String(text).trim().slice(0, 300);
+    if (!clean) return;
+    const oppColor = ctx.myColor === "w" ? "b" : "w";
+    const oppUserId = oppColor === "w" ? ctx.room.white.userId : ctx.room.black.userId;
+    const oppSocketId = userSocket.get(oppUserId);
+    const target = oppSocketId ? io.sockets.sockets.get(oppSocketId) : undefined;
+    target?.emit("chat:message", { from: "Moderator", text: clean, ts: Date.now(), system: true });
+  });
+
   socket.on("admin:games", () => {
     if (!socket.data.isAdmin) return;
     socket.emit("admin:games", { games: liveGames() });

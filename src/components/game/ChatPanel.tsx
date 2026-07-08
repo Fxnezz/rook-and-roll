@@ -172,6 +172,14 @@ export function ChatPanel({
                           >
                             Warn
                           </button>
+                          <button
+                            className="rounded px-1 text-[0.65rem] font-semibold text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-40"
+                            onClick={() => reportMessage(i, m)}
+                            disabled={reportedKeys.has(i)}
+                            title={reportedKeys.has(i) ? "Reported" : "Report this message"}
+                          >
+                            {reportedKeys.has(i) ? "Reported" : "Report"}
+                          </button>
                           {showFlag && (
                             <button
                               className="rounded px-1 text-[0.65rem] font-semibold text-white/60 hover:bg-white/10 hover:text-white"

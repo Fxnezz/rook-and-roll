@@ -71,6 +71,7 @@ export default function OnlinePage() {
   const [lastSeenChatCount, setLastSeenChatCount] = useState(0);
   const [chatFocusSignal, setChatFocusSignal] = useState(0);
   const [modPanelOpen, setModPanelOpen] = useState(false);
+  const [warnCount, setWarnCount] = useState(0);
 
   const loggedIn = Boolean(session?.user);
   const isModerator = Boolean(session?.user?.isModerator);
@@ -279,6 +280,10 @@ export default function OnlinePage() {
     setManualFlip(false);
   }, [state.phase]);
 
+  useEffect(() => {
+    setWarnCount(0);
+  }, [state.roomId]);
+
   useKeyboardShortcuts({
     onFlip: () => setManualFlip((v) => !v),
     onStepBack: game.stepBack,
@@ -447,6 +452,17 @@ export default function OnlinePage() {
     const next = !opponentMuted;
     online.modMuteChat(next);
     pushToast(next ? `Muted ${opponentUsername}'s chat` : `Unmuted ${opponentUsername}'s chat`);
+  };
+  const sendWarn = (text: string) => {
+    if (!text.trim()) return;
+    online.modWarn(text);
+    fetch("/api/mod/warn", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetUsername: opponentUsername, reason: text }),
+    }).catch(() => {});
+    setWarnCount((n) => n + 1);
+    pushToast(`Warned ${opponentUsername}`);
   };
 
   const PlayerBar = ({ color }: { color: Color }) => {
@@ -702,6 +718,7 @@ export default function OnlinePage() {
                 focusSignal={chatFocusSignal}
                 isModerator={isModerator}
                 onModMute={() => !opponentMuted && toggleMute()}
+                onModWarn={() => sendWarn("Please follow the chat guidelines.")}
               />
             )}
           </div>
@@ -770,6 +787,8 @@ export default function OnlinePage() {
           flaggedMessages={state.chat.filter((m) => m.flagged).map((m) => ({ from: m.from, text: m.text, ts: m.ts }))}
           opponentMuted={opponentMuted}
           onToggleMute={toggleMute}
+          warnCount={warnCount}
+          onWarn={sendWarn}
         />
       )}
       <ToastStack toasts={toasts} />

@@ -132,6 +132,7 @@ export interface ClientToServer {
   // ---- in-game moderator (distinct from admin god-mode) — server re-checks
   // socket.data.isModerator AND that the caller is actually a player in roomId ----
   "mod:muteChat": (p: { roomId: string; muted: boolean }) => void;
+  "mod:warn": (p: { roomId: string; text: string }) => void;
 
   // ---- presence + direct friend challenges ----
   "presence:hello": (p: { identity: Identity }) => void;

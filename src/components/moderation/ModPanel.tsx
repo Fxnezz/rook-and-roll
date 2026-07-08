@@ -3,12 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import { IconShield, IconVolumeOff, IconVolume } from "@/components/ui/icons";
 
+const CANNED_WARN_PHRASES = [
+  "Please keep the chat friendly.",
+  "Watch your language.",
+  "One more warning before a mute.",
+  "Let's keep this respectful.",
+];
+
 export interface ModPanelProps {
   onClose: () => void;
   opponentUsername: string;
   flaggedMessages: { from: string; text: string; ts: number }[];
   opponentMuted: boolean;
   onToggleMute: () => void;
+  warnCount: number;
+  onWarn: (text: string) => void;
 }
 
 /**
@@ -18,9 +27,18 @@ export interface ModPanelProps {
  * floating panel) but opened from a header icon instead of a key sequence,
  * since this isn't meant to be secret — the 🛡 badge already announces it.
  */
-export function ModPanel({ onClose, opponentUsername, flaggedMessages, opponentMuted, onToggleMute }: ModPanelProps) {
+export function ModPanel({
+  onClose,
+  opponentUsername,
+  flaggedMessages,
+  opponentMuted,
+  onToggleMute,
+  warnCount,
+  onWarn,
+}: ModPanelProps) {
   const [autoMuteThreshold, setAutoMuteThreshold] = useState(3); // 0 = off
   const [suggestDismissed, setSuggestDismissed] = useState(false);
+  const [warnText, setWarnText] = useState("");
   const autoMutedRef = useRef(false);
 
   // Suggest muting the moment the first flagged message shows up this game.
@@ -83,6 +101,51 @@ export function ModPanel({ onClose, opponentUsername, flaggedMessages, opponentM
             </span>
           </div>
         )}
+
+        <div className="mb-3">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wide text-white/70">Warn player</span>
+            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white/60">
+              {warnCount} sent
+            </span>
+          </div>
+          {warnCount >= 3 && (
+            <p className="mb-1.5 rounded border border-orange-500/30 bg-orange-500/10 px-2 py-1 text-[11px] text-orange-200">
+              {opponentUsername} has been warned {warnCount} times — consider muting or filing a report.
+            </p>
+          )}
+          <div className="mb-1.5 flex flex-wrap gap-1">
+            {CANNED_WARN_PHRASES.map((p) => (
+              <button
+                key={p}
+                className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-white/70 hover:text-white"
+                onClick={() => onWarn(p)}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1">
+            <input
+              className="min-w-0 flex-1 rounded bg-white/10 px-2 py-1 text-xs"
+              placeholder="Custom warning…"
+              value={warnText}
+              onChange={(e) => setWarnText(e.target.value)}
+              maxLength={300}
+            />
+            <button
+              className="shrink-0 rounded px-2 py-1 text-xs font-semibold"
+              style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}
+              disabled={!warnText.trim()}
+              onClick={() => {
+                onWarn(warnText);
+                setWarnText("");
+              }}
+            >
+              Send
+            </button>
+          </div>
+        </div>
 
         <div className="mb-3 flex items-center justify-between gap-2 text-xs">
           <span className="text-white/50">Auto-mute after</span>

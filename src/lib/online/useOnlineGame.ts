@@ -245,6 +245,9 @@ export function useOnlineGame(identity: Identity) {
   const modMuteChat = useCallback((muted: boolean) => {
     if (rid()) socketRef.current?.emit("mod:muteChat", { roomId: rid()!, muted });
   }, []);
+  const modWarn = useCallback((text: string) => {
+    if (rid() && text.trim()) socketRef.current?.emit("mod:warn", { roomId: rid()!, text });
+  }, []);
   const leave = useCallback(() => {
     if (rid()) socketRef.current?.emit("room:leave", { roomId: rid()! });
     setState(INITIAL);
@@ -278,6 +281,7 @@ export function useOnlineGame(identity: Identity) {
     offerRematch,
     sendChat,
     modMuteChat,
+    modWarn,
     leave,
     clearError: () => patch({ error: null }),
   };
