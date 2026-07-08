@@ -26,7 +26,52 @@ export const TIME_CONTROLS: TimeControl[] = [
   { id: "30+0", name: "30 min", initialMs: 1_800_000, incrementMs: 0, category: "classical" },
 ];
 
+/** Minutes clamped to a sane custom-control range: 15 seconds .. 3 hours. */
+export const CUSTOM_MIN_MINUTES = 0.25;
+export const CUSTOM_MAX_MINUTES = 180;
+/** Per-move increment clamped to 0..60 seconds. */
+export const CUSTOM_MIN_INCREMENT_SEC = 0;
+export const CUSTOM_MAX_INCREMENT_SEC = 60;
+
+export function clampCustomMinutes(minutes: number): number {
+  if (!Number.isFinite(minutes)) return CUSTOM_MIN_MINUTES;
+  return Math.min(CUSTOM_MAX_MINUTES, Math.max(CUSTOM_MIN_MINUTES, minutes));
+}
+
+export function clampCustomIncrementSec(seconds: number): number {
+  if (!Number.isFinite(seconds)) return 0;
+  return Math.min(CUSTOM_MAX_INCREMENT_SEC, Math.max(CUSTOM_MIN_INCREMENT_SEC, Math.round(seconds)));
+}
+
+/** Builds the self-describing id a custom time control is stored/looked-up by. */
+export function customTimeControlId(minutes: number, incrementSec: number): string {
+  const initialMs = Math.round(clampCustomMinutes(minutes) * 60_000);
+  const incrementMs = clampCustomIncrementSec(incrementSec) * 1_000;
+  return `custom:${initialMs}:${incrementMs}`;
+}
+
+function formatCustomLabel(initialMs: number, incrementMs: number): string {
+  const mins = Math.round((initialMs / 60_000) * 10) / 10;
+  const minsLabel = Number.isInteger(mins) ? `${mins}` : mins.toFixed(1);
+  const incSec = Math.round(incrementMs / 1000);
+  return incSec > 0 ? `${minsLabel} | ${incSec}` : `${minsLabel} min`;
+}
+
 export function getTimeControl(id: string): TimeControl {
+  if (id.startsWith("custom:")) {
+    const [, initialStr, incStr] = id.split(":");
+    const initialMs = Number(initialStr);
+    const incrementMs = Number(incStr);
+    if (Number.isFinite(initialMs) && initialMs > 0 && Number.isFinite(incrementMs)) {
+      return {
+        id,
+        name: formatCustomLabel(initialMs, incrementMs),
+        initialMs,
+        incrementMs,
+        category: categoryForMs(initialMs, incrementMs),
+      };
+    }
+  }
   return TIME_CONTROLS.find((t) => t.id === id) ?? TIME_CONTROLS[0];
 }
 

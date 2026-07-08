@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Color } from "chess.js";
 import { BOT_TIERS, type BotTierId } from "@/lib/engine/bots";
-import { TIME_CONTROLS, type TimeControl } from "@/lib/chess/useClock";
+import {
+  TIME_CONTROLS,
+  type TimeControl,
+  clampCustomMinutes,
+  clampCustomIncrementSec,
+  customTimeControlId,
+  getTimeControl,
+} from "@/lib/chess/useClock";
 import { Piece } from "@/lib/pieces";
 import { IconRobot } from "@/components/ui/icons";
+
+const CUSTOM_TC_STORAGE_KEY = "rr.customTimeControl.v1";
 
 export interface BotConfig {
   tierId: BotTierId;
@@ -19,6 +28,37 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
   const [colorChoice, setColorChoice] = useState<"w" | "b" | "random">("w");
   const [tcId, setTcId] = useState("untimed");
   const [showEval, setShowEval] = useState(false);
+  const [customMinutes, setCustomMinutes] = useState(10);
+  const [customIncrement, setCustomIncrement] = useState(0);
+
+  // Remember the last-used custom time control across visits.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CUSTOM_TC_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { minutes?: number; increment?: number };
+        if (typeof parsed.minutes === "number") setCustomMinutes(clampCustomMinutes(parsed.minutes));
+        if (typeof parsed.increment === "number") setCustomIncrement(clampCustomIncrementSec(parsed.increment));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const isCustom = tcId.startsWith("custom:");
+
+  const applyCustom = (minutes: number, increment: number) => {
+    const m = clampCustomMinutes(minutes);
+    const i = clampCustomIncrementSec(increment);
+    setCustomMinutes(m);
+    setCustomIncrement(i);
+    setTcId(customTimeControlId(m, i));
+    try {
+      localStorage.setItem(CUSTOM_TC_STORAGE_KEY, JSON.stringify({ minutes: m, increment: i }));
+    } catch {
+      /* ignore */
+    }
+  };
 
   const start = () => {
     const color: Color = colorChoice === "random" ? (Math.random() < 0.5 ? "w" : "b") : colorChoice;
@@ -134,6 +174,47 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
               })}
             </div>
           ))}
+        </div>
+
+        <div className="mt-3 border-t border-[var(--border)] pt-3">
+          <button
+            onClick={() => applyCustom(customMinutes, customIncrement)}
+            className="mb-2 rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors"
+            style={{
+              borderColor: isCustom ? "var(--accent)" : "var(--border)",
+              background: isCustom ? "var(--bg-elev-2)" : "transparent",
+              color: isCustom ? "var(--text)" : "var(--text-muted)",
+            }}
+          >
+            Custom
+          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+              Minutes
+              <input
+                type="number"
+                min={0.25}
+                max={180}
+                step={0.25}
+                value={customMinutes}
+                onChange={(e) => applyCustom(Number(e.target.value), customIncrement)}
+                className="input !w-20 !py-1 text-sm"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+              Increment (sec)
+              <input
+                type="number"
+                min={0}
+                max={60}
+                step={1}
+                value={customIncrement}
+                onChange={(e) => applyCustom(customMinutes, Number(e.target.value))}
+                className="input !w-20 !py-1 text-sm"
+              />
+            </label>
+            {isCustom && <span className="chip !px-2 !py-0.5 text-xs">{getTimeControl(tcId).name}</span>}
+          </div>
         </div>
       </section>
 

@@ -9,7 +9,7 @@ import { GameControls } from "@/components/game/GameControls";
 import { SharePanel } from "@/components/game/SharePanel";
 import { GameOverModal } from "@/components/game/GameOverModal";
 import { OpeningExplorer } from "@/components/game/OpeningExplorer";
-import { useChessGame } from "@/lib/chess/useChessGame";
+import { useChessGame, type GameStatus } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
 import { playSound, primeAudio } from "@/lib/chess/sound";
@@ -18,6 +18,17 @@ import { classify, toCpWhite, type MoveQuality } from "@/lib/engine/analysis";
 import { IconPlus, IconUsers } from "@/components/ui/icons";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
+import { Clock } from "@/components/game/Clock";
+import {
+  TIME_CONTROLS,
+  getTimeControl,
+  useClock,
+  clampCustomMinutes,
+  clampCustomIncrementSec,
+  customTimeControlId,
+} from "@/lib/chess/useClock";
+
+const CUSTOM_TC_STORAGE_KEY = "rr.customTimeControl.v1";
 
 const QUALITY_LABEL: Record<MoveQuality, string> = {
   best: "Best",
@@ -51,13 +62,65 @@ export default function LocalGamePage() {
   const orientation: Color =
     settings.autoFlip && snapshot.isLive ? snapshot.turn : manualOrientation;
 
+  // Optional clock (untimed by default — Pass & Play stays instant-start).
+  const [tcId, setTcId] = useState("untimed");
+  const [customMinutes, setCustomMinutes] = useState(10);
+  const [customIncrement, setCustomIncrement] = useState(0);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CUSTOM_TC_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { minutes?: number; increment?: number };
+        if (typeof parsed.minutes === "number") setCustomMinutes(clampCustomMinutes(parsed.minutes));
+        if (typeof parsed.increment === "number") setCustomIncrement(clampCustomIncrementSec(parsed.increment));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const tc = useMemo(() => getTimeControl(tcId), [tcId]);
+  const isCustomTc = tcId.startsWith("custom:");
+  const applyCustom = (minutes: number, increment: number) => {
+    const m = clampCustomMinutes(minutes);
+    const i = clampCustomIncrementSec(increment);
+    setCustomMinutes(m);
+    setCustomIncrement(i);
+    setTcId(customTimeControlId(m, i));
+    try {
+      localStorage.setItem(CUSTOM_TC_STORAGE_KEY, JSON.stringify({ minutes: m, increment: i }));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const [override, setOverride] = useState<GameStatus | null>(null);
+  const clock = useClock(tc, (loser) => {
+    setOverride({
+      over: true,
+      result: loser === "w" ? "0-1" : "1-0",
+      winner: loser === "w" ? "b" : "w",
+      reason: "Timeout",
+    });
+  });
+  const status: GameStatus = override ?? snapshot.status;
+
+  // Reset + (re)start the clock whenever the time control changes (including on mount).
+  useEffect(() => {
+    clock.reset();
+    setOverride(null);
+    if (!clock.untimed) clock.start("w");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tcId]);
+
   // Sounds tied to game state.
   useEffect(() => {
-    if (snapshot.status.over) {
+    if (status.over) {
+      clock.stop();
       setShowResult(true);
       playSound("gameEnd");
     }
-  }, [snapshot.status.over]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.over]);
 
   const onMove = useCallback(
     (from: Square, to: Square, promotion?: PieceSymbol) => {
@@ -69,6 +132,7 @@ export default function LocalGamePage() {
         playSound("illegal");
         return;
       }
+      clock.moved(move.color);
       if (move.san.includes("#")) {
         // handled by the game-over effect
       } else if (move.san.includes("+")) {
@@ -114,16 +178,20 @@ export default function LocalGamePage() {
         }
       })();
     },
-    [game, snapshot.fen, snapshot.moves.length],
+    [game, snapshot.fen, snapshot.moves.length, clock.moved],
   );
 
   const newGame = useCallback(() => {
     game.reset();
     setManualOrientation("w");
     setShowResult(true);
+    setOverride(null);
+    clock.reset();
+    if (!clock.untimed) clock.start("w");
     primeAudio();
     playSound("gameStart");
-  }, [game]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game, clock.reset, clock.start, clock.untimed]);
 
   const flip = () => setManualOrientation((o) => (o === "w" ? "b" : "w"));
 
@@ -155,18 +223,18 @@ export default function LocalGamePage() {
   const canForward = snapshot.viewPly < snapshot.moves.length;
 
   const statusText = useMemo(() => {
-    if (snapshot.status.over) {
+    if (status.over) {
       const r =
-        snapshot.status.result === "1/2-1/2"
+        status.result === "1/2-1/2"
           ? "Draw"
-          : snapshot.status.winner === "w"
+          : status.winner === "w"
             ? "White wins"
             : "Black wins";
-      return `${r} — ${snapshot.status.reason}`;
+      return `${r} — ${status.reason}`;
     }
     const side = snapshot.turn === "w" ? "White" : "Black";
     return snapshot.check ? `${side} to move · Check!` : `${side} to move`;
-  }, [snapshot]);
+  }, [snapshot, status]);
 
   const Tray = ({ playerColor }: { playerColor: Color }) => {
     const isWhite = playerColor === "w";
@@ -175,7 +243,7 @@ export default function LocalGamePage() {
     const adv = isWhite
       ? Math.max(0, snapshot.captured.materialDiff)
       : Math.max(0, -snapshot.captured.materialDiff);
-    const toMove = snapshot.isLive && !snapshot.status.over && snapshot.turn === playerColor;
+    const toMove = snapshot.isLive && !status.over && snapshot.turn === playerColor;
     return (
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -188,7 +256,12 @@ export default function LocalGamePage() {
           />
           <span className="text-sm font-semibold">{isWhite ? "White" : "Black"}</span>
         </div>
-        <CapturedTray pieces={captured} color={displayColor} set={settings.pieceSet} advantage={adv} />
+        <div className="flex items-center gap-2">
+          <CapturedTray pieces={captured} color={displayColor} set={settings.pieceSet} advantage={adv} />
+          {!clock.untimed && (
+            <Clock ms={isWhite ? clock.whiteMs : clock.blackMs} active={clock.active === playerColor && !status.over} tickSound />
+          )}
+        </div>
       </div>
     );
   };
@@ -204,6 +277,50 @@ export default function LocalGamePage() {
             <h1 className="text-lg font-bold leading-tight">Pass &amp; Play</h1>
             <p className="text-xs text-[var(--text-muted)]">Two players, one board</p>
           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="input !w-auto !py-1.5 text-xs"
+            value={isCustomTc ? "custom" : tcId}
+            onChange={(e) => {
+              if (e.target.value === "custom") applyCustom(customMinutes, customIncrement);
+              else setTcId(e.target.value);
+            }}
+            aria-label="Time control"
+          >
+            {TIME_CONTROLS.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+            <option value="custom">{isCustomTc ? tc.name : "Custom…"}</option>
+          </select>
+          {isCustomTc && (
+            <>
+              <input
+                type="number"
+                min={0.25}
+                max={180}
+                step={0.25}
+                value={customMinutes}
+                onChange={(e) => applyCustom(Number(e.target.value), customIncrement)}
+                className="input !w-16 !py-1.5 text-xs"
+                aria-label="Custom minutes"
+              />
+              <span className="text-xs text-[var(--text-faint)]">min +</span>
+              <input
+                type="number"
+                min={0}
+                max={60}
+                step={1}
+                value={customIncrement}
+                onChange={(e) => applyCustom(customMinutes, Number(e.target.value))}
+                className="input !w-14 !py-1.5 text-xs"
+                aria-label="Custom increment seconds"
+              />
+              <span className="text-xs text-[var(--text-faint)]">sec</span>
+            </>
+          )}
         </div>
         <button className="btn btn-primary" onClick={newGame}>
           <IconPlus width={16} height={16} /> New game
@@ -307,7 +424,7 @@ export default function LocalGamePage() {
 
       {showResult && (
         <GameOverModal
-          status={snapshot.status}
+          status={status}
           onNewGame={newGame}
           onReview={() => {
             setShowResult(false);
