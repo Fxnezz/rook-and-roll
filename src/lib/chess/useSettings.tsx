@@ -50,6 +50,8 @@ export interface Settings {
   speechAnnounceMoves: boolean;
   /** Show figurine (piece-glyph) notation instead of letters in move lists. */
   figurineNotation: boolean;
+  /** Play a sound when a new chat message arrives. */
+  chatSound: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -80,6 +82,7 @@ const DEFAULTS: Settings = {
   boardZoom: 100,
   speechAnnounceMoves: false,
   figurineNotation: false,
+  chatSound: true,
 };
 
 const STORAGE_KEY = "rr.settings.v1";

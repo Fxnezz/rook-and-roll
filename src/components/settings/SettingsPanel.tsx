@@ -27,6 +27,7 @@ const SOUND_PREVIEWS: { id: SoundName; label: string }[] = [
   { id: "lowTime", label: "Low time" },
   { id: "opponentConnected", label: "Opponent joined" },
   { id: "opponentDisconnected", label: "Opponent left" },
+  { id: "chatMessage", label: "Chat message" },
 ];
 
 const ANIM_SPEEDS: { id: AnimationSpeed; label: string }[] = [
@@ -323,6 +324,12 @@ export function SettingsPanel() {
           description="Play a sound when the opponent moves, not just you"
           checked={settings.opponentMoveSound}
           onChange={(v) => update({ opponentMoveSound: v })}
+        />
+        <Toggle
+          label="Chat message sound"
+          description="Play a sound when a new chat message arrives"
+          checked={settings.chatSound}
+          onChange={(v) => update({ chatSound: v })}
         />
 
         <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Preview sounds</span>

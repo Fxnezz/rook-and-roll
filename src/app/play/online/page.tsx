@@ -183,6 +183,16 @@ export default function OnlinePage() {
     }
   }, [state.opponentConnected]);
 
+  // Chat message sound (skip messages we sent ourselves).
+  const prevChatLenRef = useRef(state.chat.length);
+  useEffect(() => {
+    const last = state.chat[state.chat.length - 1];
+    if (state.chat.length > prevChatLenRef.current && last && !last.system && last.from !== identity.username && settings.chatSound) {
+      playSound("chatMessage");
+    }
+    prevChatLenRef.current = state.chat.length;
+  }, [state.chat, identity.username, settings.chatSound]);
+
   // Toast whenever the opponent makes a draw/takeback/rematch offer.
   useEffect(() => {
     const prev = prevOffersRef.current;
@@ -631,7 +641,7 @@ export default function OnlinePage() {
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : (
-              <ChatPanel messages={state.chat} onSend={online.sendChat} disabled={state.phase === "spectating"} />
+              <ChatPanel messages={state.chat} onSend={online.sendChat} disabled={state.phase === "spectating"} myUsername={identity.username} />
             )}
           </div>
         </div>

@@ -240,7 +240,7 @@ export function BoardGamePage<TMove, TState>({
                 )}
               </div>
             ) : (
-              <ChatPanel messages={state.chat} onSend={match.sendChat} disabled={state.phase === "spectating"} />
+              <ChatPanel messages={state.chat} onSend={match.sendChat} disabled={state.phase === "spectating"} myUsername={identity.username} />
             )}
           </div>
         </div>
