@@ -12,6 +12,8 @@ declare module "next-auth" {
       username: string | null;
       /** true when an admin is impersonating this user */
       imp?: boolean;
+      /** In-game moderator (mute/warn/report from inside their own games) — distinct from the separate JWT admin god-mode. */
+      isModerator?: boolean;
     } & DefaultSession["user"];
   }
 }
@@ -72,6 +74,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           image: user.image,
           username: user.username,
+          isModerator: user.isModerator,
         };
       },
     }),
@@ -90,6 +93,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = (user as { id: string }).id;
         token.username = (user as { username?: string | null }).username ?? null;
+        token.isModerator = (user as { isModerator?: boolean }).isModerator ?? false;
       }
       return token;
     },
@@ -98,6 +102,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = (token.id as string) ?? token.sub ?? "";
         session.user.username = (token.username as string | null) ?? null;
         session.user.imp = Boolean(token.imp);
+        session.user.isModerator = Boolean(token.isModerator);
       }
       return session;
     },

@@ -38,3 +38,11 @@ export function cleanChat(text: string): string {
   }
   return out.trim();
 }
+
+/** Same word list as cleanChat, but reports rather than masks — used to flag a message for moderator review. */
+export function containsProfanity(text: string): boolean {
+  return PATTERNS.some((re) => {
+    re.lastIndex = 0; // these are "g"-flagged regexes; reset shared state before each stateless test
+    return re.test(text);
+  });
+}

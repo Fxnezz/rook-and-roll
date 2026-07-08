@@ -98,6 +98,8 @@ export interface ChatMsg {
   ts: number;
   system?: boolean;
   fromSpectator?: boolean;
+  /** Server-detected profanity. Computed for every message but only ever rendered client-side for the in-game moderator. */
+  flagged?: boolean;
 }
 
 export interface ServerToClientEvents {

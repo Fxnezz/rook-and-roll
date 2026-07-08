@@ -61,27 +61,27 @@ export function getPrisma(): PrismaLike | null {
   return enabled ? prisma : null;
 }
 
-/** Look up a real user's moderation state (ban/mute). Guests are never moderated. */
+/** Look up a real user's moderation state (ban/mute/in-game-moderator). Guests are never moderated or moderators. */
 export async function getUserModeration(
   userId: string,
-): Promise<{ banned: boolean; muted: boolean }> {
+): Promise<{ banned: boolean; muted: boolean; isModerator: boolean }> {
   if (!enabled || !prisma || userId.startsWith("guest:") || userId.startsWith("spectator:")) {
-    return { banned: false, muted: false };
+    return { banned: false, muted: false, isModerator: false };
   }
   try {
     const u = (await prisma.user.findUnique({
       where: { id: userId },
-      select: { status: true, bannedUntil: true, mutedUntil: true },
-    })) as { status?: string; bannedUntil?: string | Date | null; mutedUntil?: string | Date | null } | null;
-    if (!u) return { banned: false, muted: false };
+      select: { status: true, bannedUntil: true, mutedUntil: true, isModerator: true },
+    })) as { status?: string; bannedUntil?: string | Date | null; mutedUntil?: string | Date | null; isModerator?: boolean } | null;
+    if (!u) return { banned: false, muted: false, isModerator: false };
     const now = Date.now();
     const bUntil = u.bannedUntil ? new Date(u.bannedUntil).getTime() : null;
     const mUntil = u.mutedUntil ? new Date(u.mutedUntil).getTime() : null;
     const banned = (u.status === "BANNED" || u.status === "SUSPENDED") && (bUntil === null || bUntil > now);
     const muted = u.status === "MUTED" && (mUntil === null || mUntil > now);
-    return { banned, muted };
+    return { banned, muted, isModerator: Boolean(u.isModerator) };
   } catch {
-    return { banned: false, muted: false };
+    return { banned: false, muted: false, isModerator: false };
   }
 }
 

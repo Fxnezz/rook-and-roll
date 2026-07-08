@@ -65,6 +65,8 @@ model User {
   moderationReason String?
   bannedUntil      DateTime? // null while BANNED = permanent
   mutedUntil       DateTime? // can play but not chat until this passes
+  /** In-game moderator: can mute/warn/report from inside their own games. Distinct from the separate JWT admin god-mode. */
+  isModerator      Boolean    @default(false)
 
   accounts        Account[]
   sessions        Session[]

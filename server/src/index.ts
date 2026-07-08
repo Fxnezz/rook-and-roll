@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import { Server, type Socket } from "socket.io";
 import { GameRoom } from "./GameRoom.js";
-import { cleanChat } from "./chat.js";
+import { cleanChat, containsProfanity } from "./chat.js";
 import { RateLimiter, CorrelationTracker } from "./anticheat.js";
 import { initPersistence, saveFinishedGame, getUserModeration, auditAdminAction, fileAutomatedReport } from "./persistence.js";
 import { getLiveMatchConfig } from "./liveConfig.js";
@@ -79,6 +79,8 @@ interface SocketData {
   roomId?: string;
   muted?: boolean;
   isAdmin?: boolean;
+  /** In-game moderator (distinct from isAdmin's JWT god-mode) — only usable within a room this account is actually playing in. */
+  isModerator?: boolean;
 }
 
 function liveGames() {
@@ -247,6 +249,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     // Banned users cannot enter matchmaking; muted users can play but not chat.
     const mod = await getUserModeration(identity.userId);
     socket.data.muted = mod.muted;
+    socket.data.isModerator = mod.isModerator;
     if (mod.banned) {
       socket.emit("error:msg", { message: "Your account is suspended." });
       return;
@@ -381,7 +384,11 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     socket.data.username = identity.username;
     socket.data.roomId = roomId;
     userSocket.set(identity.userId, socket.id);
-    socket.data.muted = (await getUserModeration(identity.userId)).muted;
+    {
+      const mod = await getUserModeration(identity.userId);
+      socket.data.muted = mod.muted;
+      socket.data.isModerator = mod.isModerator;
+    }
     socket.join(roomId);
 
     const color = room.playerColor(identity.userId);
@@ -584,6 +591,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
       text: clean,
       ts: Date.now(),
       fromSpectator: !color,
+      flagged: containsProfanity(text),
     });
   });
 
