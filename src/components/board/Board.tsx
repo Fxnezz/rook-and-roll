@@ -86,6 +86,24 @@ function annotationColor(
   return defaultColor;
 }
 
+// ---- Screen-reader support -----------------------------------------------
+
+const PIECE_NAMES: Record<PieceSymbol, string> = {
+  p: "pawn",
+  n: "knight",
+  b: "bishop",
+  r: "rook",
+  q: "queen",
+  k: "king",
+};
+const COLOR_NAMES: Record<Color, string> = { w: "White", b: "Black" };
+
+function squareAriaLabel(square: Square, piece: { type: PieceSymbol; color: Color } | null, isCheck: boolean): string {
+  if (!piece) return `${square}, empty`;
+  const base = `${square}, ${COLOR_NAMES[piece.color]} ${PIECE_NAMES[piece.type]}`;
+  return isCheck ? `${base}, in check` : base;
+}
+
 export function Board({
   snapshot,
   orientation,
@@ -195,6 +213,34 @@ export function Board({
     }
     prevCount.current = count;
   }, [snapshot.moves, snapshot.isLive, animate, animScale]);
+
+  // Screen-reader announcements: one polite region per move, one assertive
+  // region for game-over/whose-turn so a screen-reader user gets the same
+  // information a sighted player reads off the board.
+  const [moveAnnouncement, setMoveAnnouncement] = useState("");
+  const [statusAnnouncement, setStatusAnnouncement] = useState("");
+  const prevAnnounceCount = useRef(snapshot.moves.length);
+  useEffect(() => {
+    const count = snapshot.moves.length;
+    if (count === prevAnnounceCount.current + 1 && count > 0) {
+      const mv = snapshot.moves[count - 1];
+      const mover = COLOR_NAMES[mv.color];
+      const pieceName = PIECE_NAMES[mv.promotion ?? mv.piece];
+      const captureText = mv.captured ? `, capturing ${COLOR_NAMES[mv.color === "w" ? "b" : "w"]} ${PIECE_NAMES[mv.captured]}` : "";
+      const checkText = mv.san.includes("#") ? ", checkmate" : mv.san.includes("+") ? ", check" : "";
+      setMoveAnnouncement(`${mover} ${pieceName} to ${mv.to}${captureText}${checkText}`);
+    }
+    prevAnnounceCount.current = count;
+  }, [snapshot.moves]);
+
+  useEffect(() => {
+    if (snapshot.status.over) {
+      const outcome = snapshot.status.winner ? `${COLOR_NAMES[snapshot.status.winner]} wins` : "Draw";
+      setStatusAnnouncement(`Game over. ${outcome}${snapshot.status.reason ? ` by ${snapshot.status.reason}` : ""}.`);
+    } else if (snapshot.isLive) {
+      setStatusAnnouncement(`${COLOR_NAMES[snapshot.turn]} to move${snapshot.check ? ", check" : ""}.`);
+    }
+  }, [snapshot.status, snapshot.turn, snapshot.check, snapshot.isLive]);
 
   const legalTargets = useMemo(() => {
     if (!selected) return new Map<Square, Move>();
@@ -384,6 +430,15 @@ export function Board({
     return cells;
   }, [orientation]);
 
+  // Grouped by rank for ARIA row semantics — display:contents keeps these
+  // wrapper divs out of the CSS Grid box tree so grid-cols-8/grid-rows-8
+  // layout is unaffected, while a screen reader still sees proper rows.
+  const squareRows = useMemo(() => {
+    const rows: (typeof squares)[] = [];
+    for (let r = 0; r < 8; r++) rows.push(squares.filter((s) => s.row === r));
+    return rows;
+  }, [squares]);
+
   const lastMove = highlightLastMove ? snapshot.lastMove : null;
   const hiddenSquare = drag?.from ?? anim?.to ?? null;
 
@@ -408,21 +463,29 @@ export function Board({
       onContextMenu={(e) => e.preventDefault()}
     >
       {/* Square grid: colours, coordinates, highlights, hints */}
-      <div className="absolute inset-0 grid grid-cols-8 grid-rows-8">
-        {squares.map(({ square, light, row, col }) => {
-          const bg = light ? effTheme.light : effTheme.dark;
-          const isLast = lastMove && (lastMove.from === square || lastMove.to === square);
-          const isSel = selected === square;
-          const isCheck = snapshot.checkedKingSquare === square;
-          const isPremoveSq = premove && (premove.from === square || premove.to === square);
-          const isPendingConfirmTarget = pendingConfirm?.to === square;
-          const hl = highlights[square];
-          const target = legalTargets.get(square);
-          const showFile = showCoordinates && row === 7;
-          const showRank = showCoordinates && col === 0;
-          const labelColor = light ? effTheme.labelOnLight : effTheme.labelOnDark;
-          return (
-            <div key={square} className="relative" style={{ background: bg }}>
+      <div className="absolute inset-0 grid grid-cols-8 grid-rows-8" role="grid" aria-label="Chess board" aria-rowcount={8} aria-colcount={8}>
+        {squareRows.map((rowSquares, rIdx) => (
+          <div key={rIdx} role="row" style={{ display: "contents" }}>
+            {rowSquares.map(({ square, light, row, col }) => {
+              const bg = light ? effTheme.light : effTheme.dark;
+              const isLast = lastMove && (lastMove.from === square || lastMove.to === square);
+              const isSel = selected === square;
+              const isCheck = snapshot.checkedKingSquare === square;
+              const isPremoveSq = premove && (premove.from === square || premove.to === square);
+              const isPendingConfirmTarget = pendingConfirm?.to === square;
+              const hl = highlights[square];
+              const target = legalTargets.get(square);
+              const showFile = showCoordinates && row === 7;
+              const showRank = showCoordinates && col === 0;
+              const labelColor = light ? effTheme.labelOnLight : effTheme.labelOnDark;
+              return (
+                <div
+                  key={square}
+                  className="relative"
+                  style={{ background: bg }}
+                  role="gridcell"
+                  aria-label={squareAriaLabel(square, pieceAt(square), isCheck)}
+                >
               {isLast && <div className="absolute inset-0" style={{ background: effTheme.lastMove }} />}
               {isSel && <div className="absolute inset-0" style={{ background: effTheme.selected }} />}
               {isPremoveSq && <div className="absolute inset-0" style={{ background: "rgba(90,140,220,0.4)" }} />}
@@ -471,9 +534,11 @@ export function Board({
                   {square[0]}
                 </span>
               )}
-            </div>
-          );
-        })}
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {/* Pieces */}
@@ -571,6 +636,14 @@ export function Board({
           onCancel={() => setPromo(null)}
         />
       )}
+
+      {/* Screen-reader-only announcements — visually hidden, read by assistive tech */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {moveAnnouncement}
+      </div>
+      <div className="sr-only" aria-live="assertive" aria-atomic="true">
+        {statusAnnouncement}
+      </div>
     </div>
     </div>
   );
