@@ -147,7 +147,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           </p>
         </div>
         <div className="ml-auto flex flex-col items-end gap-2">
-          <Link href="/games" className="btn">
+          <Link href={`/games?user=${user.username}`} className="btn">
             Game history
           </Link>
           {canReport && <ReportButton username={user.username!} />}

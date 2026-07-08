@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma, isDbConfigured } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth/auth";
 import { DbNotice } from "@/components/ui/DbNotice";
+import { fetchGameHistory, type CategoryFilter, type ResultFilter } from "@/lib/games/history";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "My games" };
+export const metadata = { title: "Game history" };
 
 const RESULT_BADGE = {
   win: { label: "Win", color: "var(--good)" },
@@ -13,32 +14,122 @@ const RESULT_BADGE = {
   draw: { label: "Draw", color: "var(--text-muted)" },
 } as const;
 
-export default async function GamesPage() {
-  if (!isDbConfigured) return <DbNotice />;
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+const RESULT_FILTERS: { id: ResultFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "win", label: "Wins" },
+  { id: "loss", label: "Losses" },
+  { id: "draw", label: "Draws" },
+];
 
-  const uid = session.user.id;
-  const games = await prisma.game.findMany({
-    where: { OR: [{ whiteId: uid }, { blackId: uid }] },
-    orderBy: { createdAt: "desc" },
-    take: 60,
+const CATEGORY_FILTERS: { id: CategoryFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "bullet", label: "Bullet" },
+  { id: "blitz", label: "Blitz" },
+  { id: "rapid", label: "Rapid" },
+  { id: "classical", label: "Classical" },
+  { id: "untimed", label: "Untimed" },
+];
+
+function buildHref(base: Record<string, string | undefined>, overrides: Record<string, string | undefined>) {
+  const merged = { ...base, ...overrides };
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(merged)) {
+    if (v) q.set(k, v);
+  }
+  const qs = q.toString();
+  return qs ? `/games?${qs}` : "/games";
+}
+
+export default async function GamesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ user?: string; result?: string; category?: string; cursor?: string }>;
+}) {
+  if (!isDbConfigured) return <DbNotice />;
+  const sp = await searchParams;
+
+  const result = (RESULT_FILTERS.some((r) => r.id === sp.result) ? sp.result : "all") as ResultFilter;
+  const category = (CATEGORY_FILTERS.some((c) => c.id === sp.category) ? sp.category : "all") as CategoryFilter;
+
+  let profileUser: { id: string; username: string } | null = null;
+  if (sp.user) {
+    const u = await prisma.user.findUnique({ where: { username: sp.user }, select: { id: true, username: true } });
+    if (!u?.username) notFound();
+    profileUser = { id: u.id, username: u.username };
+  } else {
+    const session = await auth();
+    if (!session?.user?.id) redirect("/login");
+    const u = await prisma.user.findUnique({ where: { id: session.user.id }, select: { id: true, username: true } });
+    if (!u?.username) notFound();
+    profileUser = { id: u.id, username: u.username };
+  }
+
+  const { games, nextCursor } = await fetchGameHistory({
+    userId: profileUser.id,
+    cursor: sp.cursor,
+    limit: 20,
+    result,
+    category,
   });
+
+  const baseParams = { user: sp.user, result: sp.result, category: sp.category };
+  const isOwn = !sp.user;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="mb-5 text-2xl font-bold">My games</h1>
+      <h1 className="mb-1 text-2xl font-bold">{isOwn ? "My games" : `${profileUser.username}'s games`}</h1>
+      <Link href={`/u/${profileUser.username}`} className="mb-5 inline-block text-sm text-[var(--text-muted)] hover:text-[var(--text)]">
+        ← Back to profile
+      </Link>
+
+      <div className="mb-4 flex flex-wrap items-center gap-4">
+        <div className="flex gap-1.5">
+          {RESULT_FILTERS.map((r) => (
+            <Link
+              key={r.id}
+              href={buildHref(baseParams, { result: r.id === "all" ? undefined : r.id, cursor: undefined })}
+              className="hover-lift rounded-md border px-2.5 py-1 text-xs font-medium transition-colors"
+              style={{
+                borderColor: result === r.id ? "var(--accent)" : "var(--border)",
+                background: result === r.id ? "var(--bg-elev-2)" : "transparent",
+                color: result === r.id ? "var(--accent)" : "var(--text-muted)",
+              }}
+            >
+              {r.label}
+            </Link>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {CATEGORY_FILTERS.map((c) => (
+            <Link
+              key={c.id}
+              href={buildHref(baseParams, { category: c.id === "all" ? undefined : c.id, cursor: undefined })}
+              className="hover-lift rounded-md border px-2.5 py-1 text-xs font-medium transition-colors"
+              style={{
+                borderColor: category === c.id ? "var(--accent)" : "var(--border)",
+                background: category === c.id ? "var(--bg-elev-2)" : "transparent",
+                color: category === c.id ? "var(--accent)" : "var(--text-muted)",
+              }}
+            >
+              {c.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+
       {games.length === 0 ? (
         <div className="panel flex flex-col items-center gap-3 p-12 text-center">
-          <p className="text-[var(--text-muted)]">No games yet. Time to play!</p>
-          <Link href="/play/bot" className="btn btn-primary">
-            Play a bot
-          </Link>
+          <p className="text-[var(--text-muted)]">No games match these filters.</p>
+          {isOwn && (
+            <Link href="/play/bot" className="btn btn-primary">
+              Play a bot
+            </Link>
+          )}
         </div>
       ) : (
         <div className="panel divide-y divide-[var(--border)] overflow-hidden">
           {games.map((g) => {
-            const isWhite = g.whiteId === uid;
+            const isWhite = g.whiteId === profileUser!.id;
             const outcome =
               g.result === "DRAW"
                 ? "draw"
@@ -78,6 +169,14 @@ export default async function GamesPage() {
               </Link>
             );
           })}
+        </div>
+      )}
+
+      {nextCursor && (
+        <div className="mt-4 flex justify-center">
+          <Link href={buildHref(baseParams, { cursor: nextCursor })} className="btn hover-lift">
+            Load more
+          </Link>
         </div>
       )}
     </div>
