@@ -72,6 +72,7 @@ export default function OnlinePage() {
   const [chatFocusSignal, setChatFocusSignal] = useState(0);
   const [modPanelOpen, setModPanelOpen] = useState(false);
   const [warnCount, setWarnCount] = useState(0);
+  const [modLog, setModLog] = useState<{ id: number; text: string; ts: number }[]>([]);
 
   const loggedIn = Boolean(session?.user);
   const isModerator = Boolean(session?.user?.isModerator);
@@ -282,6 +283,7 @@ export default function OnlinePage() {
 
   useEffect(() => {
     setWarnCount(0);
+    setModLog([]);
   }, [state.roomId]);
 
   useKeyboardShortcuts({
@@ -448,10 +450,18 @@ export default function OnlinePage() {
   const opponentColor: Color | null = state.myColor === "w" ? "b" : state.myColor === "b" ? "w" : null;
   const opponentUsername = (opponentColor === "w" ? players?.white?.username : players?.black?.username) ?? "Opponent";
   const opponentMuted = Boolean(opponentColor && state.fullState?.roomMuted?.[opponentColor]);
+  const paused = Boolean(state.fullState?.paused);
+  const reviewFlagged = Boolean(state.fullState?.reviewFlagged);
+  const suspicion = {
+    mine: (state.myColor === "w" ? state.fullState?.suspicion?.w : state.fullState?.suspicion?.b) ?? 0,
+    opponent: (opponentColor === "w" ? state.fullState?.suspicion?.w : state.fullState?.suspicion?.b) ?? 0,
+  };
+  const logMod = (text: string) => setModLog((l) => [...l, { id: l.length, text, ts: Date.now() }]);
   const toggleMute = () => {
     const next = !opponentMuted;
     online.modMuteChat(next);
     pushToast(next ? `Muted ${opponentUsername}'s chat` : `Unmuted ${opponentUsername}'s chat`);
+    logMod(next ? `Muted ${opponentUsername}` : `Unmuted ${opponentUsername}`);
   };
   const sendWarn = (text: string) => {
     if (!text.trim()) return;
@@ -463,6 +473,19 @@ export default function OnlinePage() {
     }).catch(() => {});
     setWarnCount((n) => n + 1);
     pushToast(`Warned ${opponentUsername}`);
+    logMod(`Warned ${opponentUsername}: "${text}"`);
+  };
+  const togglePause = () => {
+    const next = !paused;
+    online.modPause(next);
+    pushToast(next ? "Game paused" : "Game resumed");
+    logMod(next ? "Paused the game" : "Resumed the game");
+  };
+  const toggleFlagReview = () => {
+    const next = !reviewFlagged;
+    online.modFlagReview(next);
+    pushToast(next ? "Flagged this game for admin review" : "Removed review flag");
+    logMod(next ? "Flagged game for review" : "Removed review flag");
   };
 
   const PlayerBar = ({ color }: { color: Color }) => {
@@ -789,6 +812,13 @@ export default function OnlinePage() {
           onToggleMute={toggleMute}
           warnCount={warnCount}
           onWarn={sendWarn}
+          paused={paused}
+          onTogglePause={togglePause}
+          reviewFlagged={reviewFlagged}
+          onToggleFlagReview={toggleFlagReview}
+          suspicion={suspicion}
+          gameOver={Boolean(state.status)}
+          actionLog={modLog}
         />
       )}
       <ToastStack toasts={toasts} />

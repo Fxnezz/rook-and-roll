@@ -48,6 +48,8 @@ const rooms = new Map<string, GameRoom>();
 const userRoom = new Map<string, string>(); // userId -> roomId (active game)
 const userSocket = new Map<string, string>(); // userId -> socketId
 const graceTimers = new Map<string, NodeJS.Timeout>(); // userId -> abandonment timer
+const modPauseTimers = new Map<string, NodeJS.Timeout>(); // roomId -> auto-resume timer
+const MOD_PAUSE_AUTO_RESUME_MS = 60_000;
 
 interface QueueEntry {
   identity: Identity;
@@ -73,6 +75,19 @@ const moveLimiter = new RateLimiter(20, 5_000); // 20 moves / 5s per socket
 const chatLimiter = new RateLimiter(8, 5_000);
 const correlation = new CorrelationTracker();
 const kickCooldown = new Map<string, number>(); // userId -> reconnect-allowed timestamp
+
+/**
+ * Same "compute broadly, render narrowly" approach as the flagged chat field:
+ * suspicion scores are cheap, non-sensitive numbers attached to every
+ * game:state broadcast, but the client only ever renders them for the
+ * in-game moderator.
+ */
+function stateFor(room: GameRoom) {
+  return {
+    ...room.toState(),
+    suspicion: { w: correlation.suspicion(room.white.userId), b: correlation.suspicion(room.black.userId) },
+  };
+}
 
 interface SocketData {
   userId?: string;
@@ -153,7 +168,7 @@ async function createGame(a: QueueEntry, b: QueueEntry, tc: TimeControlSpec, rat
     }
   }
   room.start();
-  io.to(room.id).emit("game:state", room.toState());
+  io.to(room.id).emit("game:state", stateFor(room));
 }
 
 function removeFromQueues(socketId: string) {
@@ -170,7 +185,7 @@ async function endGame(room: GameRoom) {
   const saved = room.voided ? null : await saveFinishedGame(room, cfg.kFactorMultiplier);
   const over = { ...room.status, ratingDelta: saved?.ratingDelta ?? undefined, achievements: saved?.achievements };
   io.to(room.id).emit("game:over", over);
-  io.to(room.id).emit("game:state", { ...room.toState(), status: over });
+  io.to(room.id).emit("game:state", { ...stateFor(room), status: over });
   // auto-flag suspicious play as a report in the same admin queue as player reports
   if (cfg.anticheat.enabled && !room.voided) {
     for (const p of [room.white, room.black]) {
@@ -406,7 +421,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     } else {
       room.spectators.add(socket.id);
     }
-    socket.emit("game:state", room.toState());
+    socket.emit("game:state", stateFor(room));
   });
 
   socket.on("room:spectate", async ({ roomId, identity }) => {
@@ -420,8 +435,8 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     socket.join(roomId);
     room.spectators.add(socket.id);
     room.spectatorIdentities.set(socket.id, { userId: identity.userId, username: identity.username });
-    socket.emit("game:state", room.toState());
-    io.to(roomId).emit("game:state", room.toState());
+    socket.emit("game:state", stateFor(room));
+    io.to(roomId).emit("game:state", stateFor(room));
   });
 
   socket.on("room:leave", ({ roomId }) => {
@@ -446,7 +461,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!res.ok) {
       socket.emit("error:msg", { message: res.error });
       // resend authoritative state so the client can roll back
-      socket.emit("game:state", room.toState());
+      socket.emit("game:state", stateFor(room));
       if (room.status) void endGame(room);
       return;
     }
@@ -533,7 +548,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     const color = room.playerColor(userId);
     if (!color || color === room.takebackOfferFrom) return; // can't accept your own
     if (room.takeback(room.takebackOfferFrom)) {
-      io.to(roomId).emit("game:state", room.toState());
+      io.to(roomId).emit("game:state", stateFor(room));
     }
   });
 
@@ -613,7 +628,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   const adminRoom = (roomId: string): GameRoom | null =>
     socket.data.isAdmin ? rooms.get(roomId) ?? null : null;
 
-  const resync = (room: GameRoom) => io.to(room.id).emit("game:state", room.toState());
+  const resync = (room: GameRoom) => io.to(room.id).emit("game:state", stateFor(room));
 
   /** Best-effort audit trail for every admin:* action, gated by the config toggle. */
   const logAdmin = async (action: string, targetId?: string, detail?: Record<string, unknown>, targetType = "game") => {
@@ -656,6 +671,38 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     target?.emit("chat:message", { from: "Moderator", text: clean, ts: Date.now(), system: true });
   });
 
+  // Scoped pause — unlike admin:pause this always auto-resumes, so a
+  // moderator can never accidentally freeze someone's game indefinitely.
+  socket.on("mod:pause", ({ roomId, paused }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    const existing = modPauseTimers.get(roomId);
+    if (existing) {
+      clearTimeout(existing);
+      modPauseTimers.delete(roomId);
+    }
+    ctx.room.adminPause(paused);
+    resync(ctx.room);
+    if (paused) {
+      const timer = setTimeout(() => {
+        modPauseTimers.delete(roomId);
+        const r = rooms.get(roomId);
+        if (r && r.paused) {
+          r.adminPause(false);
+          io.to(roomId).emit("game:state", stateFor(r));
+        }
+      }, MOD_PAUSE_AUTO_RESUME_MS);
+      modPauseTimers.set(roomId, timer);
+    }
+  });
+
+  socket.on("mod:flagReview", ({ roomId, flagged }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    ctx.room.adminFlagReview(flagged);
+    resync(ctx.room);
+  });
+
   socket.on("admin:games", () => {
     if (!socket.data.isAdmin) return;
     socket.emit("admin:games", { games: liveGames() });
@@ -668,7 +715,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!room) return;
     socket.join(roomId);
     room.adminObservers.add(socket.id);
-    socket.emit("game:state", room.toState());
+    socket.emit("game:state", stateFor(room));
     void logAdmin("admin_attach", roomId);
     const cfg = await getLiveMatchConfig();
     if (cfg.notifyPlayersOnAdminAttach) {
@@ -907,7 +954,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     }
     next.start();
     io.to(next.id).emit("rematch:ready", { roomId: next.id });
-    io.to(next.id).emit("game:state", next.toState());
+    io.to(next.id).emit("game:state", stateFor(next));
   }
 });
 

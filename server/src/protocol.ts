@@ -57,6 +57,10 @@ export interface GameStateMsg {
   /** epoch ms a side's disconnect grace period started, or null if connected */
   disconnectedSince?: { w: number | null; b: number | null };
   spectatorList?: { username: string }[];
+  /** Move-timing anti-cheat scores (0..1), always computed but only ever rendered client-side for the in-game moderator. */
+  suspicion?: { w: number; b: number };
+  /** Flagged for admin review — same field the admin dashboard's LiveGameSummary already surfaces. */
+  reviewFlagged?: boolean;
 }
 
 export interface GameOverMsg {
@@ -133,6 +137,8 @@ export interface ClientToServer {
   // socket.data.isModerator AND that the caller is actually a player in roomId ----
   "mod:muteChat": (p: { roomId: string; muted: boolean }) => void;
   "mod:warn": (p: { roomId: string; text: string }) => void;
+  "mod:pause": (p: { roomId: string; paused: boolean }) => void;
+  "mod:flagReview": (p: { roomId: string; flagged: boolean }) => void;
 
   // ---- presence + direct friend challenges ----
   "presence:hello": (p: { identity: Identity }) => void;

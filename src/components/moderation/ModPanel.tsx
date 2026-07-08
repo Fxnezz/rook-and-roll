@@ -18,6 +18,13 @@ export interface ModPanelProps {
   onToggleMute: () => void;
   warnCount: number;
   onWarn: (text: string) => void;
+  paused: boolean;
+  onTogglePause: () => void;
+  reviewFlagged: boolean;
+  onToggleFlagReview: () => void;
+  suspicion: { mine: number; opponent: number };
+  gameOver: boolean;
+  actionLog: { id: number; text: string; ts: number }[];
 }
 
 /**
@@ -35,11 +42,33 @@ export function ModPanel({
   onToggleMute,
   warnCount,
   onWarn,
+  paused,
+  onTogglePause,
+  reviewFlagged,
+  onToggleFlagReview,
+  suspicion,
+  gameOver,
+  actionLog,
 }: ModPanelProps) {
   const [autoMuteThreshold, setAutoMuteThreshold] = useState(3); // 0 = off
   const [suggestDismissed, setSuggestDismissed] = useState(false);
   const [warnText, setWarnText] = useState("");
+  const [confirmingPause, setConfirmingPause] = useState(false);
   const autoMutedRef = useRef(false);
+
+  const armPause = () => {
+    if (paused) {
+      onTogglePause(); // resuming is always immediate, never needs confirmation
+      return;
+    }
+    if (!confirmingPause) {
+      setConfirmingPause(true);
+      setTimeout(() => setConfirmingPause(false), 3000);
+      return;
+    }
+    setConfirmingPause(false);
+    onTogglePause();
+  };
 
   // Suggest muting the moment the first flagged message shows up this game.
   const showSuggestion = flaggedMessages.length > 0 && !opponentMuted && !suggestDismissed;
@@ -101,6 +130,41 @@ export function ModPanel({
             </span>
           </div>
         )}
+
+        {!gameOver && (
+          <div className="mb-3 flex gap-1.5">
+            <button
+              onClick={armPause}
+              className="flex-1 rounded px-2 py-1.5 text-xs font-semibold transition-colors"
+              style={{
+                background: paused ? "var(--accent)" : confirmingPause ? "rgba(239,68,68,0.25)" : "rgba(255,255,255,0.08)",
+                color: paused ? "var(--accent-contrast)" : "white",
+              }}
+            >
+              {paused ? "Resume game" : confirmingPause ? "Confirm pause?" : "Pause game"}
+            </button>
+            <button
+              onClick={onToggleFlagReview}
+              className="flex-1 rounded px-2 py-1.5 text-xs font-semibold transition-colors"
+              style={{
+                background: reviewFlagged ? "var(--accent)" : "rgba(255,255,255,0.08)",
+                color: reviewFlagged ? "var(--accent-contrast)" : "white",
+              }}
+              title="Flags this game in the admin dashboard for review"
+            >
+              {reviewFlagged ? "Flagged for review" : "Flag for review"}
+            </button>
+          </div>
+        )}
+
+        <div className="mb-3 flex items-center justify-between rounded bg-white/5 px-2 py-1.5 text-[11px] text-white/60">
+          <span>
+            Suspicion — you: <span className="font-mono text-white/80">{Math.round(suspicion.mine * 100)}%</span>
+          </span>
+          <span>
+            {opponentUsername}: <span className="font-mono text-white/80">{Math.round(suspicion.opponent * 100)}%</span>
+          </span>
+        </div>
 
         <div className="mb-3">
           <div className="mb-1 flex items-center justify-between">
@@ -182,6 +246,34 @@ export function ModPanel({
                 <span className="text-white/80">{m.text}</span>
               </div>
             ))}
+          </div>
+        )}
+
+        {gameOver && (
+          <div className="mt-3 rounded border border-white/10 bg-white/5 p-2">
+            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-white/70">Game summary</p>
+            <ul className="space-y-0.5 text-[11px] text-white/70">
+              <li>Flagged messages: {flaggedMessages.length}</li>
+              <li>Warnings sent: {warnCount}</li>
+              <li>Opponent muted: {opponentMuted ? "yes" : "no"}</li>
+              <li>Flagged for admin review: {reviewFlagged ? "yes" : "no"}</li>
+            </ul>
+          </div>
+        )}
+
+        {actionLog.length > 0 && (
+          <div className="mt-3">
+            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-white/70">Action log</p>
+            <div className="flex flex-col gap-0.5 text-[11px] text-white/50">
+              {actionLog
+                .slice()
+                .reverse()
+                .map((l) => (
+                  <div key={l.id}>
+                    <span className="text-white/30">{new Date(l.ts).toLocaleTimeString()}</span> {l.text}
+                  </div>
+                ))}
+            </div>
           </div>
         )}
       </div>

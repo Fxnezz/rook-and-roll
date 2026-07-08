@@ -416,6 +416,7 @@ export class GameRoom {
       moveTimesMs: [...this.moveTimesMs],
       disconnectedSince: { ...this.disconnectedSince },
       spectatorList: [...this.spectatorIdentities.values()].map((s) => ({ username: s.username })),
+      reviewFlagged: this.reviewFlagged,
     };
   }
 }

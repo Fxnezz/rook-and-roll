@@ -248,6 +248,12 @@ export function useOnlineGame(identity: Identity) {
   const modWarn = useCallback((text: string) => {
     if (rid() && text.trim()) socketRef.current?.emit("mod:warn", { roomId: rid()!, text });
   }, []);
+  const modPause = useCallback((paused: boolean) => {
+    if (rid()) socketRef.current?.emit("mod:pause", { roomId: rid()!, paused });
+  }, []);
+  const modFlagReview = useCallback((flagged: boolean) => {
+    if (rid()) socketRef.current?.emit("mod:flagReview", { roomId: rid()!, flagged });
+  }, []);
   const leave = useCallback(() => {
     if (rid()) socketRef.current?.emit("room:leave", { roomId: rid()! });
     setState(INITIAL);
@@ -282,6 +288,8 @@ export function useOnlineGame(identity: Identity) {
     sendChat,
     modMuteChat,
     modWarn,
+    modPause,
+    modFlagReview,
     leave,
     clearError: () => patch({ error: null }),
   };
