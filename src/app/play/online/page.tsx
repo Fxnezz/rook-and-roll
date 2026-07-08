@@ -17,7 +17,8 @@ import { TIME_CONTROLS, type TimeControl } from "@/lib/chess/useClock";
 import { playSound, primeAudio } from "@/lib/chess/sound";
 import { useOnlineGame } from "@/lib/online/useOnlineGame";
 import type { Identity } from "@/lib/online/protocol";
-import { IconFlag, IconHandshake, IconUsers, IconUndo } from "@/components/ui/icons";
+import { IconFlag, IconHandshake, IconUsers, IconUndo, IconShield } from "@/components/ui/icons";
+import { ModPanel } from "@/components/moderation/ModPanel";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
 import { useToasts } from "@/lib/hooks/useToasts";
@@ -69,8 +70,10 @@ export default function OnlinePage() {
   const [drawCoolingDown, setDrawCoolingDown] = useState(false);
   const [lastSeenChatCount, setLastSeenChatCount] = useState(0);
   const [chatFocusSignal, setChatFocusSignal] = useState(0);
+  const [modPanelOpen, setModPanelOpen] = useState(false);
 
   const loggedIn = Boolean(session?.user);
+  const isModerator = Boolean(session?.user?.isModerator);
 
   useEffect(() => {
     if (!loggedIn) return;
@@ -453,6 +456,9 @@ export default function OnlinePage() {
             title={p?.connected ? "Connected" : "Disconnected"}
           />
           <span className="text-sm font-semibold">{p?.username ?? "—"}</span>
+          {p?.isModerator && (
+            <IconShield width={12} height={12} className="text-[var(--accent)]" aria-label="In-game moderator" />
+          )}
           {p && <span className="text-xs text-[var(--text-faint)]">{p.rating}</span>}
           <CapturedTray pieces={captured} color={isWhite ? "b" : "w"} set={settings.pieceSet} advantage={adv} />
         </div>
@@ -474,6 +480,16 @@ export default function OnlinePage() {
           <button className="btn btn-ghost" onClick={online.leave}>
             ← Leave
           </button>
+          {isModerator && state.phase === "playing" && (
+            <button
+              className="btn btn-ghost !px-2.5"
+              onClick={() => setModPanelOpen((v) => !v)}
+              aria-label="Open moderation panel"
+              title="Moderation panel"
+            >
+              <IconShield width={16} height={16} />
+            </button>
+          )}
           {state.roomId && (
             <button
               className="btn btn-ghost !py-1.5 text-sm"
@@ -669,7 +685,14 @@ export default function OnlinePage() {
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : (
-              <ChatPanel messages={state.chat} onSend={online.sendChat} disabled={state.phase === "spectating"} myUsername={identity.username} focusSignal={chatFocusSignal} />
+              <ChatPanel
+                messages={state.chat}
+                onSend={online.sendChat}
+                disabled={state.phase === "spectating"}
+                myUsername={identity.username}
+                focusSignal={chatFocusSignal}
+                isModerator={isModerator}
+              />
             )}
           </div>
         </div>
@@ -730,6 +753,13 @@ export default function OnlinePage() {
       )}
 
       {showShortcuts && <ShortcutsHelpModal onClose={() => setShowShortcuts(false)} showDraw showChat />}
+      {isModerator && modPanelOpen && state.phase === "playing" && (
+        <ModPanel
+          onClose={() => setModPanelOpen(false)}
+          opponentUsername={(state.myColor === "w" ? players?.black?.username : players?.white?.username) ?? "Opponent"}
+          flaggedMessages={state.chat.filter((m) => m.flagged).map((m) => ({ from: m.from, text: m.text, ts: m.ts }))}
+        />
+      )}
       <ToastStack toasts={toasts} />
     </div>
   );

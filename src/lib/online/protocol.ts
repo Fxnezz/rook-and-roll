@@ -29,6 +29,8 @@ export interface PlayerInfo {
   rating: number;
   color: Color;
   connected: boolean;
+  /** In-game moderator badge — visible to everyone in the room for transparency. */
+  isModerator?: boolean;
 }
 
 export interface GameOverMsg {

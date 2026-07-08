@@ -54,15 +54,17 @@ export class GameRoom {
   private lastMoveAt = 0;
   disconnectedSince: { w: number | null; b: number | null } = { w: null, b: null };
 
-  constructor(a: Identity, b: Identity, tc: TimeControlSpec, rated: boolean) {
+  constructor(a: Identity, b: Identity, tc: TimeControlSpec, rated: boolean, aIsModerator = false, bIsModerator = false) {
     this.timeControl = tc;
     this.rated = rated;
     // randomize colors
     const aWhite = Math.random() < 0.5;
     const wId = aWhite ? a : b;
     const bId = aWhite ? b : a;
-    this.white = { userId: wId.userId, username: wId.username, rating: wId.rating, color: "w", connected: true };
-    this.black = { userId: bId.userId, username: bId.username, rating: bId.rating, color: "b", connected: true };
+    const wIsModerator = aWhite ? aIsModerator : bIsModerator;
+    const bIsMod = aWhite ? bIsModerator : aIsModerator;
+    this.white = { userId: wId.userId, username: wId.username, rating: wId.rating, color: "w", connected: true, isModerator: wIsModerator };
+    this.black = { userId: bId.userId, username: bId.username, rating: bId.rating, color: "b", connected: true, isModerator: bIsMod };
     this.whiteMs = tc.initialMs ?? 0;
     this.blackMs = tc.initialMs ?? 0;
   }
@@ -370,8 +372,8 @@ export class GameRoom {
   adminSwap() {
     const w = this.white;
     const b = this.black;
-    this.white = { userId: b.userId, username: b.username, rating: b.rating, color: "w", connected: b.connected };
-    this.black = { userId: w.userId, username: w.username, rating: w.rating, color: "b", connected: w.connected };
+    this.white = { userId: b.userId, username: b.username, rating: b.rating, color: "w", connected: b.connected, isModerator: b.isModerator };
+    this.black = { userId: w.userId, username: w.username, rating: w.rating, color: "b", connected: w.connected, isModerator: w.isModerator };
   }
 
   summary(suspicionOf: (userId: string) => number = () => 0) {

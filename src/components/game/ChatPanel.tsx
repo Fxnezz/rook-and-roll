@@ -21,6 +21,9 @@ export function ChatPanel({
   disabled,
   myUsername,
   focusSignal,
+  isModerator,
+  onModMute,
+  onModWarn,
 }: {
   messages: ChatMsg[];
   onSend: (text: string) => void;
@@ -29,11 +32,16 @@ export function ChatPanel({
   myUsername?: string;
   /** Bump this (e.g. from a keyboard shortcut) to focus the message input. */
   focusSignal?: number;
+  /** Reveals flagged-message styling and an inline Mute/Warn/Ignore row — only ever true for the designated in-game moderator account. */
+  isModerator?: boolean;
+  onModMute?: () => void;
+  onModWarn?: (m: ChatMsg) => void;
 }) {
   const [text, setText] = useState("");
   const [muteOpponent, setMuteOpponent] = useState(false);
   const [hideSpectators, setHideSpectators] = useState(false);
   const [reportedKeys, setReportedKeys] = useState<Set<number>>(new Set());
+  const [ignoredFlags, setIgnoredFlags] = useState<Set<number>>(new Set());
   const [atBottom, setAtBottom] = useState(true);
   const [newSinceScroll, setNewSinceScroll] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -131,8 +139,14 @@ export function ChatPanel({
           ) : (
             visibleMessages.map((m, i) => {
               const canReport = !m.system && myUsername && m.from !== myUsername;
+              const isOpponentMsg = !m.system && myUsername && m.from !== myUsername;
+              const showFlag = isModerator && m.flagged && !ignoredFlags.has(i);
               return (
-                <div key={i} className="group flex items-start gap-1 py-0.5 text-sm">
+                <div
+                  key={i}
+                  className="group flex items-start gap-1 rounded py-0.5 px-1 text-sm"
+                  style={showFlag ? { background: "rgba(239,68,68,0.12)", boxShadow: "inset 2px 0 0 rgba(239,68,68,0.6)" } : undefined}
+                >
                   {m.system ? (
                     <span className="text-xs italic text-[var(--text-faint)]">{m.text}</span>
                   ) : (
@@ -142,7 +156,34 @@ export function ChatPanel({
                         <span className="text-[var(--text)]">{m.text}</span>
                         <span className="ml-1.5 text-[0.65rem] text-[var(--text-faint)]">{formatTime(m.ts)}</span>
                       </span>
-                      {canReport && (
+                      {isModerator && isOpponentMsg && (
+                        <span className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          <button
+                            className="rounded px-1 text-[0.65rem] font-semibold text-white/60 hover:bg-white/10 hover:text-white"
+                            onClick={() => onModMute?.()}
+                            title="Mute this player's chat"
+                          >
+                            Mute
+                          </button>
+                          <button
+                            className="rounded px-1 text-[0.65rem] font-semibold text-white/60 hover:bg-white/10 hover:text-white"
+                            onClick={() => onModWarn?.(m)}
+                            title="Warn this player"
+                          >
+                            Warn
+                          </button>
+                          {showFlag && (
+                            <button
+                              className="rounded px-1 text-[0.65rem] font-semibold text-white/60 hover:bg-white/10 hover:text-white"
+                              onClick={() => setIgnoredFlags((s) => new Set(s).add(i))}
+                              title="Dismiss flag"
+                            >
+                              Ignore
+                            </button>
+                          )}
+                        </span>
+                      )}
+                      {canReport && !isModerator && (
                         <button
                           className="shrink-0 opacity-0 transition-opacity hover:text-[var(--bad)] group-hover:opacity-100"
                           onClick={() => reportMessage(i, m)}

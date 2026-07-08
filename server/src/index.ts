@@ -129,15 +129,16 @@ function tryMatch(
       if (diff <= band) {
         q.splice(j, 1);
         q.splice(i, 1);
-        createGame(a, b, tc, rated);
+        void createGame(a, b, tc, rated);
         return tryMatch(bucket, tc, rated, mm); // keep pairing
       }
     }
   }
 }
 
-function createGame(a: QueueEntry, b: QueueEntry, tc: TimeControlSpec, rated: boolean) {
-  const room = new GameRoom(a.identity, b.identity, tc, rated);
+async function createGame(a: QueueEntry, b: QueueEntry, tc: TimeControlSpec, rated: boolean) {
+  const [aMod, bMod] = await Promise.all([getUserModeration(a.identity.userId), getUserModeration(b.identity.userId)]);
+  const room = new GameRoom(a.identity, b.identity, tc, rated, aMod.isModerator, bMod.isModerator);
   rooms.set(room.id, room);
   userRoom.set(room.white.userId, room.id);
   userRoom.set(room.black.userId, room.id);
@@ -369,7 +370,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     socket.data.username = identity.username;
     userSocket.set(identity.userId, socket.id);
 
-    createGame(
+    void createGame(
       { identity: c.fromIdentity, socketId: c.fromSocketId, rated: c.rated, joinedAt: Date.now() },
       { identity, socketId: socket.id, rated: c.rated, joinedAt: Date.now() },
       c.timeControl,
@@ -854,6 +855,8 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
       { userId: prev.white.userId, username: prev.white.username, rating: prev.white.rating, guest: prev.white.userId.startsWith("guest:") },
       prev.timeControl,
       prev.rated,
+      prev.black.isModerator,
+      prev.white.isModerator,
     );
     rooms.set(next.id, next);
     userRoom.set(next.white.userId, next.id);
