@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { IconShield, IconVolumeOff, IconVolume } from "@/components/ui/icons";
+
+interface PlayerContext {
+  found: boolean;
+  reportsReceived?: number;
+  muteCount?: number;
+  isNewAccount?: boolean;
+}
 
 const CANNED_WARN_PHRASES = [
   "Please keep the chat friendly.",
@@ -54,7 +62,22 @@ export function ModPanel({
   const [suggestDismissed, setSuggestDismissed] = useState(false);
   const [warnText, setWarnText] = useState("");
   const [confirmingPause, setConfirmingPause] = useState(false);
+  const [context, setContext] = useState<PlayerContext | null>(null);
   const autoMutedRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setContext(null);
+    fetch(`/api/mod/player-context?username=${encodeURIComponent(opponentUsername)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setContext(d);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [opponentUsername]);
 
   const armPause = () => {
     if (paused) {
@@ -101,9 +124,21 @@ export function ModPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-3">
-        <p className="mb-2 text-xs text-white/50">
-          Playing against <span className="font-semibold text-white/80">{opponentUsername}</span>
+        <p className="mb-1 text-xs text-white/50">
+          Playing against{" "}
+          <Link href={`/u/${opponentUsername}`} target="_blank" className="font-semibold text-white/80 underline hover:text-white">
+            {opponentUsername}
+          </Link>
+          {context?.isNewAccount && (
+            <span className="ml-1.5 rounded-full bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-200">new account</span>
+          )}
         </p>
+        {context?.found && (
+          <p className="mb-3 text-[11px] text-white/40">
+            {context.reportsReceived} lifetime report{context.reportsReceived === 1 ? "" : "s"} · {context.muteCount} prior admin mute
+            {context.muteCount === 1 ? "" : "s"}
+          </p>
+        )}
 
         <button
           onClick={onToggleMute}
