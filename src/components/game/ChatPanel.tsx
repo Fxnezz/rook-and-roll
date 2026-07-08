@@ -2,12 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ChatMsg } from "@/lib/online/protocol";
-import { IconVolumeOff, IconVolume } from "@/components/ui/icons";
+import { IconVolumeOff, IconVolume, IconFlag } from "@/components/ui/icons";
 
 const QUICK_EMOJI = ["👍", "😂", "😮", "😢", "♟️", "🎉"];
 const CANNED_PHRASES = ["Good luck!", "Well played", "Thanks", "Oops!", "Good game"];
 const MAX_LEN = 300;
 const COUNTER_THRESHOLD = 250;
+/** How close to the bottom (px) still counts as "at the bottom" for auto-scroll purposes. */
+const BOTTOM_THRESHOLD = 40;
+
+function formatTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
 
 export function ChatPanel({
   messages,
@@ -18,31 +24,85 @@ export function ChatPanel({
   messages: ChatMsg[];
   onSend: (text: string) => void;
   disabled?: boolean;
-  /** Used to tell "my" messages apart from the opponent's when muting. */
+  /** Used to tell "my" messages apart from the opponent's when muting, and to gate reporting/spectator-chat controls to players. */
   myUsername?: string;
 }) {
   const [text, setText] = useState("");
   const [muteOpponent, setMuteOpponent] = useState(false);
+  const [hideSpectators, setHideSpectators] = useState(false);
+  const [reportedKeys, setReportedKeys] = useState<Set<number>>(new Set());
+  const [atBottom, setAtBottom] = useState(true);
+  const [newSinceScroll, setNewSinceScroll] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const prevLenRef = useRef(messages.length);
 
-  const visibleMessages = muteOpponent
-    ? messages.filter((m) => m.system || !myUsername || m.from === myUsername)
-    : messages;
+  const visibleMessages = messages.filter((m) => {
+    if (m.system) return true;
+    if (muteOpponent && myUsername && m.from !== myUsername) return false;
+    if (hideSpectators && m.fromSpectator) return false;
+    return true;
+  });
 
   useEffect(() => {
-    // Keep the chat pinned to the bottom by scrolling its own container only —
-    // not the page (scrollIntoView would jump the mobile viewport).
+    const c = scrollRef.current;
+    if (!c) return;
+    const grew = visibleMessages.length > prevLenRef.current;
+    prevLenRef.current = visibleMessages.length;
+    if (!grew) return;
+    // Keep the chat pinned to the bottom only if the reader was already there —
+    // otherwise leave them where they are and surface a "new messages" pill.
+    if (atBottom) {
+      c.scrollTop = c.scrollHeight;
+    } else {
+      setNewSinceScroll((n) => n + 1);
+    }
+  }, [visibleMessages.length, atBottom]);
+
+  const handleScroll = () => {
+    const c = scrollRef.current;
+    if (!c) return;
+    const isAtBottom = c.scrollHeight - c.scrollTop - c.clientHeight < BOTTOM_THRESHOLD;
+    setAtBottom(isAtBottom);
+    if (isAtBottom) setNewSinceScroll(0);
+  };
+
+  const jumpToBottom = () => {
     const c = scrollRef.current;
     if (c) c.scrollTop = c.scrollHeight;
-  }, [visibleMessages.length]);
+    setAtBottom(true);
+    setNewSinceScroll(0);
+  };
 
   const send = (value: string) => {
     if (value.trim()) onSend(value);
   };
 
+  const reportMessage = async (key: number, m: ChatMsg) => {
+    setReportedKeys((s) => new Set(s).add(key));
+    try {
+      await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportedUsername: m.from, reason: "Inappropriate chat message", detail: m.text }),
+      });
+    } catch {
+      /* best-effort */
+    }
+  };
+
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-end border-b border-[var(--border)] px-2 py-1">
+      <div className="flex items-center justify-end gap-1 border-b border-[var(--border)] px-2 py-1">
+        {!disabled && (
+          <button
+            className="hover-lift flex items-center gap-1 rounded px-1.5 py-1 text-xs text-[var(--text-faint)] transition-colors hover:text-[var(--text)]"
+            onClick={() => setHideSpectators((v) => !v)}
+            aria-pressed={hideSpectators}
+            title={hideSpectators ? "Show spectator chat" : "Hide spectator chat"}
+          >
+            {hideSpectators ? "Spectators hidden" : "Hide spectators"}
+          </button>
+        )}
         <button
           className="hover-lift flex items-center gap-1 rounded px-1.5 py-1 text-xs text-[var(--text-faint)] transition-colors hover:text-[var(--text)]"
           onClick={() => setMuteOpponent((v) => !v)}
@@ -54,24 +114,51 @@ export function ChatPanel({
         </button>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2">
-        {visibleMessages.length === 0 ? (
-          <p className="py-6 text-center text-xs text-[var(--text-faint)]">
-            {muteOpponent ? "Opponent's chat is muted." : "Say hello — keep it friendly."}
-          </p>
-        ) : (
-          visibleMessages.map((m, i) => (
-            <div key={i} className="py-0.5 text-sm">
-              {m.system ? (
-                <span className="text-xs italic text-[var(--text-faint)]">{m.text}</span>
-              ) : (
-                <>
-                  <span className="font-semibold text-[var(--accent)]">{m.from}: </span>
-                  <span className="text-[var(--text)]">{m.text}</span>
-                </>
-              )}
-            </div>
-          ))
+      <div className="relative flex-1 overflow-hidden">
+        <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto px-3 py-2">
+          {visibleMessages.length === 0 ? (
+            <p className="py-6 text-center text-xs text-[var(--text-faint)]">
+              {muteOpponent ? "Opponent's chat is muted." : "Say hello — keep it friendly."}
+            </p>
+          ) : (
+            visibleMessages.map((m, i) => {
+              const canReport = !m.system && myUsername && m.from !== myUsername;
+              return (
+                <div key={i} className="group flex items-start gap-1 py-0.5 text-sm">
+                  {m.system ? (
+                    <span className="text-xs italic text-[var(--text-faint)]">{m.text}</span>
+                  ) : (
+                    <>
+                      <span className="min-w-0 flex-1">
+                        <span className="font-semibold text-[var(--accent)]">{m.from}: </span>
+                        <span className="text-[var(--text)]">{m.text}</span>
+                        <span className="ml-1.5 text-[0.65rem] text-[var(--text-faint)]">{formatTime(m.ts)}</span>
+                      </span>
+                      {canReport && (
+                        <button
+                          className="shrink-0 opacity-0 transition-opacity hover:text-[var(--bad)] group-hover:opacity-100"
+                          onClick={() => reportMessage(i, m)}
+                          disabled={reportedKeys.has(i)}
+                          aria-label="Report message"
+                          title={reportedKeys.has(i) ? "Reported" : "Report message"}
+                        >
+                          <IconFlag width={11} height={11} />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+        {!atBottom && newSinceScroll > 0 && (
+          <button
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-[var(--accent-contrast)] shadow-lg"
+            onClick={jumpToBottom}
+          >
+            {newSinceScroll} new message{newSinceScroll > 1 ? "s" : ""} ↓
+          </button>
         )}
       </div>
 

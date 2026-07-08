@@ -67,6 +67,7 @@ export default function OnlinePage() {
   const [tab, setTab] = useState<"moves" | "openings" | "chat">("moves");
   const [confirmingResign, setConfirmingResign] = useState(false);
   const [drawCoolingDown, setDrawCoolingDown] = useState(false);
+  const [lastSeenChatCount, setLastSeenChatCount] = useState(0);
 
   const loggedIn = Boolean(session?.user);
 
@@ -102,6 +103,11 @@ export default function OnlinePage() {
 
   const online = useOnlineGame(identity);
   const { state } = online;
+
+  const unreadChat = tab === "chat" ? 0 : Math.max(0, state.chat.length - lastSeenChatCount);
+  useEffect(() => {
+    if (tab === "chat") setLastSeenChatCount(state.chat.length);
+  }, [tab, state.chat.length]);
 
   // Open the socket as soon as the lobby is visible so match-finding is instant.
   useEffect(() => {
@@ -639,11 +645,16 @@ export default function OnlinePage() {
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`flex-1 border-b-2 px-4 py-2.5 text-sm font-semibold capitalize transition-colors ${
+                className={`relative flex-1 border-b-2 px-4 py-2.5 text-sm font-semibold capitalize transition-colors ${
                   tab === t ? "border-[var(--accent)] text-[var(--text)]" : "border-transparent text-[var(--text-muted)]"
                 }`}
               >
                 {t}
+                {t === "chat" && unreadChat > 0 && (
+                  <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[0.65rem] font-bold text-[var(--accent-contrast)]">
+                    {unreadChat > 9 ? "9+" : unreadChat}
+                  </span>
+                )}
               </button>
             ))}
           </div>

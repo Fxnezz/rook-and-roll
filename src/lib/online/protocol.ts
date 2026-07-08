@@ -97,6 +97,7 @@ export interface ChatMsg {
   text: string;
   ts: number;
   system?: boolean;
+  fromSpectator?: boolean;
 }
 
 export interface ServerToClientEvents {

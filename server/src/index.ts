@@ -407,6 +407,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!cfg.allowSpectators) return socket.emit("error:msg", { message: "Spectating is currently disabled." });
     socket.data.roomId = roomId;
     socket.data.userId = identity.userId;
+    socket.data.username = identity.username;
     socket.join(roomId);
     room.spectators.add(socket.id);
     room.spectatorIdentities.set(socket.id, { userId: identity.userId, username: identity.username });
@@ -571,10 +572,8 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!room) return;
     if (socket.data.muted) return; // muted users can play but not chat
     const userId = socket.data.userId;
-    if (userId) {
-      const color = room.playerColor(userId);
-      if (color && room.roomMuted[color]) return; // moderator muted this side for this game
-    }
+    const color = userId ? room.playerColor(userId) : null;
+    if (color && room.roomMuted[color]) return; // moderator muted this side for this game
     const cfg = await getLiveMatchConfig();
     if (!cfg.allowChat) return;
     if (!chatLimiter.allow(socket.id)) return;
@@ -584,6 +583,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
       from: socket.data.username ?? "Anon",
       text: clean,
       ts: Date.now(),
+      fromSpectator: !color,
     });
   });
 
