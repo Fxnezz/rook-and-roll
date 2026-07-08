@@ -3,17 +3,36 @@
 import { useEffect, useRef } from "react";
 import type { Move } from "chess.js";
 
+const FIGURINE_GLYPHS: Record<string, { w: string; b: string }> = {
+  N: { w: "♘", b: "♞" },
+  B: { w: "♗", b: "♝" },
+  R: { w: "♖", b: "♜" },
+  Q: { w: "♕", b: "♛" },
+  K: { w: "♔", b: "♚" },
+};
+
+/** Swaps the leading piece letter of a SAN string (N/B/R/Q/K) for its Unicode figurine glyph. */
+function toFigurineSan(san: string, color: "w" | "b"): string {
+  const letter = san[0];
+  const glyph = FIGURINE_GLYPHS[letter];
+  if (!glyph) return san;
+  return glyph[color] + san.slice(1);
+}
+
 export function MoveList({
   moves,
   viewPly,
   onGoToPly,
   compact = false,
+  figurineNotation = false,
 }: {
   moves: Move[];
   viewPly: number;
   onGoToPly: (ply: number) => void;
   /** Tighter row height + smaller text for fitting more moves on screen. */
   compact?: boolean;
+  /** Show piece-glyph (figurine) notation instead of letters. */
+  figurineNotation?: boolean;
 }) {
   const activeRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -63,7 +82,7 @@ export function MoveList({
             : "text-[var(--text)] hover:bg-[var(--bg-elev-2)]"
         }`}
       >
-        {move.san}
+        {figurineNotation ? toFigurineSan(move.san, move.color) : move.san}
       </button>
     );
   };

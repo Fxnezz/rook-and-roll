@@ -46,6 +46,10 @@ export interface Settings {
   opponentMoveSound: boolean;
   /** Board render size as a percentage (80-140) of its available width. */
   boardZoom: number;
+  /** Read each move aloud via the browser's speech synthesis (accessibility). */
+  speechAnnounceMoves: boolean;
+  /** Show figurine (piece-glyph) notation instead of letters in move lists. */
+  figurineNotation: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -74,6 +78,8 @@ const DEFAULTS: Settings = {
   compactMoveList: false,
   opponentMoveSound: true,
   boardZoom: 100,
+  speechAnnounceMoves: false,
+  figurineNotation: false,
 };
 
 const STORAGE_KEY = "rr.settings.v1";

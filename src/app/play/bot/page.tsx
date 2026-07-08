@@ -670,6 +670,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
                 extraArrows={[...(predictedArrow ? [predictedArrow] : []), ...(hintArrow ? [hintArrow] : []), ...threatArrows]}
                 squareColorOverride={settings.squareColorOverride}
                 colorblindMode={settings.colorblindMode}
+                speechAnnounceMoves={settings.speechAnnounceMoves}
                 pieceSizePercent={settings.pieceSize}
                 animationSpeed={settings.animationSpeed}
                 arrowColor={settings.arrowColor}
@@ -737,7 +738,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
           </div>
           <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0">
             {tab === "moves" ? (
-              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} />
+              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} />
             ) : (
               <AnalysisPanel
                 analysis={analysis}

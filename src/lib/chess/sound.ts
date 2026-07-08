@@ -16,7 +16,9 @@ export type SoundName =
   | "gameEnd"
   | "illegal"
   | "notify"
-  | "lowTime";
+  | "lowTime"
+  | "opponentConnected"
+  | "opponentDisconnected";
 
 export type SoundPack = "classic" | "retro" | "soft" | "wood";
 
@@ -131,6 +133,14 @@ const CLASSIC_RECIPES: Record<SoundName, () => void> = {
   lowTime: () => {
     tone({ freq: 1040, type: "sine", dur: 0.055, gain: 0.18 });
   },
+  opponentConnected: () => {
+    tone({ freq: 587, type: "sine", dur: 0.08, gain: 0.2 });
+    tone({ freq: 784, type: "sine", start: 0.07, dur: 0.1, gain: 0.2 });
+  },
+  opponentDisconnected: () => {
+    tone({ freq: 587, type: "sine", dur: 0.1, gain: 0.18 });
+    tone({ freq: 392, type: "sine", start: 0.08, dur: 0.14, gain: 0.18 });
+  },
 };
 
 /** 8-bit-ish square-wave bleeps. */
@@ -164,6 +174,8 @@ const RETRO_RECIPES: Record<SoundName, () => void> = {
   illegal: () => tone({ freq: 110, type: "square", dur: 0.1, gain: 0.16 }),
   notify: () => tone({ freq: 988, type: "square", dur: 0.06, gain: 0.18 }),
   lowTime: () => tone({ freq: 1318, type: "square", dur: 0.04, gain: 0.14 }),
+  opponentConnected: () => tone({ freq: 660, type: "square", start: 0.05, dur: 0.08, gain: 0.16 }),
+  opponentDisconnected: () => tone({ freq: 330, type: "square", start: 0.05, dur: 0.1, gain: 0.16 }),
 };
 
 /** Muted sine tones, longer/softer decay. */
@@ -187,6 +199,8 @@ const SOFT_RECIPES: Record<SoundName, () => void> = {
   illegal: () => tone({ freq: 180, type: "sine", dur: 0.14, gain: 0.1 }),
   notify: () => tone({ freq: 720, type: "sine", dur: 0.12, gain: 0.12 }),
   lowTime: () => tone({ freq: 880, type: "sine", dur: 0.07, gain: 0.09 }),
+  opponentConnected: () => tone({ freq: 494, type: "sine", start: 0.04, dur: 0.12, gain: 0.12 }),
+  opponentDisconnected: () => tone({ freq: 330, type: "sine", start: 0.04, dur: 0.14, gain: 0.11 }),
 };
 
 /** Heavier, noise/click-forward — a wooden-set feel. */
@@ -219,6 +233,8 @@ const WOOD_RECIPES: Record<SoundName, () => void> = {
   illegal: () => click(0.3, 0, 0.04, 400),
   notify: () => click(0.3, 0, 0.04, 2000),
   lowTime: () => click(0.25, 0, 0.03, 2400),
+  opponentConnected: () => click(0.35, 0, 0.05, 1400),
+  opponentDisconnected: () => click(0.3, 0, 0.06, 700),
 };
 
 const PACKS: Record<SoundPack, Record<SoundName, () => void>> = {

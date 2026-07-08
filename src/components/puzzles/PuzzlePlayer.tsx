@@ -145,6 +145,7 @@ export function PuzzlePlayer({
           animate={settings.animate}
           squareColorOverride={settings.squareColorOverride}
           colorblindMode={settings.colorblindMode}
+          speechAnnounceMoves={settings.speechAnnounceMoves}
           pieceSizePercent={settings.pieceSize}
           animationSpeed={settings.animationSpeed}
           arrowColor={settings.arrowColor}

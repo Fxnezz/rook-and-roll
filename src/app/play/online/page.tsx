@@ -161,6 +161,15 @@ export default function OnlinePage() {
     if (state.status) playSound("gameEnd");
   }, [state.status]);
 
+  // Opponent connect/disconnect sound (skip the initial mount).
+  const prevOpponentConnectedRef = useRef(state.opponentConnected);
+  useEffect(() => {
+    if (prevOpponentConnectedRef.current !== state.opponentConnected) {
+      playSound(state.opponentConnected ? "opponentConnected" : "opponentDisconnected");
+      prevOpponentConnectedRef.current = state.opponentConnected;
+    }
+  }, [state.opponentConnected]);
+
   // Toast whenever the opponent makes a draw/takeback/rematch offer.
   useEffect(() => {
     const prev = prevOffersRef.current;
@@ -551,6 +560,7 @@ export default function OnlinePage() {
             animate={settings.animate}
             squareColorOverride={settings.squareColorOverride}
             colorblindMode={settings.colorblindMode}
+            speechAnnounceMoves={settings.speechAnnounceMoves}
             pieceSizePercent={settings.pieceSize}
             animationSpeed={settings.animationSpeed}
             arrowColor={settings.arrowColor}
@@ -604,7 +614,7 @@ export default function OnlinePage() {
           </div>
           <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0">
             {tab === "moves" ? (
-              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} />
+              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} />
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : (

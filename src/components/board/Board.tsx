@@ -60,6 +60,8 @@ export interface BoardProps {
   /** Swap the check highlight from red to blue — red-green colorblindness can make it hard to spot against green-square themes. */
   colorblindMode?: boolean;
   onCancelPremove?: () => void;
+  /** Read each move aloud via the browser's speech synthesis, alongside the aria-live announcement. */
+  speechAnnounceMoves?: boolean;
 }
 
 interface DragState {
@@ -132,6 +134,7 @@ export function Board({
   onSetPremove,
   colorblindMode = false,
   onCancelPremove,
+  speechAnnounceMoves = false,
 }: BoardProps) {
   const effTheme: BoardTheme = {
     ...theme,
@@ -228,10 +231,15 @@ export function Board({
       const pieceName = PIECE_NAMES[mv.promotion ?? mv.piece];
       const captureText = mv.captured ? `, capturing ${COLOR_NAMES[mv.color === "w" ? "b" : "w"]} ${PIECE_NAMES[mv.captured]}` : "";
       const checkText = mv.san.includes("#") ? ", checkmate" : mv.san.includes("+") ? ", check" : "";
-      setMoveAnnouncement(`${mover} ${pieceName} to ${mv.to}${captureText}${checkText}`);
+      const text = `${mover} ${pieceName} to ${mv.to}${captureText}${checkText}`;
+      setMoveAnnouncement(text);
+      if (speechAnnounceMoves && typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+      }
     }
     prevAnnounceCount.current = count;
-  }, [snapshot.moves]);
+  }, [snapshot.moves, speechAnnounceMoves]);
 
   useEffect(() => {
     if (snapshot.status.over) {

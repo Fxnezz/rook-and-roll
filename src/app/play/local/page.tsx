@@ -227,6 +227,7 @@ export default function LocalGamePage() {
             animate={settings.animate}
             squareColorOverride={settings.squareColorOverride}
             colorblindMode={settings.colorblindMode}
+            speechAnnounceMoves={settings.speechAnnounceMoves}
             pieceSizePercent={settings.pieceSize}
             animationSpeed={settings.animationSpeed}
             arrowColor={settings.arrowColor}
@@ -285,7 +286,7 @@ export default function LocalGamePage() {
           </div>
           <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0">
             {tab === "moves" ? (
-              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} />
+              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} />
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : (

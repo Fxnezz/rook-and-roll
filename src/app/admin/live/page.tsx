@@ -307,6 +307,7 @@ export default function AdminLivePage() {
                     showCoordinates
                     squareColorOverride={settings.squareColorOverride}
                     colorblindMode={settings.colorblindMode}
+                    speechAnnounceMoves={settings.speechAnnounceMoves}
                     pieceSizePercent={settings.pieceSize}
                     boardFrame={settings.boardFrame}
                   />

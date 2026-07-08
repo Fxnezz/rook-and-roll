@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useSettings, type AnimationSpeed, type BoardFrame, type MoveInputMode } from "@/lib/chess/useSettings";
-import type { SoundPack } from "@/lib/chess/sound";
+import { playSound, setSoundPack, type SoundName, type SoundPack } from "@/lib/chess/sound";
 import { BOARD_THEMES } from "@/lib/chess/themes";
 import { PIECE_SETS, Piece } from "@/lib/pieces";
 import { IconPalette, IconVolume, IconVolumeOff, IconSparkles, IconMotion, IconRefresh, IconCheck } from "../ui/icons";
@@ -12,6 +12,21 @@ const SOUND_PACKS: { id: SoundPack; label: string }[] = [
   { id: "retro", label: "Retro" },
   { id: "soft", label: "Soft" },
   { id: "wood", label: "Wood" },
+];
+
+const SOUND_PREVIEWS: { id: SoundName; label: string }[] = [
+  { id: "move", label: "Move" },
+  { id: "capture", label: "Capture" },
+  { id: "check", label: "Check" },
+  { id: "castle", label: "Castle" },
+  { id: "promote", label: "Promote" },
+  { id: "gameStart", label: "Game start" },
+  { id: "gameEnd", label: "Game end" },
+  { id: "illegal", label: "Illegal" },
+  { id: "notify", label: "Notify" },
+  { id: "lowTime", label: "Low time" },
+  { id: "opponentConnected", label: "Opponent joined" },
+  { id: "opponentDisconnected", label: "Opponent left" },
 ];
 
 const ANIM_SPEEDS: { id: AnimationSpeed; label: string }[] = [
@@ -293,7 +308,15 @@ export function SettingsPanel() {
         </div>
 
         <span className="mb-2 mt-3 block text-xs font-semibold text-[var(--text-muted)]">Sound pack</span>
-        <Segmented options={SOUND_PACKS} value={settings.soundPack} onChange={(v) => update({ soundPack: v })} />
+        <Segmented
+          options={SOUND_PACKS}
+          value={settings.soundPack}
+          onChange={(v) => {
+            setSoundPack(v);
+            update({ soundPack: v });
+            playSound("move");
+          }}
+        />
 
         <Toggle
           label="Sound on opponent's move"
@@ -301,6 +324,19 @@ export function SettingsPanel() {
           checked={settings.opponentMoveSound}
           onChange={(v) => update({ opponentMoveSound: v })}
         />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Preview sounds</span>
+        <div className="flex flex-wrap gap-1.5">
+          {SOUND_PREVIEWS.map((s) => (
+            <button
+              key={s.id}
+              className="hover-lift rounded-md border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
+              onClick={() => playSound(s.id)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
       </Section>
 
       <div className="h-px bg-[var(--border)]" />
@@ -369,6 +405,18 @@ export function SettingsPanel() {
           description="Uses blue instead of red to flag a king in check"
           checked={settings.colorblindMode}
           onChange={(v) => update({ colorblindMode: v })}
+        />
+        <Toggle
+          label="Announce moves via speech"
+          description="Reads each move aloud using your browser's text-to-speech"
+          checked={settings.speechAnnounceMoves}
+          onChange={(v) => update({ speechAnnounceMoves: v })}
+        />
+        <Toggle
+          label="Figurine notation"
+          description="Show piece glyphs (♘ ♗ ♖) instead of letters in move lists"
+          checked={settings.figurineNotation}
+          onChange={(v) => update({ figurineNotation: v })}
         />
       </Section>
 
