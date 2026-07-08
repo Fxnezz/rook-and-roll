@@ -67,6 +67,13 @@ export function UserMenu() {
           >
             My games
           </Link>
+          <Link
+            href="/friends"
+            className="block rounded px-3 py-2 text-sm hover:bg-[var(--bg-elev)]"
+            onClick={() => setOpen(false)}
+          >
+            Friends
+          </Link>
           <button
             className="block w-full rounded px-3 py-2 text-left text-sm text-[var(--bad)] hover:bg-[var(--bg-elev)]"
             onClick={() => signOut({ callbackUrl: "/" })}
