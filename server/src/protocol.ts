@@ -134,11 +134,14 @@ export interface ClientToServer {
   "chat:send": (p: { roomId: string; text: string }) => void;
 
   // ---- in-game moderator (distinct from admin god-mode) — server re-checks
-  // socket.data.isModerator AND that the caller is actually a player in roomId ----
-  "mod:muteChat": (p: { roomId: string; muted: boolean }) => void;
-  "mod:warn": (p: { roomId: string; text: string }) => void;
+  // socket.data.isModerator AND that the caller is actually a player OR
+  // spectator in roomId. targetColor is required (and validated) when
+  // spectating, since there's no "the opponent" to infer automatically. ----
+  "mod:muteChat": (p: { roomId: string; muted: boolean; targetColor?: Color }) => void;
+  "mod:warn": (p: { roomId: string; text: string; targetColor?: Color }) => void;
   "mod:pause": (p: { roomId: string; paused: boolean }) => void;
   "mod:flagReview": (p: { roomId: string; flagged: boolean }) => void;
+  "mod:liveGames": () => void;
 
   // ---- presence + direct friend challenges ----
   "presence:hello": (p: { identity: Identity }) => void;
@@ -205,4 +208,7 @@ export interface ServerToClient {
   "admin:games": (p: { games: LiveGameSummary[] }) => void;
   "kicked": (p: { message: string }) => void;
   "chat:cleared": () => void;
+
+  // ---- in-game moderator ----
+  "mod:liveGames": (p: { games: LiveGameSummary[] }) => void;
 }

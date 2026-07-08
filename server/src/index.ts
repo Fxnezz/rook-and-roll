@@ -292,10 +292,14 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   socket.on("queue:leave", () => removeFromQueues(socket.id));
 
   // ---- presence + direct friend challenges ---------------------------------
-  socket.on("presence:hello", ({ identity }) => {
+  socket.on("presence:hello", async ({ identity }) => {
     socket.data.userId = identity.userId;
     socket.data.username = identity.username;
     userSocket.set(identity.userId, socket.id);
+    // Needed so a moderator can browse mod:liveGames without first joining a
+    // queue/room — the only other places socket.data.isModerator gets set.
+    const mod = await getUserModeration(identity.userId);
+    socket.data.isModerator = mod.isModerator;
   });
 
   socket.on("presence:query", ({ userIds }) => {
@@ -432,6 +436,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     socket.data.roomId = roomId;
     socket.data.userId = identity.userId;
     socket.data.username = identity.username;
+    socket.data.isModerator = (await getUserModeration(identity.userId)).isModerator;
     socket.join(roomId);
     room.spectators.add(socket.id);
     room.spectatorIdentities.set(socket.id, { userId: identity.userId, username: identity.username });
@@ -639,36 +644,49 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   // ---- in-game moderator (distinct from admin god-mode) ---------------------
   // socket.data.isModerator is a cached DB lookup the client cannot set, and
   // every mod:* handler additionally requires the caller to be one of the two
-  // players in the room they're targeting — never cross-room, unlike admin.
-  const modRoom = (roomId: string): { room: GameRoom; myColor: Color } | null => {
+  // players OR a spectator in the room they're targeting — never cross-room,
+  // unlike admin. When actually playing, myColor is set and the "other side"
+  // is inferred automatically (the client's targetColor is ignored for
+  // safety, so a player can never target themselves). When spectating,
+  // myColor is null and the client must explicitly pass a validated
+  // targetColor since there's no "opponent" to infer.
+  const modRoom = (roomId: string): { room: GameRoom; myColor: Color | null } | null => {
     if (!socket.data.isModerator) return null;
     const room = rooms.get(roomId);
     if (!room) return null;
     const myColor = socket.data.userId ? room.playerColor(socket.data.userId) : null;
-    if (!myColor) return null;
-    return { room, myColor };
+    if (myColor) return { room, myColor };
+    if (room.spectators.has(socket.id)) return { room, myColor: null };
+    return null;
   };
 
-  socket.on("mod:muteChat", ({ roomId, muted }) => {
+  const resolveModTarget = (ctx: { myColor: Color | null }, targetColor?: Color): Color | null => {
+    if (ctx.myColor) return ctx.myColor === "w" ? "b" : "w";
+    return targetColor === "w" || targetColor === "b" ? targetColor : null;
+  };
+
+  socket.on("mod:muteChat", ({ roomId, muted, targetColor }) => {
     const ctx = modRoom(roomId);
     if (!ctx) return;
-    const oppColor = ctx.myColor === "w" ? "b" : "w";
-    ctx.room.adminMuteChat(oppColor, muted);
+    const target = resolveModTarget(ctx, targetColor);
+    if (!target) return;
+    ctx.room.adminMuteChat(target, muted);
     resync(ctx.room);
   });
 
   // Private — delivered only to the opponent's own socket, never broadcast to
   // the room (unlike admin:whisper, which is visible to admin observers too).
-  socket.on("mod:warn", ({ roomId, text }) => {
+  socket.on("mod:warn", ({ roomId, text, targetColor }) => {
     const ctx = modRoom(roomId);
     if (!ctx) return;
+    const target = resolveModTarget(ctx, targetColor);
+    if (!target) return;
     const clean = String(text).trim().slice(0, 300);
     if (!clean) return;
-    const oppColor = ctx.myColor === "w" ? "b" : "w";
-    const oppUserId = oppColor === "w" ? ctx.room.white.userId : ctx.room.black.userId;
-    const oppSocketId = userSocket.get(oppUserId);
-    const target = oppSocketId ? io.sockets.sockets.get(oppSocketId) : undefined;
-    target?.emit("chat:message", { from: "Moderator", text: clean, ts: Date.now(), system: true });
+    const targetUserId = target === "w" ? ctx.room.white.userId : ctx.room.black.userId;
+    const targetSocketId = userSocket.get(targetUserId);
+    const targetSocket = targetSocketId ? io.sockets.sockets.get(targetSocketId) : undefined;
+    targetSocket?.emit("chat:message", { from: "Moderator", text: clean, ts: Date.now(), system: true });
   });
 
   // Scoped pause — unlike admin:pause this always auto-resumes, so a
@@ -701,6 +719,13 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!ctx) return;
     ctx.room.adminFlagReview(flagged);
     resync(ctx.room);
+  });
+
+  // Read-only live games list for the in-game moderator to spectate any
+  // public room — a narrower, non-admin-JWT-gated sibling of admin:games.
+  socket.on("mod:liveGames", () => {
+    if (!socket.data.isModerator) return;
+    socket.emit("mod:liveGames", { games: liveGames() });
   });
 
   socket.on("admin:games", () => {

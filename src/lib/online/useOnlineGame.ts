@@ -14,6 +14,7 @@ import {
   type Identity,
   type PlayerInfo,
   type TimeControlSpec,
+  type LiveGameSummary,
 } from "./protocol";
 
 type OnlineSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -43,6 +44,8 @@ export interface OnlineState {
   /** monotonic; increments when the board should fully resync from `fullState` */
   stateSeq: number;
   fullState: GameStateMsg | null;
+  /** In-game moderator's browsable "Live games" list — empty until requestLiveGames() is called. */
+  liveGames: LiveGameSummary[];
 }
 
 const INITIAL: OnlineState = {
@@ -66,6 +69,7 @@ const INITIAL: OnlineState = {
   lastServerMove: null,
   stateSeq: 0,
   fullState: null,
+  liveGames: [],
 };
 
 export function useOnlineGame(identity: Identity) {
@@ -156,6 +160,7 @@ export function useOnlineGame(identity: Identity) {
     socket.on("opponent:disconnected", () => patch({ opponentConnected: false }));
     socket.on("opponent:reconnected", () => patch({ opponentConnected: true }));
     socket.on("error:msg", ({ message }) => patch({ error: message }));
+    socket.on("mod:liveGames", ({ games }) => patch({ liveGames: games }));
 
     return socket;
   }, [patch]);
@@ -242,11 +247,11 @@ export function useOnlineGame(identity: Identity) {
   const sendChat = useCallback((text: string) => {
     if (rid() && text.trim()) socketRef.current?.emit("chat:send", { roomId: rid()!, text });
   }, []);
-  const modMuteChat = useCallback((muted: boolean) => {
-    if (rid()) socketRef.current?.emit("mod:muteChat", { roomId: rid()!, muted });
+  const modMuteChat = useCallback((muted: boolean, targetColor?: Color) => {
+    if (rid()) socketRef.current?.emit("mod:muteChat", { roomId: rid()!, muted, targetColor });
   }, []);
-  const modWarn = useCallback((text: string) => {
-    if (rid() && text.trim()) socketRef.current?.emit("mod:warn", { roomId: rid()!, text });
+  const modWarn = useCallback((text: string, targetColor?: Color) => {
+    if (rid() && text.trim()) socketRef.current?.emit("mod:warn", { roomId: rid()!, text, targetColor });
   }, []);
   const modPause = useCallback((paused: boolean) => {
     if (rid()) socketRef.current?.emit("mod:pause", { roomId: rid()!, paused });
@@ -254,6 +259,9 @@ export function useOnlineGame(identity: Identity) {
   const modFlagReview = useCallback((flagged: boolean) => {
     if (rid()) socketRef.current?.emit("mod:flagReview", { roomId: rid()!, flagged });
   }, []);
+  const requestLiveGames = useCallback(() => {
+    ensureSocket().emit("mod:liveGames");
+  }, [ensureSocket]);
   const leave = useCallback(() => {
     if (rid()) socketRef.current?.emit("room:leave", { roomId: rid()! });
     setState(INITIAL);
@@ -290,6 +298,7 @@ export function useOnlineGame(identity: Identity) {
     modWarn,
     modPause,
     modFlagReview,
+    requestLiveGames,
     leave,
     clearError: () => patch({ error: null }),
   };

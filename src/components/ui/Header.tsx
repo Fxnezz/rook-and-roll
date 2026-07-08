@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Wordmark } from "./Logo";
-import { IconSettings, IconChess, IconRobot, IconUsers, IconGrid, IconPuzzle, IconTrophy } from "./icons";
+import { IconSettings, IconChess, IconRobot, IconUsers, IconGrid, IconPuzzle, IconTrophy, IconShield } from "./icons";
 import { SlideOver } from "./SlideOver";
 import { UserMenu } from "./UserMenu";
 import { NotificationBell } from "./NotificationBell";
@@ -94,6 +94,11 @@ export function Header() {
           </nav>
         </div>
         <div className="flex items-center gap-1">
+          {session?.user?.isModerator && (
+            <Link href="/mod/live" className="btn btn-ghost !p-2" aria-label="Live games (moderator)" title="Live games">
+              <IconShield width={16} height={16} />
+            </Link>
+          )}
           <NotificationBell />
           <button
             className="group btn btn-ghost !p-2"
