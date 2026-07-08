@@ -37,6 +37,8 @@ export interface GameOverMsg {
   reason: string;
   ratingDelta?: { white: number; black: number };
   voided?: boolean;
+  /** Newly-earned achievement ids per side (empty/absent if none). */
+  achievements?: { white: string[]; black: string[] };
 }
 
 export interface GameStateMsg {

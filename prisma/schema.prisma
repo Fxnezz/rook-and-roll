@@ -82,6 +82,7 @@ model User {
   reportsFiled    Report[]        @relation("ReportsFiled")
   reportsReceived Report[]        @relation("ReportsReceived")
   warnings        Warning[]
+  achievements    UserAchievement[]
 }
 
 // A player-filed report against another player, reviewed in the admin
@@ -349,6 +350,37 @@ model Friendship {
   addressee User @relation("Addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
 
   @@unique([requesterId, addresseeId])
+}
+
+// ---------------------------------------------------------------------------
+// Achievements
+// ---------------------------------------------------------------------------
+
+// Catalog of earnable badges. Rows are seeded by the migration itself (see
+// the migration SQL) rather than a separate per-environment seed script —
+// the canonical list lives in src/lib/achievements/catalog.ts and is mirrored
+// into the migration's INSERT statements.
+model Achievement {
+  id          String @id
+  name        String
+  description String
+  category    String // milestone | streak | special
+  icon        String // emoji
+
+  users UserAchievement[]
+}
+
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  earnedAt      DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------

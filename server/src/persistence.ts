@@ -17,11 +17,16 @@ type PrismaLike = {
   game: {
     create: (a: unknown) => Promise<{ id: string }>;
     count: (a: unknown) => Promise<number>;
+    findMany: (a: unknown) => Promise<{ [k: string]: unknown }[]>;
   };
   ratingHistory: { create: (a: unknown) => Promise<unknown> };
   appConfig: { findUnique: (a: unknown) => Promise<{ key: string; value: string } | null> };
   report?: { create: (a: unknown) => Promise<unknown> };
   adminAuditLog?: { create: (a: unknown) => Promise<unknown> };
+  userAchievement?: {
+    findMany: (a: unknown) => Promise<{ achievementId: string }[]>;
+    createMany: (a: unknown) => Promise<unknown>;
+  };
 };
 
 let prisma: PrismaLike | null = null;
@@ -120,11 +125,82 @@ const RESULT_ENUM: Record<string, string> = {
   "1/2-1/2": "DRAW",
 };
 
-/** Persist a finished room and update Elo. Returns rating deltas if applied. */
+/** Checks the just-saved game against the achievement rules and awards any newly-earned ones (idempotent). Mirrors src/lib/achievements/award.ts on the Next.js side. */
+async function checkAndAwardAchievements(params: {
+  userId: string;
+  color: "w" | "b";
+  result: string;
+  category: string;
+  rated: boolean;
+  termination: string;
+}): Promise<string[]> {
+  if (!prisma?.userAchievement || params.userId.startsWith("guest:")) return [];
+  const { userId, color, result, category, rated, termination } = params;
+  const won = (result === "WHITE_WINS") === (color === "w");
+  const drew = result === "DRAW";
+
+  const totalGames = await prisma.game.count({
+    where: { OR: [{ whiteId: userId }, { blackId: userId }], NOT: { result: "ABORTED" } },
+  });
+
+  const toAward: string[] = [];
+  if (totalGames >= 1) toAward.push("first_game");
+  if (totalGames >= 10) toAward.push("ten_games");
+  if (totalGames >= 50) toAward.push("fifty_games");
+
+  if (won) {
+    toAward.push("first_win");
+    if (termination === "Checkmate") toAward.push("checkmate_win");
+    if (rated) {
+      if (category === "bullet") toAward.push("bullet_win");
+      if (category === "blitz") toAward.push("blitz_win");
+      if (category === "rapid") toAward.push("rapid_win");
+      if (category === "classical") toAward.push("classical_win");
+    }
+    const recent = (await prisma.game.findMany({
+      where: { OR: [{ whiteId: userId }, { blackId: userId }], NOT: { result: "ABORTED" } },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { result: true, whiteId: true },
+    })) as { result: string; whiteId: string | null }[];
+    let streak = 0;
+    for (const g of recent) {
+      const isWhite = g.whiteId === userId;
+      const gWon = (g.result === "WHITE_WINS") === isWhite;
+      if (gWon) streak++;
+      else break;
+    }
+    if (streak >= 3) toAward.push("win_streak_3");
+    if (streak >= 5) toAward.push("win_streak_5");
+  }
+  if (drew) toAward.push("first_draw");
+  if (toAward.length === 0) return [];
+
+  const existing = await prisma.userAchievement.findMany({
+    where: { userId, achievementId: { in: toAward } },
+    select: { achievementId: true },
+  });
+  const already = new Set(existing.map((e) => e.achievementId));
+  const newOnes = [...new Set(toAward)].filter((a) => !already.has(a));
+  if (newOnes.length === 0) return [];
+
+  await prisma.userAchievement.createMany({
+    data: newOnes.map((achievementId) => ({ userId, achievementId })),
+    skipDuplicates: true,
+  });
+  return newOnes;
+}
+
+export interface SaveGameResult {
+  ratingDelta: { white: number; black: number } | null;
+  achievements: { white: string[]; black: string[] };
+}
+
+/** Persist a finished room, update Elo, and award any newly-earned achievements. */
 export async function saveFinishedGame(
   room: GameRoom,
   kFactorMultiplier: Record<string, number> = {},
-): Promise<{ white: number; black: number } | null> {
+): Promise<SaveGameResult | null> {
   if (!enabled || !prisma || !room.status) return null;
   const cat = room.timeControl.category;
   const field = FIELD[cat];
@@ -201,7 +277,18 @@ export async function saveFinishedGame(
         }),
       ]);
     }
-    return deltas;
+
+    const rated = room.rated && whiteReal && blackReal;
+    const [whiteAch, blackAch] = await Promise.all([
+      whiteReal
+        ? checkAndAwardAchievements({ userId: room.white.userId, color: "w", result: RESULT_ENUM[result], category: cat, rated, termination: room.status.reason })
+        : Promise.resolve([]),
+      blackReal
+        ? checkAndAwardAchievements({ userId: room.black.userId, color: "b", result: RESULT_ENUM[result], category: cat, rated, termination: room.status.reason })
+        : Promise.resolve([]),
+    ]);
+
+    return { ratingDelta: deltas, achievements: { white: whiteAch, black: blackAch } };
   } catch (e) {
     console.error("[persistence] failed to save game", (e as Error).message);
     return null;

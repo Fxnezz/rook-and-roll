@@ -22,6 +22,7 @@ import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
 import { useToasts } from "@/lib/hooks/useToasts";
 import { ToastStack } from "@/components/ui/ToastStack";
+import { ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
 
 function soundFor(san: string) {
   if (san.includes("#")) return; // handled by game over
@@ -172,6 +173,17 @@ export default function OnlinePage() {
   // Game over sound
   useEffect(() => {
     if (state.status) playSound("gameEnd");
+  }, [state.status]);
+
+  // Toast any newly-earned achievements from this game.
+  useEffect(() => {
+    if (!state.status || !state.myColor) return;
+    const mine = state.myColor === "w" ? state.status.achievements?.white : state.status.achievements?.black;
+    for (const id of mine ?? []) {
+      const a = ACHIEVEMENT_BY_ID[id];
+      if (a) pushToast(`${a.icon} Achievement unlocked: ${a.name}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status]);
 
   // Opponent connect/disconnect sound (skip the initial mount).

@@ -3,6 +3,7 @@ import type { Color } from "chess.js";
 import { prisma, isDbConfigured } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth/auth";
 import { updateElo, ratingFieldFor, type RatingCategory } from "@/lib/ratings/elo";
+import { checkAndAwardAchievements } from "@/lib/achievements/award";
 
 export const runtime = "nodejs";
 
@@ -116,5 +117,14 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, id: game.id, ratingDelta, newRating }, { status: 201 });
+  const achievements = await checkAndAwardAchievements({
+    userId,
+    color: b.color,
+    result: b.result,
+    category: b.category,
+    rated,
+    termination: b.termination,
+  });
+
+  return NextResponse.json({ ok: true, id: game.id, ratingDelta, newRating, achievements }, { status: 201 });
 }

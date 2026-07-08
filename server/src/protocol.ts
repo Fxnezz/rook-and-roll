@@ -64,6 +64,8 @@ export interface GameOverMsg {
   ratingDelta?: { white: number; black: number };
   /** Voided by a moderator: no rating/history impact, shown distinctly to both players. */
   voided?: boolean;
+  /** Newly-earned achievement ids per side (empty/absent if none). */
+  achievements?: { white: string[]; black: string[] };
 }
 
 export interface ChatMsg {

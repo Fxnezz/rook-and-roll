@@ -29,6 +29,9 @@ import { CheatPanel, type CheatLogEntry } from "@/components/cheats/CheatPanel";
 import { CheatEffects, VOICE_LINES } from "@/components/cheats/CheatEffects";
 import { illegalCastleFen, clonePieceFen, swapPiecesFen, promoteAnyPawnFen } from "@/lib/cheats/moveManipulation";
 import { DEFAULT_BOT_OVERRIDE, resolveOverriddenMove, type BotOverride } from "@/lib/cheats/botManipulation";
+import { useToasts } from "@/lib/hooks/useToasts";
+import { ToastStack } from "@/components/ui/ToastStack";
+import { ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -93,6 +96,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
   const [cheatLog, setCheatLog] = useState<CheatLogEntry[]>([]);
   const cheatLogSeq = useRef(0);
   const [assistRunning, setAssistRunning] = useState(false);
+  const { toasts, push: pushToast } = useToasts();
 
   const logCheat = useCallback((text: string) => {
     cheatLogSeq.current += 1;
@@ -129,7 +133,15 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }).catch(() => {});
+      })
+        .then((r) => r.json())
+        .then((d: { achievements?: string[] }) => {
+          for (const id of d.achievements ?? []) {
+            const a = ACHIEVEMENT_BY_ID[id];
+            if (a) pushToast(`${a.icon} Achievement unlocked: ${a.name}`);
+          }
+        })
+        .catch(() => {});
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [session, snapshot.moves, tc, tier, humanColor, game],
@@ -775,6 +787,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
       )}
 
       {showShortcuts && <ShortcutsHelpModal onClose={() => setShowShortcuts(false)} />}
+      <ToastStack toasts={toasts} />
         </div>
       )}
     </CheatGate>

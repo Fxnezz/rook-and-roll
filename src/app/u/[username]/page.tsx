@@ -6,6 +6,7 @@ import { UnifiedGameStats } from "@/components/profile/UnifiedGameStats";
 import { ReportButton } from "@/components/profile/ReportButton";
 import { DbNotice } from "@/components/ui/DbNotice";
 import { auth } from "@/lib/auth/auth";
+import { ACHIEVEMENTS } from "@/lib/achievements/catalog";
 
 const HIGHER_IS_BETTER_GAMES = [
   "snake",
@@ -83,7 +84,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   const canReport = session?.user?.id && session.user.id !== user.id;
 
   const orFilter = [{ whiteId: user.id }, { blackId: user.id }];
-  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats] = await Promise.all([
+  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats, earnedAchievements] = await Promise.all([
     prisma.game.count({
       where: {
         OR: [
@@ -123,6 +124,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       _min: { score: true },
     }),
     prisma.wordGameStats.findUnique({ where: { userId: user.id } }),
+    prisma.userAchievement.findMany({ where: { userId: user.id }, select: { achievementId: true, earnedAt: true } }),
   ]);
 
   const highScores = [
@@ -177,7 +179,38 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       />
 
       <UnifiedGameStats gameRatings={gameRatings} highScores={highScores} wordStats={wordStats} />
+
+      <AchievementsSection earned={earnedAchievements} />
     </div>
+  );
+}
+
+function AchievementsSection({ earned }: { earned: { achievementId: string; earnedAt: Date }[] }) {
+  const earnedMap = new Map(earned.map((e) => [e.achievementId, e.earnedAt]));
+  return (
+    <section className="mt-8">
+      <h2 className="label mb-3">
+        Achievements ({earned.length}/{ACHIEVEMENTS.length})
+      </h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+        {ACHIEVEMENTS.map((a) => {
+          const earnedAt = earnedMap.get(a.id);
+          const isEarned = Boolean(earnedAt);
+          return (
+            <div
+              key={a.id}
+              className="panel flex flex-col items-center gap-1.5 p-3 text-center"
+              style={{ opacity: isEarned ? 1 : 0.4 }}
+              title={isEarned ? `Earned ${earnedAt!.toLocaleDateString()}` : "Not yet earned"}
+            >
+              <span className="text-2xl">{a.icon}</span>
+              <span className="text-xs font-semibold">{a.name}</span>
+              <span className="text-[0.65rem] text-[var(--text-faint)]">{a.description}</span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

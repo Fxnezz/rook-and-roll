@@ -163,8 +163,8 @@ function removeFromQueues(socketId: string) {
 async function endGame(room: GameRoom) {
   if (!room.status) return;
   const cfg = await getLiveMatchConfig();
-  const deltas = room.voided ? null : await saveFinishedGame(room, cfg.kFactorMultiplier);
-  const over = { ...room.status, ratingDelta: deltas ?? undefined };
+  const saved = room.voided ? null : await saveFinishedGame(room, cfg.kFactorMultiplier);
+  const over = { ...room.status, ratingDelta: saved?.ratingDelta ?? undefined, achievements: saved?.achievements };
   io.to(room.id).emit("game:over", over);
   io.to(room.id).emit("game:state", { ...room.toState(), status: over });
   // auto-flag suspicious play as a report in the same admin queue as player reports
