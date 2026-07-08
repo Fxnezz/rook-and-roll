@@ -66,6 +66,13 @@ export interface AdminPiece {
   color: Color;
 }
 
+export interface ChallengeInfo {
+  id: string;
+  from: { userId: string; username: string; rating: number };
+  timeControl: TimeControlSpec;
+  rated: boolean;
+}
+
 export interface LiveGameSummary {
   roomId: string;
   white: string;
@@ -107,6 +114,11 @@ export interface ServerToClientEvents {
   "opponent:disconnected": (p: { graceMs: number }) => void;
   "opponent:reconnected": () => void;
   "error:msg": (p: { message: string }) => void;
+  "presence:status": (p: { online: string[] }) => void;
+  "challenge:received": (p: ChallengeInfo) => void;
+  "challenge:declined": (p: { challengeId: string }) => void;
+  "challenge:cancelled": (p: { challengeId: string }) => void;
+  "challenge:error": (p: { challengeId?: string; message: string }) => void;
   "admin:ok": (p: { games: LiveGameSummary[] }) => void;
   "admin:denied": () => void;
   "admin:games": (p: { games: LiveGameSummary[] }) => void;
@@ -132,6 +144,12 @@ export interface ClientToServerEvents {
   "rematch:offer": (p: { roomId: string }) => void;
   "rematch:accept": (p: { roomId: string }) => void;
   "chat:send": (p: { roomId: string; text: string }) => void;
+  "presence:hello": (p: { identity: Identity }) => void;
+  "presence:query": (p: { userIds: string[] }) => void;
+  "challenge:send": (p: { identity: Identity; toUserId: string; timeControl: TimeControlSpec; rated: boolean }) => void;
+  "challenge:accept": (p: { challengeId: string; identity: Identity }) => void;
+  "challenge:decline": (p: { challengeId: string }) => void;
+  "challenge:cancel": (p: { challengeId: string }) => void;
   "admin:hello": (p: { token: string }) => void;
   "admin:games": () => void;
   "admin:attach": (p: { roomId: string }) => void;

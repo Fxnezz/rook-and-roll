@@ -209,6 +209,17 @@ export function useOnlineGame(identity: Identity) {
     [ensureSocket],
   );
 
+  /** Join a room the caller already knows about (e.g. from an accepted friend challenge) as a player. */
+  const joinRoom = useCallback(
+    (roomId: string) => {
+      const socket = ensureSocket();
+      roomRef.current = roomId;
+      setState((s) => ({ ...s, phase: "playing" }));
+      socket.emit("room:join", { roomId, identity: identityRef.current });
+    },
+    [ensureSocket],
+  );
+
   const rid = () => roomRef.current;
   const sendMove = useCallback((from: string, to: string, promotion?: string) => {
     if (rid()) socketRef.current?.emit("move", { roomId: rid()!, from, to, promotion });
@@ -251,6 +262,7 @@ export function useOnlineGame(identity: Identity) {
     findGame,
     cancelSearch,
     spectate,
+    joinRoom,
     sendMove,
     resign,
     abort,

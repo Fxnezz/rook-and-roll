@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "@/components/board/Board";
@@ -106,6 +107,18 @@ export default function OnlinePage() {
     online.connect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Arriving from an accepted friend challenge: join that room directly instead of the lobby.
+  const searchParams = useSearchParams();
+  const directRoom = searchParams.get("room");
+  const joinedDirectRoom = useRef(false);
+  useEffect(() => {
+    if (directRoom && !joinedDirectRoom.current && identity.userId) {
+      joinedDirectRoom.current = true;
+      online.joinRoom(directRoom);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [directRoom, identity.userId]);
 
   const [manualFlip, setManualFlip] = useState(false);
   const baseOrientation: Color = state.myColor ?? "w";

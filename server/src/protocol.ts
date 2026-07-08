@@ -78,6 +78,13 @@ export interface AdminPiece {
   color: Color;
 }
 
+export interface ChallengeInfo {
+  id: string;
+  from: { userId: string; username: string; rating: number };
+  timeControl: TimeControlSpec;
+  rated: boolean;
+}
+
 export interface LiveGameSummary {
   roomId: string;
   white: string;
@@ -114,6 +121,14 @@ export interface ClientToServer {
   "rematch:offer": (p: { roomId: string }) => void;
   "rematch:accept": (p: { roomId: string }) => void;
   "chat:send": (p: { roomId: string; text: string }) => void;
+
+  // ---- presence + direct friend challenges ----
+  "presence:hello": (p: { identity: Identity }) => void;
+  "presence:query": (p: { userIds: string[] }) => void;
+  "challenge:send": (p: { identity: Identity; toUserId: string; timeControl: TimeControlSpec; rated: boolean }) => void;
+  "challenge:accept": (p: { challengeId: string; identity: Identity }) => void;
+  "challenge:decline": (p: { challengeId: string }) => void;
+  "challenge:cancel": (p: { challengeId: string }) => void;
 
   // ---- admin (god mode) — every one re-verified server-side ----
   "admin:hello": (p: { token: string }) => void;
@@ -158,6 +173,13 @@ export interface ServerToClient {
   "opponent:disconnected": (p: { graceMs: number }) => void;
   "opponent:reconnected": () => void;
   "error:msg": (p: { message: string }) => void;
+
+  // ---- presence + direct friend challenges ----
+  "presence:status": (p: { online: string[] }) => void;
+  "challenge:received": (p: ChallengeInfo) => void;
+  "challenge:declined": (p: { challengeId: string }) => void;
+  "challenge:cancelled": (p: { challengeId: string }) => void;
+  "challenge:error": (p: { challengeId?: string; message: string }) => void;
 
   // ---- admin ----
   "admin:ok": (p: { games: LiveGameSummary[] }) => void;

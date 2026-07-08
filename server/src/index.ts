@@ -17,6 +17,8 @@ import type {
   TimeControlSpec,
 } from "./protocol.js";
 
+const CHALLENGE_TTL_MS = 2 * 60_000;
+
 const PORT = Number(process.env.PORT ?? 4000);
 const CLIENT_ORIGIN = (process.env.CLIENT_ORIGIN ?? "http://localhost:3000")
   .split(",")
@@ -53,6 +55,18 @@ interface QueueEntry {
   joinedAt: number;
 }
 const queues = new Map<string, QueueEntry[]>(); // bucket -> entries
+
+interface Challenge {
+  id: string;
+  fromUserId: string;
+  fromSocketId: string;
+  fromIdentity: Identity;
+  toUserId: string;
+  timeControl: TimeControlSpec;
+  rated: boolean;
+  createdAt: number;
+}
+const challenges = new Map<string, Challenge>();
 
 const moveLimiter = new RateLimiter(20, 5_000); // 20 moves / 5s per socket
 const chatLimiter = new RateLimiter(8, 5_000);
@@ -197,6 +211,14 @@ setInterval(() => {
   }
 }, 60_000);
 
+// sweep expired/unanswered challenges
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, c] of challenges) {
+    if (now - c.createdAt > CHALLENGE_TTL_MS) challenges.delete(id);
+  }
+}, 30_000);
+
 // ---- socket handlers -------------------------------------------------------
 io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<string, never>, SocketData>) => {
   socket.on("queue:join", async ({ identity, timeControl, rated }) => {
@@ -248,6 +270,109 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   });
 
   socket.on("queue:leave", () => removeFromQueues(socket.id));
+
+  // ---- presence + direct friend challenges ---------------------------------
+  socket.on("presence:hello", ({ identity }) => {
+    socket.data.userId = identity.userId;
+    socket.data.username = identity.username;
+    userSocket.set(identity.userId, socket.id);
+  });
+
+  socket.on("presence:query", ({ userIds }) => {
+    socket.emit("presence:status", { online: userIds.filter((id) => userSocket.has(id)) });
+  });
+
+  socket.on("challenge:send", ({ identity, toUserId, timeControl, rated }) => {
+    socket.data.userId = identity.userId;
+    socket.data.username = identity.username;
+    userSocket.set(identity.userId, socket.id);
+
+    if (userRoom.has(identity.userId)) {
+      socket.emit("challenge:error", { message: "Finish your current game first." });
+      return;
+    }
+    if (userRoom.has(toUserId)) {
+      socket.emit("challenge:error", { message: "That player is already in a game." });
+      return;
+    }
+    const toSocketId = userSocket.get(toUserId);
+    if (!toSocketId) {
+      socket.emit("challenge:error", { message: "That player isn't online." });
+      return;
+    }
+
+    const isRated = rated && !identity.guest;
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    challenges.set(id, {
+      id,
+      fromUserId: identity.userId,
+      fromSocketId: socket.id,
+      fromIdentity: identity,
+      toUserId,
+      timeControl,
+      rated: isRated,
+      createdAt: Date.now(),
+    });
+    io.to(toSocketId).emit("challenge:received", {
+      id,
+      from: { userId: identity.userId, username: identity.username, rating: identity.rating },
+      timeControl,
+      rated: isRated,
+    });
+  });
+
+  socket.on("challenge:decline", ({ challengeId }) => {
+    const c = challenges.get(challengeId);
+    if (!c) return;
+    challenges.delete(challengeId);
+    const fromSock = io.sockets.sockets.get(c.fromSocketId);
+    fromSock?.emit("challenge:declined", { challengeId });
+  });
+
+  socket.on("challenge:cancel", ({ challengeId }) => {
+    const c = challenges.get(challengeId);
+    if (!c || c.fromSocketId !== socket.id) return;
+    challenges.delete(challengeId);
+    const toSock = userSocket.get(c.toUserId);
+    if (toSock) io.to(toSock).emit("challenge:cancelled", { challengeId });
+  });
+
+  socket.on("challenge:accept", ({ challengeId, identity }) => {
+    const c = challenges.get(challengeId);
+    if (!c) {
+      socket.emit("challenge:error", { challengeId, message: "This challenge is no longer available." });
+      return;
+    }
+    if (c.toUserId !== identity.userId) return;
+    if (Date.now() - c.createdAt > CHALLENGE_TTL_MS) {
+      challenges.delete(challengeId);
+      socket.emit("challenge:error", { challengeId, message: "Challenge expired." });
+      return;
+    }
+    if (userRoom.has(c.fromUserId) || userRoom.has(c.toUserId)) {
+      challenges.delete(challengeId);
+      socket.emit("challenge:error", { challengeId, message: "One of you is already in a game." });
+      return;
+    }
+    const fromSock = io.sockets.sockets.get(c.fromSocketId);
+    if (!fromSock) {
+      challenges.delete(challengeId);
+      socket.emit("challenge:error", { challengeId, message: "The challenger is no longer connected." });
+      return;
+    }
+
+    challenges.delete(challengeId);
+    socket.data.userId = identity.userId;
+    socket.data.username = identity.username;
+    userSocket.set(identity.userId, socket.id);
+
+    createGame(
+      { identity: c.fromIdentity, socketId: c.fromSocketId, rated: c.rated, joinedAt: Date.now() },
+      { identity, socketId: socket.id, rated: c.rated, joinedAt: Date.now() },
+      c.timeControl,
+      c.rated,
+    );
+  });
 
   socket.on("room:join", async ({ roomId, identity }) => {
     const room = rooms.get(roomId);
@@ -681,6 +806,13 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     const userId = socket.data.userId;
     const roomId = socket.data.roomId;
     if (userId) userSocket.delete(userId);
+    for (const [id, c] of challenges) {
+      if (c.fromSocketId === socket.id) {
+        challenges.delete(id);
+        const toSock = userSocket.get(c.toUserId);
+        if (toSock) io.to(toSock).emit("challenge:cancelled", { challengeId: id });
+      }
+    }
     if (socket.data.isAdmin) {
       for (const room of rooms.values()) room.adminObservers.delete(socket.id);
     }
