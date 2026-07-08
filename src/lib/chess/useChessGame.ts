@@ -33,6 +33,8 @@ export interface GameSnapshot {
   checkedKingSquare: Square | null;
   status: GameStatus;
   captured: CapturedInfo;
+  /** Move-comment text (which may embed a leading NAG token, e.g. "!! text") keyed by ply. */
+  commentsByPly: Record<number, string>;
 }
 
 const PIECE_VALUE: Record<PieceSymbol, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
@@ -119,6 +121,7 @@ export interface UseChessGame {
   loadPgn: (pgn: string) => boolean;
   getPgn: () => string;
   getFen: () => string;
+  setCommentAtPly: (ply: number, comment: string) => void;
 }
 
 export function useChessGame(initialFen: string = START_FEN): UseChessGame {
@@ -138,6 +141,12 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
     const isLive = ply === moves.length;
     const last = ply > 0 ? moves[ply - 1] : null;
     const check = view.isCheck();
+    const commentsByFen = new Map(game.getComments().map((c) => [c.fen, c.comment]));
+    const commentsByPly: Record<number, string> = {};
+    moves.forEach((mv, i) => {
+      const c = commentsByFen.get(mv.after);
+      if (c) commentsByPly[i + 1] = c;
+    });
     return {
       fen: view.fen(),
       board: view.board(),
@@ -150,6 +159,7 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
       checkedKingSquare: check ? findKing(view, view.turn()) : null,
       status: isLive ? computeStatus(game) : { over: false },
       captured: computeCaptured(view),
+      commentsByPly,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewPly, version]);
@@ -253,6 +263,26 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
   const getPgn = useCallback(() => gameRef.current.pgn(), []);
   const getFen = useCallback(() => gameRef.current.fen(), []);
 
+  /** Attach (or clear) a comment on the position reached after ply `ply` (1-indexed). */
+  const setCommentAtPly = useCallback(
+    (ply: number, comment: string) => {
+      const game = gameRef.current;
+      const moves = game.history({ verbose: true }) as Move[];
+      if (ply <= 0 || ply > moves.length) return;
+      const toUndo = moves.length - ply;
+      const undone: { from: Square; to: Square; promotion?: PieceSymbol }[] = [];
+      for (let i = 0; i < toUndo; i++) {
+        const u = game.undo();
+        if (u) undone.unshift({ from: u.from, to: u.to, promotion: u.promotion });
+      }
+      if (comment.trim()) game.setComment(comment.trim());
+      else game.removeComment();
+      for (const mv of undone) game.move(mv);
+      bump();
+    },
+    [bump],
+  );
+
   return {
     snapshot,
     makeMove,
@@ -268,5 +298,6 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
     loadPgn,
     getPgn,
     getFen,
+    setCommentAtPly,
   };
 }

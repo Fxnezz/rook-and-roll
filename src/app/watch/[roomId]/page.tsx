@@ -93,7 +93,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
               Moves · {state.fullState?.spectators ?? 0} watching
             </div>
             <div className="flex-1 overflow-hidden">
-              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} />
+              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
             </div>
           </div>
         </div>

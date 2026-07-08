@@ -27,6 +27,7 @@ import {
   clampCustomIncrementSec,
   customTimeControlId,
 } from "@/lib/chess/useClock";
+import { NAG_SYMBOLS, parseAnnotation, formatAnnotation, type NagSymbol } from "@/lib/chess/nag";
 
 const CUSTOM_TC_STORAGE_KEY = "rr.customTimeControl.v1";
 
@@ -222,6 +223,23 @@ export default function LocalGamePage() {
   const canBack = snapshot.viewPly > 0;
   const canForward = snapshot.viewPly < snapshot.moves.length;
 
+  // Move annotations (NAG + free-text comment) for the currently-viewed move.
+  const annotated = parseAnnotation(snapshot.commentsByPly[snapshot.viewPly]);
+  const [annotationText, setAnnotationText] = useState(annotated.text);
+  useEffect(() => {
+    setAnnotationText(parseAnnotation(snapshot.commentsByPly[snapshot.viewPly]).text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.viewPly]);
+
+  const setNag = (nag: NagSymbol | null) => {
+    if (snapshot.viewPly <= 0) return;
+    game.setCommentAtPly(snapshot.viewPly, formatAnnotation(nag, annotationText));
+  };
+  const commitAnnotationText = () => {
+    if (snapshot.viewPly <= 0) return;
+    game.setCommentAtPly(snapshot.viewPly, formatAnnotation(annotated.nag, annotationText));
+  };
+
   const statusText = useMemo(() => {
     if (status.over) {
       const r =
@@ -401,9 +419,44 @@ export default function LocalGamePage() {
               </button>
             ))}
           </div>
-          <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0">
+          <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0 lg:flex lg:flex-col">
             {tab === "moves" ? (
-              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} />
+              <>
+                <div className="flex-1 overflow-hidden">
+                  <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+                </div>
+                {snapshot.viewPly > 0 && (
+                  <div className="shrink-0 border-t border-[var(--border)] p-2">
+                    <span className="label mb-1.5 block">
+                      Annotate {snapshot.moves[snapshot.viewPly - 1]?.san}
+                    </span>
+                    <div className="mb-1.5 flex flex-wrap gap-1">
+                      {NAG_SYMBOLS.map((s) => (
+                        <button
+                          key={s}
+                          className="hover-lift rounded-md border px-2 py-0.5 font-mono text-xs transition-colors"
+                          style={{
+                            borderColor: annotated.nag === s ? "var(--accent)" : "var(--border)",
+                            background: annotated.nag === s ? "var(--bg-elev-2)" : "transparent",
+                            color: annotated.nag === s ? "var(--accent)" : "var(--text-muted)",
+                          }}
+                          onClick={() => setNag(annotated.nag === s ? null : s)}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      className="input !py-1 text-xs"
+                      placeholder="Add a note…"
+                      value={annotationText}
+                      onChange={(e) => setAnnotationText(e.target.value)}
+                      onBlur={commitAnnotationText}
+                      onKeyDown={(e) => e.key === "Enter" && commitAnnotationText()}
+                    />
+                  </div>
+                )}
+              </>
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : (

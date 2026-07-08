@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { Move } from "chess.js";
+import { parseAnnotation } from "@/lib/chess/nag";
 
 const FIGURINE_GLYPHS: Record<string, { w: string; b: string }> = {
   N: { w: "♘", b: "♞" },
@@ -25,6 +26,7 @@ export function MoveList({
   onGoToPly,
   compact = false,
   figurineNotation = false,
+  commentsByPly,
 }: {
   moves: Move[];
   viewPly: number;
@@ -33,6 +35,8 @@ export function MoveList({
   compact?: boolean;
   /** Show piece-glyph (figurine) notation instead of letters. */
   figurineNotation?: boolean;
+  /** Move comments (optionally NAG-prefixed) keyed by ply, for the annotation indicator. */
+  commentsByPly?: Record<number, string>;
 }) {
   const activeRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -72,17 +76,22 @@ export function MoveList({
   const Cell = ({ move, ply }: { move?: Move; ply: number }) => {
     if (!move) return <span className="px-2" />;
     const active = ply === viewPly;
+    const comment = commentsByPly?.[ply];
+    const { nag, text } = parseAnnotation(comment);
     return (
       <button
         ref={active ? activeRef : undefined}
         onClick={() => onGoToPly(ply)}
-        className={`rounded text-left font-mono transition-colors ${compact ? "px-1.5 py-0.5 text-xs" : "px-2 py-1 text-sm"} ${
+        title={text || undefined}
+        className={`relative rounded text-left font-mono transition-colors ${compact ? "px-1.5 py-0.5 text-xs" : "px-2 py-1 text-sm"} ${
           active
             ? "bg-[var(--accent)] text-[var(--accent-contrast)] font-semibold"
             : "text-[var(--text)] hover:bg-[var(--bg-elev-2)]"
         }`}
       >
         {figurineNotation ? toFigurineSan(move.san, move.color) : move.san}
+        {nag && <span className="ml-0.5">{nag}</span>}
+        {text && <span className="ml-0.5 align-super text-[0.55em] text-[var(--accent)]">●</span>}
       </button>
     );
   };
