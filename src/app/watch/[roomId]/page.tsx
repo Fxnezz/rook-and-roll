@@ -78,7 +78,9 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   const paused = Boolean(state.fullState?.paused);
   const reviewFlagged = Boolean(state.fullState?.reviewFlagged);
   const suspicion = { mine: 0, opponent: state.fullState?.suspicion?.[targetColor] ?? 0 };
-  const flaggedMessages = state.chat.filter((m) => m.flagged).map((m) => ({ from: m.from, text: m.text, ts: m.ts }));
+  const flaggedMessages = state.chat
+    .filter((m) => m.flagged)
+    .map((m) => ({ from: m.from, text: m.text, ts: m.ts, severity: m.flagSeverity, reasons: m.flagReasons }));
 
   const logMod = (text: string) => setModLog((l) => [...l, { id: l.length, text, ts: Date.now() }]);
   const toggleMute = () => {

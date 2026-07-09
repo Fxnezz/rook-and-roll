@@ -4,6 +4,7 @@ import cors from "cors";
 import { Server, type Socket } from "socket.io";
 import { GameRoom } from "./GameRoom.js";
 import { cleanChat, containsProfanity } from "./chat.js";
+import { analyzeChat, clearChatHistory } from "./chatDetection.js";
 import { RateLimiter, CorrelationTracker } from "./anticheat.js";
 import { initPersistence, saveFinishedGame, getUserModeration, auditAdminAction, fileAutomatedReport } from "./persistence.js";
 import { getLiveMatchConfig } from "./liveConfig.js";
@@ -201,6 +202,7 @@ async function endGame(room: GameRoom) {
   }
   userRoom.delete(room.white.userId);
   userRoom.delete(room.black.userId);
+  clearChatHistory(room.id, [room.white.userId, room.black.userId]);
 }
 
 // ---- flag / clock sync loop ------------------------------------------------
@@ -608,12 +610,15 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!chatLimiter.allow(socket.id)) return;
     const clean = cleanChat(text);
     if (!clean) return;
+    const signal = analyzeChat(`${roomId}:${userId ?? socket.id}`, text, containsProfanity(text));
     io.to(roomId).emit("chat:message", {
       from: socket.data.username ?? "Anon",
       text: clean,
       ts: Date.now(),
       fromSpectator: !color,
-      flagged: containsProfanity(text),
+      flagged: signal.flagged,
+      flagSeverity: signal.flagged ? signal.severity : undefined,
+      flagReasons: signal.flagged ? signal.reasons : undefined,
     });
   });
 

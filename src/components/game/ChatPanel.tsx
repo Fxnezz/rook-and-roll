@@ -141,11 +141,12 @@ export function ChatPanel({
               const canReport = !m.system && myUsername && m.from !== myUsername;
               const isOpponentMsg = !m.system && myUsername && m.from !== myUsername;
               const showFlag = isModerator && m.flagged && !ignoredFlags.has(i);
+              const flagOpacity = m.flagSeverity === "high" ? 0.18 : m.flagSeverity === "medium" ? 0.11 : 0.06;
               return (
                 <div
                   key={i}
                   className="group flex items-start gap-1 rounded py-0.5 px-1 text-sm"
-                  style={showFlag ? { background: "rgba(239,68,68,0.12)", boxShadow: "inset 2px 0 0 rgba(239,68,68,0.6)" } : undefined}
+                  style={showFlag ? { background: `rgba(239,68,68,${flagOpacity})`, boxShadow: "inset 2px 0 0 rgba(239,68,68,0.6)" } : undefined}
                 >
                   {m.system ? (
                     <span className="text-xs italic text-[var(--text-faint)]">{m.text}</span>
@@ -155,6 +156,11 @@ export function ChatPanel({
                         <span className="font-semibold text-[var(--accent)]">{m.from}: </span>
                         <span className="text-[var(--text)]">{m.text}</span>
                         <span className="ml-1.5 text-[0.65rem] text-[var(--text-faint)]">{formatTime(m.ts)}</span>
+                        {showFlag && m.flagReasons && (
+                          <span className="ml-1.5 text-[0.6rem] font-semibold uppercase tracking-wide text-red-400/80">
+                            {m.flagSeverity} · {m.flagReasons.join(", ")}
+                          </span>
+                        )}
                       </span>
                       {isModerator && isOpponentMsg && (
                         <span className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">

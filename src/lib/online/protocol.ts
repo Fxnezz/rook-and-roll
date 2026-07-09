@@ -104,8 +104,10 @@ export interface ChatMsg {
   ts: number;
   system?: boolean;
   fromSpectator?: boolean;
-  /** Server-detected profanity. Computed for every message but only ever rendered client-side for the in-game moderator. */
+  /** Server-detected abuse signal (profanity, caps, repeat, flooding). Computed for every message but only ever rendered client-side for the in-game moderator. */
   flagged?: boolean;
+  flagSeverity?: "low" | "medium" | "high";
+  flagReasons?: string[];
 }
 
 export interface ServerToClientEvents {

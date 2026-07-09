@@ -450,7 +450,9 @@ export default function OnlinePage() {
   const opponentColor: Color | null = state.myColor === "w" ? "b" : state.myColor === "b" ? "w" : null;
   const opponentUsername = (opponentColor === "w" ? players?.white?.username : players?.black?.username) ?? "Opponent";
   const opponentMuted = Boolean(opponentColor && state.fullState?.roomMuted?.[opponentColor]);
-  const flaggedMessages = state.chat.filter((m) => m.flagged).map((m) => ({ from: m.from, text: m.text, ts: m.ts }));
+  const flaggedMessages = state.chat
+    .filter((m) => m.flagged)
+    .map((m) => ({ from: m.from, text: m.text, ts: m.ts, severity: m.flagSeverity, reasons: m.flagReasons }));
   const paused = Boolean(state.fullState?.paused);
   const reviewFlagged = Boolean(state.fullState?.reviewFlagged);
   const suspicion = {

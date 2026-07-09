@@ -21,7 +21,7 @@ const CANNED_WARN_PHRASES = [
 export interface ModPanelProps {
   onClose: () => void;
   opponentUsername: string;
-  flaggedMessages: { from: string; text: string; ts: number }[];
+  flaggedMessages: { from: string; text: string; ts: number; severity?: "low" | "medium" | "high"; reasons?: string[] }[];
   opponentMuted: boolean;
   onToggleMute: () => void;
   warnCount: number;
@@ -63,6 +63,7 @@ export function ModPanel({
   const [warnText, setWarnText] = useState("");
   const [confirmingPause, setConfirmingPause] = useState(false);
   const [context, setContext] = useState<PlayerContext | null>(null);
+  const [dismissed, setDismissed] = useState<Set<number>>(new Set());
   const autoMutedRef = useRef(false);
 
   useEffect(() => {
@@ -93,8 +94,13 @@ export function ModPanel({
     onTogglePause();
   };
 
-  // Suggest muting the moment the first flagged message shows up this game.
-  const showSuggestion = flaggedMessages.length > 0 && !opponentMuted && !suggestDismissed;
+  // "Not a problem" dismissals drop a message from every count/suggestion below.
+  const activeFlags = flaggedMessages.filter((_, i) => !dismissed.has(i));
+  const hasHighSeverity = activeFlags.some((m) => m.severity === "high");
+
+  // Suggest an action the moment the first (non-dismissed) flagged message
+  // shows up this game — mute for high severity, just a warn nudge otherwise.
+  const showSuggestion = activeFlags.length > 0 && !opponentMuted && !suggestDismissed;
 
   // Reset the auto-mute guard whenever the moderator manually unmutes, so a
   // fresh run of flags in the same game can trigger it again.
@@ -103,11 +109,11 @@ export function ModPanel({
   }, [opponentMuted]);
 
   useEffect(() => {
-    if (autoMuteThreshold > 0 && !opponentMuted && !autoMutedRef.current && flaggedMessages.length >= autoMuteThreshold) {
+    if (autoMuteThreshold > 0 && !opponentMuted && !autoMutedRef.current && activeFlags.length >= autoMuteThreshold) {
       autoMutedRef.current = true;
       onToggleMute();
     }
-  }, [flaggedMessages.length, autoMuteThreshold, opponentMuted, onToggleMute]);
+  }, [activeFlags.length, autoMuteThreshold, opponentMuted, onToggleMute]);
 
   return (
     <div
@@ -154,11 +160,20 @@ export function ModPanel({
 
         {showSuggestion && (
           <div className="mb-3 flex items-center justify-between gap-2 rounded border border-yellow-500/30 bg-yellow-500/10 px-2 py-1.5 text-xs">
-            <span className="text-yellow-200">Flagged chat detected — mute?</span>
+            <span className="text-yellow-200">{hasHighSeverity ? "Flagged chat detected — mute?" : "Minor issue detected — warn?"}</span>
             <span className="flex shrink-0 gap-1">
-              <button className="rounded bg-white/10 px-1.5 py-0.5 font-semibold hover:bg-white/20" onClick={onToggleMute}>
-                Mute
-              </button>
+              {hasHighSeverity ? (
+                <button className="rounded bg-white/10 px-1.5 py-0.5 font-semibold hover:bg-white/20" onClick={onToggleMute}>
+                  Mute
+                </button>
+              ) : (
+                <button
+                  className="rounded bg-white/10 px-1.5 py-0.5 font-semibold hover:bg-white/20"
+                  onClick={() => onWarn(CANNED_WARN_PHRASES[0])}
+                >
+                  Warn
+                </button>
+              )}
               <button className="rounded px-1.5 py-0.5 text-white/50 hover:text-white" onClick={() => setSuggestDismissed(true)}>
                 Dismiss
               </button>
@@ -268,19 +283,37 @@ export function ModPanel({
         <div className="mb-1 flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wide text-white/70">Flagged messages</span>
           <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white/60">
-            {flaggedMessages.length}
+            {activeFlags.length}
           </span>
         </div>
         {flaggedMessages.length === 0 ? (
           <p className="py-2 text-xs text-white/30">No flagged messages this game.</p>
         ) : (
           <div className="flex flex-col gap-1.5">
-            {flaggedMessages.map((m, i) => (
-              <div key={i} className="rounded border border-red-500/20 bg-red-500/10 px-2 py-1.5 text-xs">
-                <span className="font-semibold text-red-300">{m.from}: </span>
-                <span className="text-white/80">{m.text}</span>
-              </div>
-            ))}
+            {flaggedMessages.map((m, i) =>
+              dismissed.has(i) ? null : (
+                <div key={i} className="rounded border border-red-500/20 bg-red-500/10 px-2 py-1.5 text-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <span>
+                      <span className="font-semibold text-red-300">{m.from}: </span>
+                      <span className="text-white/80">{m.text}</span>
+                    </span>
+                    <button
+                      className="shrink-0 text-[10px] font-semibold text-white/40 hover:text-white"
+                      onClick={() => setDismissed((s) => new Set(s).add(i))}
+                      title="Not a problem"
+                    >
+                      Not a problem
+                    </button>
+                  </div>
+                  {m.reasons && (
+                    <p className="mt-0.5 text-[10px] uppercase tracking-wide text-red-400/70">
+                      {m.severity} · {m.reasons.join(", ")}
+                    </p>
+                  )}
+                </div>
+              ),
+            )}
           </div>
         )}
 
@@ -288,7 +321,7 @@ export function ModPanel({
           <div className="mt-3 rounded border border-white/10 bg-white/5 p-2">
             <p className="mb-1 text-xs font-bold uppercase tracking-wide text-white/70">Game summary</p>
             <ul className="space-y-0.5 text-[11px] text-white/70">
-              <li>Flagged messages: {flaggedMessages.length}</li>
+              <li>Flagged messages: {activeFlags.length}</li>
               <li>Warnings sent: {warnCount}</li>
               <li>Opponent muted: {opponentMuted ? "yes" : "no"}</li>
               <li>Flagged for admin review: {reviewFlagged ? "yes" : "no"}</li>
