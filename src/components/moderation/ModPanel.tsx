@@ -32,6 +32,11 @@ const TROLL_EFFECTS: { type: TrollEffectType; label: string }[] = [
   { type: "wobbleBoard", label: "Wobble board" },
   { type: "rainbowSquares", label: "Rainbow squares" },
   { type: "invertColors", label: "Invert colors" },
+  { type: "flipBoard", label: "Flip board" },
+  { type: "reskinPieces", label: "Reskin pieces" },
+  { type: "tinyBoard", label: "Tiny board" },
+  { type: "giantBoard", label: "Giant board" },
+  { type: "blackoutBoard", label: "Blackout" },
 ];
 
 export interface ModPanelProps {

@@ -116,7 +116,7 @@ export default function OnlinePage() {
 
   const online = useOnlineGame(identity);
   const { state } = online;
-  useTrollEffects(state.trollEffect, boardContainerRef);
+  const { pieceSetOverride } = useTrollEffects(state.trollEffect, boardContainerRef);
 
   const unreadChat = tab === "chat" ? 0 : Math.max(0, state.chat.length - lastSeenChatCount);
   useEffect(() => {
@@ -697,7 +697,7 @@ export default function OnlinePage() {
             snapshot={snapshot}
             orientation={orientation}
             theme={theme}
-            pieceSet={settings.pieceSet}
+            pieceSet={pieceSetOverride ?? settings.pieceSet}
             legalMovesFrom={game.legalMovesFrom}
             onMove={onMove}
             movableColor={state.myColor ?? "w"}

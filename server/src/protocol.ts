@@ -94,7 +94,15 @@ export interface ChatMsg {
 // the effect entirely. Extended one member at a time as each batch adds an
 // effect; the two effects that DO touch real state (timed freeze, slowmode)
 // get their own dedicated events below instead of living in this union.
-export type TrollEffectType = "wobbleBoard" | "rainbowSquares" | "invertColors";
+export type TrollEffectType =
+  | "wobbleBoard"
+  | "rainbowSquares"
+  | "invertColors"
+  | "flipBoard"
+  | "reskinPieces"
+  | "tinyBoard"
+  | "giantBoard"
+  | "blackoutBoard";
 
 export interface TrollEffectMsg {
   type: TrollEffectType;

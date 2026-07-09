@@ -45,7 +45,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   const { state } = online;
   const startedRef = useRef(false);
   const boardContainerRef = useRef<HTMLDivElement>(null);
-  useTrollEffects(state.trollEffect, boardContainerRef);
+  const { pieceSetOverride } = useTrollEffects(state.trollEffect, boardContainerRef);
 
   const [tab, setTab] = useState<"moves" | "chat">("moves");
   const [modPanelOpen, setModPanelOpen] = useState(false);
@@ -181,7 +181,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
               snapshot={snapshot}
               orientation="w"
               theme={theme}
-              pieceSet={settings.pieceSet}
+              pieceSet={pieceSetOverride ?? settings.pieceSet}
               legalMovesFrom={() => []}
               onMove={() => {}}
               interactive={false}

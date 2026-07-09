@@ -322,6 +322,22 @@ body {
 
 .troll-invert { filter: invert(1) hue-rotate(180deg); }
 
+.troll-flip { transform: rotate(180deg); transition: transform 0.4s var(--ease-out); }
+.troll-tiny { transform: scale(0.35); transition: transform 0.3s var(--ease-out); transform-origin: center top; }
+.troll-giant { transform: scale(1.6); transition: transform 0.3s var(--ease-out); transform-origin: center top; }
+
+.troll-blackout { position: relative; }
+.troll-blackout::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0.92;
+  z-index: 40;
+  border-radius: inherit;
+  transition: opacity 0.25s ease;
+}
+
 .stagger-item {
   animation: rise-in 0.32s var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 45ms + 30ms);
