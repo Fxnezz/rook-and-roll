@@ -25,6 +25,9 @@ import { useToasts } from "@/lib/hooks/useToasts";
 import { ToastStack } from "@/components/ui/ToastStack";
 import { ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
 import { useModStats } from "@/lib/moderation/useModStats";
+import { useTrollEffects } from "@/lib/moderation/useTrollEffects";
+import { TrollEffectOverlay } from "@/components/moderation/TrollEffectOverlay";
+import type { TrollEffectType } from "@/lib/online/protocol";
 
 function soundFor(san: string) {
   if (san.includes("#")) return; // handled by game over
@@ -79,6 +82,7 @@ export default function OnlinePage() {
   const isModerator = Boolean(session?.user?.isModerator);
   const showModUI = isModerator && !settings.modHideUI;
   const { increment: incrementModStat } = useModStats();
+  const boardContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!loggedIn) return;
@@ -112,6 +116,7 @@ export default function OnlinePage() {
 
   const online = useOnlineGame(identity);
   const { state } = online;
+  useTrollEffects(state.trollEffect, boardContainerRef);
 
   const unreadChat = tab === "chat" ? 0 : Math.max(0, state.chat.length - lastSeenChatCount);
   useEffect(() => {
@@ -510,6 +515,10 @@ export default function OnlinePage() {
     logMod(next ? "Flagged game for review" : "Removed review flag");
     if (next) incrementModStat("flagsForReview");
   };
+  const onTroll = (type: TrollEffectType, opts?: { durationMs?: number; text?: string }) => {
+    online.modTroll(type, { targetColor: opponentColor ?? undefined, ...opts });
+    logMod(`Trolled ${opponentUsername}: ${type}`);
+  };
 
   const PlayerBar = ({ color }: { color: Color }) => {
     const p = color === "w" ? players?.white : players?.black;
@@ -681,7 +690,8 @@ export default function OnlinePage() {
       )}
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-        <div className="flex w-full flex-col gap-2 lg:max-w-[min(72vh,640px)]">
+        <div ref={boardContainerRef} className="relative flex w-full flex-col gap-2 lg:max-w-[min(72vh,640px)]">
+          <TrollEffectOverlay />
           <PlayerBar color={topColor} />
           <Board
             snapshot={snapshot}
@@ -848,6 +858,7 @@ export default function OnlinePage() {
           suspicion={suspicion}
           gameOver={Boolean(state.status)}
           actionLog={modLog}
+          onTroll={onTroll}
         />
       )}
       <ToastStack toasts={toasts} />

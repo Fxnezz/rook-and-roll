@@ -18,6 +18,9 @@ import { ToastStack } from "@/components/ui/ToastStack";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { playSound } from "@/lib/chess/sound";
 import { useModStats } from "@/lib/moderation/useModStats";
+import { useTrollEffects } from "@/lib/moderation/useTrollEffects";
+import { TrollEffectOverlay } from "@/components/moderation/TrollEffectOverlay";
+import type { TrollEffectType } from "@/lib/online/protocol";
 
 export default function WatchPage({ params }: { params: Promise<{ roomId: string }> }) {
   const { roomId } = use(params);
@@ -41,6 +44,8 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   const online = useOnlineGame(identity);
   const { state } = online;
   const startedRef = useRef(false);
+  const boardContainerRef = useRef<HTMLDivElement>(null);
+  useTrollEffects(state.trollEffect, boardContainerRef);
 
   const [tab, setTab] = useState<"moves" | "chat">("moves");
   const [modPanelOpen, setModPanelOpen] = useState(false);
@@ -137,6 +142,10 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
     logMod(next ? "Flagged game for review" : "Removed review flag");
     if (next) incrementModStat("flagsForReview");
   };
+  const onTroll = (type: TrollEffectType, opts?: { durationMs?: number; text?: string }) => {
+    online.modTroll(type, { targetColor, ...opts });
+    logMod(`Trolled ${targetUsername}: ${type}`);
+  };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-5">
@@ -165,7 +174,8 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
         </div>
       ) : (
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-          <div className="flex w-full flex-col gap-2 lg:max-w-[min(72vh,640px)]">
+          <div ref={boardContainerRef} className="relative flex w-full flex-col gap-2 lg:max-w-[min(72vh,640px)]">
+            <TrollEffectOverlay />
             <Bar name={players.black.username} rating={players.black.rating} ms={state.clock.blackMs} active={state.clock.activeColor === "b"} timed={state.timeControl?.initialMs != null} />
             <Board
               snapshot={snapshot}
@@ -254,6 +264,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
           suspicion={suspicion}
           gameOver={Boolean(state.status)}
           actionLog={modLog}
+          onTroll={onTroll}
         />
       )}
       <ToastStack toasts={toasts} />

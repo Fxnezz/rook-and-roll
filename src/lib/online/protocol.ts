@@ -67,6 +67,24 @@ export interface GameStateMsg {
   suspicion?: { w: number; b: number };
   /** Flagged for admin review — same field the admin dashboard's LiveGameSummary already surfaces. */
   reviewFlagged?: boolean;
+  /** ms interval enforced between chat messages while a moderator's troll slowmode is active on that side; 0 = off. */
+  trollSlowmode?: { w: number; b: number };
+}
+
+// ---- in-game moderator "troll" effects (only usable on a flagged game) ----
+// Cosmetic effects (this union) are delivered privately to just the flagged
+// target's own socket and never mutate GameRoom state — a page refresh loses
+// the effect entirely. Extended one member at a time as each batch adds an
+// effect; the two effects that DO touch real state (timed freeze, slowmode)
+// get their own dedicated events below instead of living in this union.
+export type TrollEffectType = "wobbleBoard" | "rainbowSquares" | "invertColors";
+
+export interface TrollEffectMsg {
+  type: TrollEffectType;
+  durationMs?: number;
+  text?: string;
+  /** Incrementing counter so firing the same effect twice in a row still retriggers the client. */
+  seq: number;
 }
 
 export interface AdminPiece {
@@ -138,6 +156,8 @@ export interface ServerToClientEvents {
   kicked: (p: { message: string }) => void;
   "chat:cleared": () => void;
   "mod:liveGames": (p: { games: LiveGameSummary[] }) => void;
+  /** Private — delivered only to the flagged target's own socket, never broadcast. */
+  "troll:effect": (m: TrollEffectMsg) => void;
 }
 
 export interface ClientToServerEvents {
@@ -168,6 +188,12 @@ export interface ClientToServerEvents {
   "mod:pause": (p: { roomId: string; paused: boolean }) => void;
   "mod:flagReview": (p: { roomId: string; flagged: boolean }) => void;
   "mod:liveGames": () => void;
+
+  // ---- "troll" effects — additionally require room.reviewFlagged to be
+  // true at the moment of the call (checked live, never cached) ----
+  "mod:troll": (p: { roomId: string; type: TrollEffectType; targetColor?: Color; durationMs?: number; text?: string }) => void;
+  "mod:troll:freeze": (p: { roomId: string; targetColor?: Color; frozen: boolean; durationMs?: number }) => void;
+  "mod:troll:slowmode": (p: { roomId: string; targetColor?: Color; intervalMs: number }) => void;
 
   "presence:hello": (p: { identity: Identity }) => void;
   "presence:query": (p: { userIds: string[] }) => void;

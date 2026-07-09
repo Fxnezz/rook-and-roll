@@ -51,6 +51,7 @@ const userSocket = new Map<string, string>(); // userId -> socketId
 const graceTimers = new Map<string, NodeJS.Timeout>(); // userId -> abandonment timer
 const modPauseTimers = new Map<string, NodeJS.Timeout>(); // roomId -> auto-resume timer
 const modMuteTimers = new Map<string, NodeJS.Timeout>(); // `${roomId}:${color}` -> auto-unmute timer
+let trollSeq = 0; // incrementing id so the same troll effect fired twice in a row still retriggers the client
 const MOD_PAUSE_AUTO_RESUME_MS = 60_000;
 
 interface QueueEntry {
@@ -671,6 +672,16 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     return targetColor === "w" || targetColor === "b" ? targetColor : null;
   };
 
+  // Same guarantees as modRoom (isModerator + player-or-spectator-in-this-
+  // room), plus: the room must be flagged for review RIGHT NOW. Checked live
+  // on every call — never cached — so un-flagging mid-game silently disables
+  // every troll:* event without any client-side bookkeeping. "Flagged" here
+  // is the same room.reviewFlagged the admin panel's own flag button sets.
+  const modRoomFlagged = (roomId: string): { room: GameRoom; myColor: Color | null } | null => {
+    const ctx = modRoom(roomId);
+    return ctx && ctx.room.reviewFlagged ? ctx : null;
+  };
+
   socket.on("mod:muteChat", ({ roomId, muted, targetColor, durationMs }) => {
     const ctx = modRoom(roomId);
     if (!ctx) return;
@@ -742,6 +753,23 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!ctx) return;
     ctx.room.adminFlagReview(flagged);
     resync(ctx.room);
+  });
+
+  // "Troll" effects — only usable once a game has been flagged for review
+  // (by this moderator in-game OR an admin via the admin panel; both write
+  // the same room.reviewFlagged). Purely cosmetic: delivered privately to
+  // just the flagged target's own socket, never broadcast, and never
+  // mutates GameRoom state — nothing durable to undo, a refresh clears it.
+  socket.on("mod:troll", ({ roomId, type, targetColor, durationMs, text }) => {
+    const ctx = modRoomFlagged(roomId);
+    if (!ctx) return;
+    const target = resolveModTarget(ctx, targetColor);
+    if (!target) return;
+    const targetUserId = target === "w" ? ctx.room.white.userId : ctx.room.black.userId;
+    const targetSocketId = userSocket.get(targetUserId);
+    const targetSocket = targetSocketId ? io.sockets.sockets.get(targetSocketId) : undefined;
+    trollSeq += 1;
+    targetSocket?.emit("troll:effect", { type, durationMs, text: text?.trim().slice(0, 200), seq: trollSeq });
   });
 
   // Read-only live games list for the in-game moderator to spectate any

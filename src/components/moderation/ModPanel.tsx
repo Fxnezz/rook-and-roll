@@ -5,6 +5,7 @@ import Link from "next/link";
 import { IconShield, IconVolumeOff, IconVolume } from "@/components/ui/icons";
 import { useLastMuteDuration, useCustomWarnPhrases } from "@/lib/moderation/useModPreferences";
 import { useModStats } from "@/lib/moderation/useModStats";
+import type { TrollEffectType } from "@/lib/online/protocol";
 
 interface PlayerContext {
   found: boolean;
@@ -26,6 +27,13 @@ const MUTE_DURATIONS: { label: string; ms: number | null }[] = [
   { label: "Rest of game", ms: null },
 ];
 
+/** Extended one entry at a time as later batches add effects. */
+const TROLL_EFFECTS: { type: TrollEffectType; label: string }[] = [
+  { type: "wobbleBoard", label: "Wobble board" },
+  { type: "rainbowSquares", label: "Rainbow squares" },
+  { type: "invertColors", label: "Invert colors" },
+];
+
 export interface ModPanelProps {
   onClose: () => void;
   roomId: string;
@@ -42,6 +50,7 @@ export interface ModPanelProps {
   suspicion: { mine: number; opponent: number };
   gameOver: boolean;
   actionLog: { id: number; text: string; ts: number }[];
+  onTroll: (type: TrollEffectType, opts?: { durationMs?: number; text?: string }) => void;
 }
 
 /**
@@ -67,6 +76,7 @@ export function ModPanel({
   suspicion,
   gameOver,
   actionLog,
+  onTroll,
 }: ModPanelProps) {
   const [autoMuteThreshold, setAutoMuteThreshold] = useState(3); // 0 = off
   const [suggestDismissed, setSuggestDismissed] = useState(false);
@@ -323,6 +333,25 @@ export function ModPanel({
         >
           {cheatFlagSent ? "Flagged as possible cheating" : "Flag as possible cheating"}
         </button>
+
+        {reviewFlagged && (
+          <div className="mb-3 rounded border border-purple-500/25 bg-purple-500/10 p-2">
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-purple-200">
+              🎭 Troll {opponentUsername} <span className="font-normal normal-case text-purple-200/60">(unlocked — this game is flagged)</span>
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {TROLL_EFFECTS.map((e) => (
+                <button
+                  key={e.type}
+                  className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-white/70 hover:bg-white/10 hover:text-white"
+                  onClick={() => onTroll(e.type)}
+                >
+                  {e.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mb-3">
           <div className="mb-1 flex items-center justify-between">

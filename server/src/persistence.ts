@@ -215,9 +215,14 @@ export async function saveFinishedGame(
 
   const whiteReal = !room.white.userId.startsWith("guest:");
   const blackReal = !room.black.userId.startsWith("guest:");
+  // A game flagged for review (by the in-game moderator or an admin) is
+  // Elo-neutral for both sides — read live here, not cached, so unflagging
+  // before the game ends restores normal rating impact automatically. Unlike
+  // `voided`, a flagged game still gets a Game row below, just unrated.
+  const recordedAsRated = room.rated && !room.reviewFlagged && whiteReal && blackReal;
 
   try {
-    if (room.rated && field && whiteReal && blackReal && result !== undefined) {
+    if (recordedAsRated && field && result !== undefined) {
       const [wu, bu] = await Promise.all([
         prisma.user.findUnique({ where: { id: room.white.userId } }),
         prisma.user.findUnique({ where: { id: room.black.userId } }),
@@ -252,7 +257,7 @@ export async function saveFinishedGame(
         whiteName: room.white.username,
         blackName: room.black.username,
         opponentType: "HUMAN",
-        rated: room.rated && whiteReal && blackReal,
+        rated: recordedAsRated,
         category: cat,
         timeControl: room.timeControl.id,
         result: RESULT_ENUM[result],
@@ -278,13 +283,12 @@ export async function saveFinishedGame(
       ]);
     }
 
-    const rated = room.rated && whiteReal && blackReal;
     const [whiteAch, blackAch] = await Promise.all([
       whiteReal
-        ? checkAndAwardAchievements({ userId: room.white.userId, color: "w", result: RESULT_ENUM[result], category: cat, rated, termination: room.status.reason })
+        ? checkAndAwardAchievements({ userId: room.white.userId, color: "w", result: RESULT_ENUM[result], category: cat, rated: recordedAsRated, termination: room.status.reason })
         : Promise.resolve([]),
       blackReal
-        ? checkAndAwardAchievements({ userId: room.black.userId, color: "b", result: RESULT_ENUM[result], category: cat, rated, termination: room.status.reason })
+        ? checkAndAwardAchievements({ userId: room.black.userId, color: "b", result: RESULT_ENUM[result], category: cat, rated: recordedAsRated, termination: room.status.reason })
         : Promise.resolve([]),
     ]);
 

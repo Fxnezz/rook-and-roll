@@ -15,6 +15,8 @@ import {
   type PlayerInfo,
   type TimeControlSpec,
   type LiveGameSummary,
+  type TrollEffectMsg,
+  type TrollEffectType,
 } from "./protocol";
 
 type OnlineSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -46,6 +48,8 @@ export interface OnlineState {
   fullState: GameStateMsg | null;
   /** In-game moderator's browsable "Live games" list — empty until requestLiveGames() is called. */
   liveGames: LiveGameSummary[];
+  /** Latest private "troll" effect aimed at this socket — only ever non-null for the flagged target. */
+  trollEffect: TrollEffectMsg | null;
 }
 
 const INITIAL: OnlineState = {
@@ -70,6 +74,7 @@ const INITIAL: OnlineState = {
   stateSeq: 0,
   fullState: null,
   liveGames: [],
+  trollEffect: null,
 };
 
 export function useOnlineGame(identity: Identity) {
@@ -161,6 +166,7 @@ export function useOnlineGame(identity: Identity) {
     socket.on("opponent:reconnected", () => patch({ opponentConnected: true }));
     socket.on("error:msg", ({ message }) => patch({ error: message }));
     socket.on("mod:liveGames", ({ games }) => patch({ liveGames: games }));
+    socket.on("troll:effect", (m) => patch({ trollEffect: m }));
 
     return socket;
   }, [patch]);
@@ -262,6 +268,18 @@ export function useOnlineGame(identity: Identity) {
   const requestLiveGames = useCallback(() => {
     ensureSocket().emit("mod:liveGames");
   }, [ensureSocket]);
+  const modTroll = useCallback(
+    (type: TrollEffectType, opts?: { targetColor?: Color; durationMs?: number; text?: string }) => {
+      if (rid()) socketRef.current?.emit("mod:troll", { roomId: rid()!, type, ...opts });
+    },
+    [],
+  );
+  const modTrollFreeze = useCallback((frozen: boolean, opts?: { targetColor?: Color; durationMs?: number }) => {
+    if (rid()) socketRef.current?.emit("mod:troll:freeze", { roomId: rid()!, frozen, ...opts });
+  }, []);
+  const modTrollSlowmode = useCallback((intervalMs: number, targetColor?: Color) => {
+    if (rid()) socketRef.current?.emit("mod:troll:slowmode", { roomId: rid()!, intervalMs, targetColor });
+  }, []);
   const leave = useCallback(() => {
     if (rid()) socketRef.current?.emit("room:leave", { roomId: rid()! });
     setState(INITIAL);
@@ -299,6 +317,9 @@ export function useOnlineGame(identity: Identity) {
     modPause,
     modFlagReview,
     requestLiveGames,
+    modTroll,
+    modTrollFreeze,
+    modTrollSlowmode,
     leave,
     clearError: () => patch({ error: null }),
   };
