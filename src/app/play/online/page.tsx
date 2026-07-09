@@ -116,7 +116,7 @@ export default function OnlinePage() {
 
   const online = useOnlineGame(identity);
   const { state } = online;
-  const { pieceSetOverride } = useTrollEffects(state.trollEffect, boardContainerRef);
+  const { pieceSetOverride, overlayEffect } = useTrollEffects(state.trollEffect, boardContainerRef);
 
   const unreadChat = tab === "chat" ? 0 : Math.max(0, state.chat.length - lastSeenChatCount);
   useEffect(() => {
@@ -691,7 +691,7 @@ export default function OnlinePage() {
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         <div ref={boardContainerRef} className="relative flex w-full flex-col gap-2 lg:max-w-[min(72vh,640px)]">
-          <TrollEffectOverlay />
+          <TrollEffectOverlay effect={overlayEffect} />
           <PlayerBar color={topColor} />
           <Board
             snapshot={snapshot}

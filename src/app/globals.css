@@ -338,6 +338,15 @@ body {
   transition: opacity 0.25s ease;
 }
 
+.troll-lowtime {
+  animation: clock-pulse-critical 0.7s ease-in-out infinite;
+  outline: 2px solid var(--bad);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+.troll-jitter { animation: shake 0.35s ease-in-out infinite; }
+.troll-spinner { animation: spin-slow 0.8s linear infinite; }
+
 .stagger-item {
   animation: rise-in 0.32s var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 45ms + 30ms);

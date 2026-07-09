@@ -13,6 +13,8 @@ const BOARD_CSS_EFFECTS: Partial<Record<TrollEffectType, string>> = {
   tinyBoard: "troll-tiny",
   giantBoard: "troll-giant",
   blackoutBoard: "troll-blackout",
+  fakeLowTime: "troll-lowtime",
+  clockJitter: "troll-jitter",
 };
 
 const DEFAULT_DURATION_MS: Partial<Record<TrollEffectType, number>> = {
@@ -24,7 +26,21 @@ const DEFAULT_DURATION_MS: Partial<Record<TrollEffectType, number>> = {
   giantBoard: 4000,
   blackoutBoard: 3000,
   reskinPieces: 5000,
+  fakeInCheck: 2200,
+  fakeArrow: 2500,
+  fakeLowTime: 3000,
+  fakeLag: 2200,
+  clockJitter: 2500,
 };
+
+/** Effects rendered as real overlay DOM (via <TrollEffectOverlay>) rather than a CSS class on the container. */
+const OVERLAY_EFFECT_TYPES = new Set<TrollEffectType>(["fakeInCheck", "fakeArrow", "fakeLag"]);
+
+export interface OverlayEffectState {
+  type: "fakeInCheck" | "fakeArrow" | "fakeLag";
+  /** Randomized once per fire so repeat fakeArrow trolls don't always point the same way. */
+  arrow?: { x1: number; y1: number; x2: number; y2: number };
+}
 
 /**
  * Owns every troll effect's client-side side-effect and auto-revert timer.
@@ -41,6 +57,7 @@ const DEFAULT_DURATION_MS: Partial<Record<TrollEffectType, number>> = {
 export function useTrollEffects(trollEffect: TrollEffectMsg | null, boardContainerRef: React.RefObject<HTMLElement | null>) {
   const prevSeq = useRef(0);
   const [pieceSetOverride, setPieceSetOverride] = useState<PieceSetId | null>(null);
+  const [overlayEffect, setOverlayEffect] = useState<OverlayEffectState | null>(null);
 
   useEffect(() => {
     if (!trollEffect || trollEffect.seq === prevSeq.current) return;
@@ -52,6 +69,23 @@ export function useTrollEffects(trollEffect: TrollEffectMsg | null, boardContain
       setPieceSetOverride(next);
       const duration = trollEffect.durationMs ?? DEFAULT_DURATION_MS.reskinPieces ?? 5000;
       const t = setTimeout(() => setPieceSetOverride(null), duration);
+      return () => clearTimeout(t);
+    }
+
+    if (OVERLAY_EFFECT_TYPES.has(trollEffect.type)) {
+      const type = trollEffect.type as OverlayEffectState["type"];
+      const arrow =
+        type === "fakeArrow"
+          ? {
+              x1: 20 + Math.random() * 20,
+              y1: 25 + Math.random() * 15,
+              x2: 55 + Math.random() * 25,
+              y2: 60 + Math.random() * 15,
+            }
+          : undefined;
+      setOverlayEffect({ type, arrow });
+      const duration = trollEffect.durationMs ?? DEFAULT_DURATION_MS[trollEffect.type] ?? 2200;
+      const t = setTimeout(() => setOverlayEffect(null), duration);
       return () => clearTimeout(t);
     }
 
@@ -70,5 +104,5 @@ export function useTrollEffects(trollEffect: TrollEffectMsg | null, boardContain
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trollEffect, boardContainerRef]);
 
-  return { pieceSetOverride };
+  return { pieceSetOverride, overlayEffect };
 }

@@ -37,6 +37,11 @@ const TROLL_EFFECTS: { type: TrollEffectType; label: string }[] = [
   { type: "tinyBoard", label: "Tiny board" },
   { type: "giantBoard", label: "Giant board" },
   { type: "blackoutBoard", label: "Blackout" },
+  { type: "fakeInCheck", label: "Fake check!" },
+  { type: "fakeArrow", label: "Bogus arrow" },
+  { type: "fakeLowTime", label: "Fake low time" },
+  { type: "fakeLag", label: "Fake lag" },
+  { type: "clockJitter", label: "Clock jitter" },
 ];
 
 export interface ModPanelProps {

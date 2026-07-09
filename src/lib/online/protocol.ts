@@ -85,7 +85,12 @@ export type TrollEffectType =
   | "reskinPieces"
   | "tinyBoard"
   | "giantBoard"
-  | "blackoutBoard";
+  | "blackoutBoard"
+  | "fakeInCheck"
+  | "fakeArrow"
+  | "fakeLowTime"
+  | "fakeLag"
+  | "clockJitter";
 
 export interface TrollEffectMsg {
   type: TrollEffectType;

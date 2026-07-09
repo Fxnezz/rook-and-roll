@@ -45,7 +45,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   const { state } = online;
   const startedRef = useRef(false);
   const boardContainerRef = useRef<HTMLDivElement>(null);
-  const { pieceSetOverride } = useTrollEffects(state.trollEffect, boardContainerRef);
+  const { pieceSetOverride, overlayEffect } = useTrollEffects(state.trollEffect, boardContainerRef);
 
   const [tab, setTab] = useState<"moves" | "chat">("moves");
   const [modPanelOpen, setModPanelOpen] = useState(false);
@@ -175,7 +175,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
       ) : (
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
           <div ref={boardContainerRef} className="relative flex w-full flex-col gap-2 lg:max-w-[min(72vh,640px)]">
-            <TrollEffectOverlay />
+            <TrollEffectOverlay effect={overlayEffect} />
             <Bar name={players.black.username} rating={players.black.rating} ms={state.clock.blackMs} active={state.clock.activeColor === "b"} timed={state.timeControl?.initialMs != null} />
             <Board
               snapshot={snapshot}
