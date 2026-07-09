@@ -12,10 +12,10 @@ import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
 import { useOnlineGame } from "@/lib/online/useOnlineGame";
-import { IconShield } from "@/components/ui/icons";
 import { ModPanel } from "@/components/moderation/ModPanel";
 import { ModCheatGate } from "@/components/moderation/ModCheatGate";
 import { ModCheatPanel } from "@/components/moderation/ModCheatPanel";
+import { ModShieldMenu } from "@/components/moderation/ModShieldMenu";
 import { useToasts } from "@/lib/hooks/useToasts";
 import { ToastStack } from "@/components/ui/ToastStack";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
@@ -208,19 +208,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
         <span className="chip">👁 Spectating</span>
         {state.status && <span className="chip">Game over · {state.status.reason}</span>}
         {showModUI && (
-          <button
-            className="btn btn-ghost relative !p-2"
-            onClick={() => setModPanelOpen((v) => !v)}
-            aria-label="Open moderation panel"
-            title="Moderation panel"
-          >
-            <IconShield width={16} height={16} />
-            {flaggedMessages.length > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--bad)] text-[9px] font-bold text-white">
-                {flaggedMessages.length}
-              </span>
-            )}
-          </button>
+          <ModShieldMenu canModerateCurrentGame onModerate={() => setModPanelOpen((v) => !v)} flaggedCount={flaggedMessages.length} />
         )}
       </div>
       {!players ? (

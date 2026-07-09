@@ -22,6 +22,7 @@ import { IconFlag, IconHandshake, IconUsers, IconUndo, IconShield } from "@/comp
 import { ModPanel } from "@/components/moderation/ModPanel";
 import { ModCheatGate } from "@/components/moderation/ModCheatGate";
 import { ModCheatPanel } from "@/components/moderation/ModCheatPanel";
+import { ModShieldMenu } from "@/components/moderation/ModShieldMenu";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
 import { useToasts } from "@/lib/hooks/useToasts";
@@ -334,7 +335,7 @@ export default function OnlinePage() {
       setChatFocusSignal((n) => n + 1);
     },
     onOpenModeration: () => {
-      if (showModUI) setModPanelOpen((v) => !v);
+      if (showModUI && state.phase === "playing") setModPanelOpen((v) => !v);
     },
   });
 
@@ -626,20 +627,12 @@ export default function OnlinePage() {
           <button className="btn btn-ghost" onClick={online.leave}>
             ← Leave
           </button>
-          {showModUI && state.phase === "playing" && (
-            <button
-              className="btn btn-ghost relative !px-2.5"
-              onClick={() => setModPanelOpen((v) => !v)}
-              aria-label="Open moderation panel"
-              title="Moderation panel"
-            >
-              <IconShield width={16} height={16} />
-              {flaggedMessages.length > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--bad)] text-[9px] font-bold text-white">
-                  {flaggedMessages.length}
-                </span>
-              )}
-            </button>
+          {showModUI && (
+            <ModShieldMenu
+              canModerateCurrentGame={state.phase === "playing"}
+              onModerate={() => setModPanelOpen((v) => !v)}
+              flaggedCount={flaggedMessages.length}
+            />
           )}
           {state.roomId && (
             <button
