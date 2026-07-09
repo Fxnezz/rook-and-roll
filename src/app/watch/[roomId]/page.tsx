@@ -45,7 +45,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   const { state } = online;
   const startedRef = useRef(false);
   const boardContainerRef = useRef<HTMLDivElement>(null);
-  const { pieceSetOverride, overlayEffect } = useTrollEffects(state.trollEffect, boardContainerRef);
+  const { pieceSetOverride, overlayEffect, clockDigitsReversed, fakeChatMessages } = useTrollEffects(state.trollEffect, boardContainerRef);
 
   const [tab, setTab] = useState<"moves" | "chat">("moves");
   const [modPanelOpen, setModPanelOpen] = useState(false);
@@ -102,6 +102,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   const targetMuted = Boolean(state.fullState?.roomMuted?.[targetColor]);
   const paused = Boolean(state.fullState?.paused);
   const reviewFlagged = Boolean(state.fullState?.reviewFlagged);
+  const targetFrozen = Boolean(state.fullState?.frozen?.[targetColor]);
   const suspicion = { mine: 0, opponent: state.fullState?.suspicion?.[targetColor] ?? 0 };
   const flaggedMessages = state.chat
     .filter((m) => m.flagged)
@@ -146,6 +147,10 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
     online.modTroll(type, { targetColor, ...opts });
     logMod(`Trolled ${targetUsername}: ${type}`);
   };
+  const onTrollFreeze = (frozen: boolean, opts?: { durationMs?: number }) => {
+    online.modTrollFreeze(frozen, { targetColor, ...opts });
+    logMod(frozen ? `Froze ${targetUsername}` : `Unfroze ${targetUsername}`);
+  };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-5">
@@ -176,7 +181,14 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
           <div ref={boardContainerRef} className="relative flex w-full flex-col gap-2 lg:max-w-[min(72vh,640px)]">
             <TrollEffectOverlay effect={overlayEffect} />
-            <Bar name={players.black.username} rating={players.black.rating} ms={state.clock.blackMs} active={state.clock.activeColor === "b"} timed={state.timeControl?.initialMs != null} />
+            <Bar
+              name={players.black.username}
+              rating={players.black.rating}
+              ms={state.clock.blackMs}
+              active={state.clock.activeColor === "b"}
+              timed={state.timeControl?.initialMs != null}
+              reversed={clockDigitsReversed && targetColor === "b"}
+            />
             <Board
               snapshot={snapshot}
               orientation="w"
@@ -196,7 +208,14 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
               boardFrame={settings.boardFrame}
               zoomPercent={settings.boardZoom}
             />
-            <Bar name={players.white.username} rating={players.white.rating} ms={state.clock.whiteMs} active={state.clock.activeColor === "w"} timed={state.timeControl?.initialMs != null} />
+            <Bar
+              name={players.white.username}
+              rating={players.white.rating}
+              ms={state.clock.whiteMs}
+              active={state.clock.activeColor === "w"}
+              timed={state.timeControl?.initialMs != null}
+              reversed={clockDigitsReversed && targetColor === "w"}
+            />
           </div>
           <div className="panel flex w-full flex-col lg:h-[min(72vh,640px)] lg:w-[340px]">
             <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-2 text-sm font-semibold">
@@ -234,7 +253,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
                 <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
               ) : (
                 <ChatPanel
-                  messages={state.chat}
+                  messages={fakeChatMessages.length ? [...state.chat, ...fakeChatMessages].sort((a, b) => a.ts - b.ts) : state.chat}
                   onSend={online.sendChat}
                   myUsername={identity.username}
                   isModerator={showModUI}
@@ -265,6 +284,8 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
           gameOver={Boolean(state.status)}
           actionLog={modLog}
           onTroll={onTroll}
+          opponentFrozen={targetFrozen}
+          onTrollFreeze={onTrollFreeze}
         />
       )}
       <ToastStack toasts={toasts} />
@@ -272,13 +293,27 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   );
 }
 
-function Bar({ name, rating, ms, active, timed }: { name: string; rating: number; ms: number; active: boolean; timed: boolean }) {
+function Bar({
+  name,
+  rating,
+  ms,
+  active,
+  timed,
+  reversed,
+}: {
+  name: string;
+  rating: number;
+  ms: number;
+  active: boolean;
+  timed: boolean;
+  reversed?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-sm font-semibold">
         {name} <span className="text-xs text-[var(--text-faint)]">{rating}</span>
       </span>
-      {timed && <Clock ms={ms} active={active} />}
+      {timed && <Clock ms={ms} active={active} reversed={reversed} />}
     </div>
   );
 }

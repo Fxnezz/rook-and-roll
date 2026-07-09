@@ -35,7 +35,23 @@ export function TrollEffectOverlay({ effect }: { effect: OverlayEffectState | nu
     );
   }
 
-  if (effect.type === "fakeArrow" && effect.arrow) {
+  if (effect.type === "emojiBurst") {
+    return (
+      <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
+        {effect.particles.map((p, i) => (
+          <span
+            key={i}
+            className="troll-emoji-rise absolute bottom-2 text-2xl"
+            style={{ left: `${p.leftPct}%`, animationDelay: `${p.delayMs}ms` }}
+          >
+            {p.emoji}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  if (effect.type === "fakeArrow") {
     const { x1, y1, x2, y2 } = effect.arrow;
     return (
       <svg

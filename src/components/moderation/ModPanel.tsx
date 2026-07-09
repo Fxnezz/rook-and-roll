@@ -27,6 +27,13 @@ const MUTE_DURATIONS: { label: string; ms: number | null }[] = [
   { label: "Rest of game", ms: null },
 ];
 
+/** Timed freeze always auto-reverts (server-enforced), so no indefinite option. */
+const FREEZE_DURATIONS: { label: string; ms: number }[] = [
+  { label: "15s", ms: 15_000 },
+  { label: "30s", ms: 30_000 },
+  { label: "60s", ms: 60_000 },
+];
+
 /** Extended one entry at a time as later batches add effects. */
 const TROLL_EFFECTS: { type: TrollEffectType; label: string }[] = [
   { type: "wobbleBoard", label: "Wobble board" },
@@ -42,6 +49,9 @@ const TROLL_EFFECTS: { type: TrollEffectType; label: string }[] = [
   { type: "fakeLowTime", label: "Fake low time" },
   { type: "fakeLag", label: "Fake lag" },
   { type: "clockJitter", label: "Clock jitter" },
+  { type: "reverseClockDigits", label: "Reverse clock" },
+  { type: "systemAutoReply", label: "Fake system msg" },
+  { type: "emojiBurst", label: "Emoji burst" },
 ];
 
 export interface ModPanelProps {
@@ -61,6 +71,8 @@ export interface ModPanelProps {
   gameOver: boolean;
   actionLog: { id: number; text: string; ts: number }[];
   onTroll: (type: TrollEffectType, opts?: { durationMs?: number; text?: string }) => void;
+  opponentFrozen: boolean;
+  onTrollFreeze: (frozen: boolean, opts?: { durationMs?: number }) => void;
 }
 
 /**
@@ -87,6 +99,8 @@ export function ModPanel({
   gameOver,
   actionLog,
   onTroll,
+  opponentFrozen,
+  onTrollFreeze,
 }: ModPanelProps) {
   const [autoMuteThreshold, setAutoMuteThreshold] = useState(3); // 0 = off
   const [suggestDismissed, setSuggestDismissed] = useState(false);
@@ -98,6 +112,7 @@ export function ModPanel({
   const [lastAction, setLastAction] = useState<{ label: string; undo: () => void } | null>(null);
   const [note, setNote] = useState("");
   const [cheatFlagSent, setCheatFlagSent] = useState(false);
+  const [freezeDurationMs, setFreezeDurationMs] = useState(FREEZE_DURATIONS[0].ms);
   const autoMutedRef = useRef(false);
   const lastActionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { durationMs: muteDurationMs, setDurationMs: setMuteDurationMs } = useLastMuteDuration();
@@ -349,7 +364,7 @@ export function ModPanel({
             <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-purple-200">
               🎭 Troll {opponentUsername} <span className="font-normal normal-case text-purple-200/60">(unlocked — this game is flagged)</span>
             </p>
-            <div className="flex flex-wrap gap-1">
+            <div className="mb-2 flex flex-wrap gap-1">
               {TROLL_EFFECTS.map((e) => (
                 <button
                   key={e.type}
@@ -360,6 +375,37 @@ export function ModPanel({
                 </button>
               ))}
             </div>
+
+            {!opponentFrozen && (
+              <div className="mb-1.5 flex items-center gap-1 text-[10px] text-white/50">
+                <span>Freeze:</span>
+                {FREEZE_DURATIONS.map((opt) => (
+                  <button
+                    key={opt.label}
+                    className="rounded px-1.5 py-0.5 font-semibold"
+                    style={
+                      freezeDurationMs === opt.ms
+                        ? { background: "var(--accent)", color: "var(--accent-contrast)" }
+                        : { background: "rgba(255,255,255,0.08)", color: "white" }
+                    }
+                    onClick={() => setFreezeDurationMs(opt.ms)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => onTrollFreeze(!opponentFrozen, { durationMs: freezeDurationMs })}
+              className="w-full rounded px-2 py-1.5 text-xs font-semibold transition-colors"
+              style={{
+                background: opponentFrozen ? "var(--accent)" : "rgba(255,255,255,0.08)",
+                color: opponentFrozen ? "var(--accent-contrast)" : "white",
+              }}
+              title="Temporarily freezes this player's side — always auto-reverts"
+            >
+              {opponentFrozen ? `Unfreeze ${opponentUsername}` : `❄ Freeze ${opponentUsername}`}
+            </button>
           </div>
         )}
 

@@ -51,8 +51,10 @@ const userSocket = new Map<string, string>(); // userId -> socketId
 const graceTimers = new Map<string, NodeJS.Timeout>(); // userId -> abandonment timer
 const modPauseTimers = new Map<string, NodeJS.Timeout>(); // roomId -> auto-resume timer
 const modMuteTimers = new Map<string, NodeJS.Timeout>(); // `${roomId}:${color}` -> auto-unmute timer
+const modTrollFreezeTimers = new Map<string, NodeJS.Timeout>(); // `${roomId}:${color}` -> auto-unfreeze timer
 let trollSeq = 0; // incrementing id so the same troll effect fired twice in a row still retriggers the client
 const MOD_PAUSE_AUTO_RESUME_MS = 60_000;
+const MOD_TROLL_FREEZE_DEFAULT_MS = 15_000;
 
 interface QueueEntry {
   identity: Identity;
@@ -770,6 +772,36 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     const targetSocket = targetSocketId ? io.sockets.sockets.get(targetSocketId) : undefined;
     trollSeq += 1;
     targetSocket?.emit("troll:effect", { type, durationMs, text: text?.trim().slice(0, 200), seq: trollSeq });
+  });
+
+  // Timed freeze on the flagged target's own side — thin wrapper around the
+  // existing admin:freeze mechanism, but scoped to one color and always
+  // auto-reverting (mirrors mod:pause's auto-resume timer) so a moderator
+  // can never leave someone frozen indefinitely.
+  socket.on("mod:troll:freeze", ({ roomId, targetColor, frozen, durationMs }) => {
+    const ctx = modRoomFlagged(roomId);
+    if (!ctx) return;
+    const target = resolveModTarget(ctx, targetColor);
+    if (!target) return;
+    const key = `${roomId}:${target}`;
+    const existing = modTrollFreezeTimers.get(key);
+    if (existing) {
+      clearTimeout(existing);
+      modTrollFreezeTimers.delete(key);
+    }
+    ctx.room.adminFreeze(target, frozen);
+    resync(ctx.room);
+    if (frozen) {
+      const timer = setTimeout(() => {
+        modTrollFreezeTimers.delete(key);
+        const r = rooms.get(roomId);
+        if (r && r.frozen[target]) {
+          r.adminFreeze(target, false);
+          io.to(roomId).emit("game:state", stateFor(r));
+        }
+      }, durationMs ?? MOD_TROLL_FREEZE_DEFAULT_MS);
+      modTrollFreezeTimers.set(key, timer);
+    }
   });
 
   // Read-only live games list for the in-game moderator to spectate any

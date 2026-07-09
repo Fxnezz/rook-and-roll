@@ -116,7 +116,7 @@ export default function OnlinePage() {
 
   const online = useOnlineGame(identity);
   const { state } = online;
-  const { pieceSetOverride, overlayEffect } = useTrollEffects(state.trollEffect, boardContainerRef);
+  const { pieceSetOverride, overlayEffect, clockDigitsReversed, fakeChatMessages } = useTrollEffects(state.trollEffect, boardContainerRef);
 
   const unreadChat = tab === "chat" ? 0 : Math.max(0, state.chat.length - lastSeenChatCount);
   useEffect(() => {
@@ -476,6 +476,7 @@ export default function OnlinePage() {
     .map((m) => ({ from: m.from, text: m.text, ts: m.ts, severity: m.flagSeverity, reasons: m.flagReasons }));
   const paused = Boolean(state.fullState?.paused);
   const reviewFlagged = Boolean(state.fullState?.reviewFlagged);
+  const opponentFrozen = Boolean(opponentColor && state.fullState?.frozen?.[opponentColor]);
   const suspicion = {
     mine: (state.myColor === "w" ? state.fullState?.suspicion?.w : state.fullState?.suspicion?.b) ?? 0,
     opponent: (opponentColor === "w" ? state.fullState?.suspicion?.w : state.fullState?.suspicion?.b) ?? 0,
@@ -519,6 +520,10 @@ export default function OnlinePage() {
     online.modTroll(type, { targetColor: opponentColor ?? undefined, ...opts });
     logMod(`Trolled ${opponentUsername}: ${type}`);
   };
+  const onTrollFreeze = (frozen: boolean, opts?: { durationMs?: number }) => {
+    online.modTrollFreeze(frozen, { targetColor: opponentColor ?? undefined, ...opts });
+    logMod(frozen ? `Froze ${opponentUsername}` : `Unfroze ${opponentUsername}`);
+  };
 
   const PlayerBar = ({ color }: { color: Color }) => {
     const p = color === "w" ? players?.white : players?.black;
@@ -547,6 +552,7 @@ export default function OnlinePage() {
             ms={color === "w" ? state.clock.whiteMs : state.clock.blackMs}
             active={state.clock.activeColor === color && !state.status}
             tickSound={color === state.myColor}
+            reversed={clockDigitsReversed && color === state.myColor}
           />
         )}
       </div>
@@ -772,7 +778,7 @@ export default function OnlinePage() {
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : (
               <ChatPanel
-                messages={state.chat}
+                messages={fakeChatMessages.length ? [...state.chat, ...fakeChatMessages].sort((a, b) => a.ts - b.ts) : state.chat}
                 onSend={online.sendChat}
                 disabled={state.phase === "spectating"}
                 myUsername={identity.username}
@@ -859,6 +865,8 @@ export default function OnlinePage() {
           gameOver={Boolean(state.status)}
           actionLog={modLog}
           onTroll={onTroll}
+          opponentFrozen={opponentFrozen}
+          onTrollFreeze={onTrollFreeze}
         />
       )}
       <ToastStack toasts={toasts} />

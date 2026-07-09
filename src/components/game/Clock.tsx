@@ -9,12 +9,15 @@ export function Clock({
   active,
   low,
   tickSound = false,
+  reversed = false,
 }: {
   ms: number;
   active: boolean;
   low?: boolean;
   /** Play a soft tick once per second while critical and active (own clock only, not the opponent's). */
   tickSound?: boolean;
+  /** Cosmetic moderator troll — displays the formatted time string reversed. The real `ms` countdown is untouched. */
+  reversed?: boolean;
 }) {
   const urgency = low === true ? "critical" : low === false ? "normal" : getClockUrgency(ms);
   const isLow = urgency !== "normal";
@@ -44,7 +47,7 @@ export function Clock({
         opacity: active ? 1 : 0.65,
       }}
     >
-      {formatClock(ms)}
+      {reversed ? formatClock(ms).split("").reverse().join("") : formatClock(ms)}
     </div>
   );
 }

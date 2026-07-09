@@ -90,7 +90,10 @@ export type TrollEffectType =
   | "fakeArrow"
   | "fakeLowTime"
   | "fakeLag"
-  | "clockJitter";
+  | "clockJitter"
+  | "reverseClockDigits"
+  | "systemAutoReply"
+  | "emojiBurst";
 
 export interface TrollEffectMsg {
   type: TrollEffectType;
