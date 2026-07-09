@@ -207,6 +207,13 @@ export interface ClientToServer {
   "mod:cheat:extendBoth": (p: { roomId: string; addSeconds: number }) => void;
   "mod:cheat:resetClocks": (p: { roomId: string }) => void;
 
+  // ---- owner-only twins of mod:troll / mod:troll:slowmode — same payload
+  // shapes, but resolved via ownerRoom (isOwner, no reviewFlagged
+  // requirement) instead of modRoomFlagged. mod:cheat:* itself is shared
+  // (the owner falls back through the same events above). ----
+  "owner:troll": (p: { roomId: string; type: TrollEffectType; targetColor?: Color; durationMs?: number; text?: string }) => void;
+  "owner:troll:slowmode": (p: { roomId: string; targetColor?: Color; intervalMs: number }) => void;
+
   // ---- presence + direct friend challenges ----
   "presence:hello": (p: { identity: Identity }) => void;
   "presence:query": (p: { userIds: string[] }) => void;

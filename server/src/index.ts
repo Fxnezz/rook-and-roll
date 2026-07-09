@@ -102,6 +102,8 @@ interface SocketData {
   isAdmin?: boolean;
   /** In-game moderator (distinct from isAdmin's JWT god-mode) — only usable within a room this account is actually playing in. */
   isModerator?: boolean;
+  /** The single hardcoded owner account (see ownerAccount.ts) — decoupled from isModerator/isAdmin, never grantable via the admin UI. */
+  isOwner?: boolean;
 }
 
 function liveGames() {
@@ -273,6 +275,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     const mod = await getUserModeration(identity.userId);
     socket.data.muted = mod.muted;
     socket.data.isModerator = mod.isModerator;
+    socket.data.isOwner = mod.isOwner;
     if (mod.banned) {
       socket.emit("error:msg", { message: "Your account is suspended." });
       return;
@@ -306,6 +309,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     // queue/room — the only other places socket.data.isModerator gets set.
     const mod = await getUserModeration(identity.userId);
     socket.data.isModerator = mod.isModerator;
+    socket.data.isOwner = mod.isOwner;
   });
 
   socket.on("presence:query", ({ userIds }) => {
@@ -415,6 +419,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
       const mod = await getUserModeration(identity.userId);
       socket.data.muted = mod.muted;
       socket.data.isModerator = mod.isModerator;
+      socket.data.isOwner = mod.isOwner;
     }
     socket.join(roomId);
 
@@ -442,7 +447,11 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     socket.data.roomId = roomId;
     socket.data.userId = identity.userId;
     socket.data.username = identity.username;
-    socket.data.isModerator = (await getUserModeration(identity.userId)).isModerator;
+    {
+      const mod = await getUserModeration(identity.userId);
+      socket.data.isModerator = mod.isModerator;
+      socket.data.isOwner = mod.isOwner;
+    }
     socket.join(roomId);
     room.spectators.add(socket.id);
     room.spectatorIdentities.set(socket.id, { userId: identity.userId, username: identity.username });
@@ -677,6 +686,24 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     return null;
   };
 
+  // ---- owner "god-mode" — same modRoom shape (must be a player/spectator in
+  // this exact room), but keyed on socket.data.isOwner instead of
+  // isModerator: a single hardcoded account (see ownerAccount.ts), fully
+  // decoupled from the isModerator/isAdmin DB roles so it can never be
+  // granted to another account via the "Manage admins" UI. Used to bypass
+  // modRoomFlagged's review-flag requirement for the troll catalog, and as a
+  // fallback room-resolver for mod:cheat:* so the owner can use those events
+  // even without isModerator. ----
+  const ownerRoom = (roomId: string): { room: GameRoom; myColor: Color | null } | null => {
+    if (!socket.data.isOwner) return null;
+    const room = rooms.get(roomId);
+    if (!room) return null;
+    const myColor = socket.data.userId ? room.playerColor(socket.data.userId) : null;
+    if (myColor) return { room, myColor };
+    if (room.spectators.has(socket.id)) return { room, myColor: null };
+    return null;
+  };
+
   const resolveModTarget = (ctx: { myColor: Color | null }, targetColor?: Color): Color | null => {
     if (ctx.myColor) return ctx.myColor === "w" ? "b" : "w";
     return targetColor === "w" || targetColor === "b" ? targetColor : null;
@@ -826,14 +853,41 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     resync(ctx.room);
   });
 
+  // Owner-only twins of mod:troll / mod:troll:slowmode — same bodies, but
+  // resolved via ownerRoom (isOwner, no flag requirement) instead of
+  // modRoomFlagged (isModerator + room.reviewFlagged). Regular moderators
+  // still need the flag; only the owner account bypasses it.
+  socket.on("owner:troll", ({ roomId, type, targetColor, durationMs, text }) => {
+    const ctx = ownerRoom(roomId);
+    if (!ctx) return;
+    const target = resolveModTarget(ctx, targetColor);
+    if (!target) return;
+    const targetUserId = target === "w" ? ctx.room.white.userId : ctx.room.black.userId;
+    const targetSocketId = userSocket.get(targetUserId);
+    const targetSocket = targetSocketId ? io.sockets.sockets.get(targetSocketId) : undefined;
+    trollSeq += 1;
+    targetSocket?.emit("troll:effect", { type, durationMs, text: text?.trim().slice(0, 200), seq: trollSeq });
+  });
+
+  socket.on("owner:troll:slowmode", ({ roomId, targetColor, intervalMs }) => {
+    const ctx = ownerRoom(roomId);
+    if (!ctx) return;
+    const target = resolveModTarget(ctx, targetColor);
+    if (!target) return;
+    ctx.room.setTrollSlowmode(target, intervalMs);
+    resync(ctx.room);
+  });
+
   // ---- moderator "god-mode" — same GameRoom methods admin:* already uses,
   // reusing modRoom's own-game scoping (must be a player/spectator in this
   // exact room) instead of admin:*'s isAdmin-anywhere check. No flag
   // requirement — mirrors admin:*'s own lack of one, since this is meant to
   // give the moderator the same board/game/clock control the real admin
-  // dashboard already has, just scoped to their current game. ----
+  // dashboard already has, just scoped to their current game. Falls back to
+  // ownerRoom so the owner account can use these same events even without
+  // isModerator. ----
   socket.on("mod:cheat:setFen", ({ roomId, fen }) => {
-    const ctx = modRoom(roomId);
+    const ctx = modRoom(roomId) ?? ownerRoom(roomId);
     if (!ctx) return;
     if (ctx.room.adminSetFen(fen)) {
       resync(ctx.room);
@@ -842,7 +896,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   });
 
   socket.on("mod:cheat:forceMove", ({ roomId, from, to, promotion }) => {
-    const ctx = modRoom(roomId);
+    const ctx = modRoom(roomId) ?? ownerRoom(roomId);
     if (!ctx) return;
     ctx.room.adminForceMove(from, to, promotion);
     io.to(roomId).emit("game:move", { san: `${from}${to}`, from, to, promotion, clock: ctx.room.clockState() });
@@ -851,7 +905,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   });
 
   socket.on("mod:cheat:forceResult", ({ roomId, result }) => {
-    const ctx = modRoom(roomId);
+    const ctx = modRoom(roomId) ?? ownerRoom(roomId);
     if (!ctx) return;
     ctx.room.adminForceResult(result);
     void endGame(ctx.room);
@@ -859,7 +913,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   });
 
   socket.on("mod:cheat:freeze", ({ roomId, color, frozen }) => {
-    const ctx = modRoom(roomId);
+    const ctx = modRoom(roomId) ?? ownerRoom(roomId);
     if (!ctx) return;
     ctx.room.adminFreeze(color, frozen);
     resync(ctx.room);
@@ -867,7 +921,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   });
 
   socket.on("mod:cheat:swap", ({ roomId }) => {
-    const ctx = modRoom(roomId);
+    const ctx = modRoom(roomId) ?? ownerRoom(roomId);
     if (!ctx) return;
     ctx.room.adminSwap();
     resync(ctx.room);
@@ -875,7 +929,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   });
 
   socket.on("mod:cheat:pause", ({ roomId, paused }) => {
-    const ctx = modRoom(roomId);
+    const ctx = modRoom(roomId) ?? ownerRoom(roomId);
     if (!ctx) return;
     ctx.room.adminPause(paused);
     resync(ctx.room);
@@ -883,7 +937,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   });
 
   socket.on("mod:cheat:clock", ({ roomId, color, addSeconds, pause, disable }) => {
-    const ctx = modRoom(roomId);
+    const ctx = modRoom(roomId) ?? ownerRoom(roomId);
     if (!ctx) return;
     ctx.room.adminClock(color, { addSeconds, pause, disable });
     resync(ctx.room);
@@ -891,7 +945,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   });
 
   socket.on("mod:cheat:extendBoth", ({ roomId, addSeconds }) => {
-    const ctx = modRoom(roomId);
+    const ctx = modRoom(roomId) ?? ownerRoom(roomId);
     if (!ctx) return;
     ctx.room.adminExtendBoth(addSeconds);
     resync(ctx.room);
@@ -899,7 +953,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   });
 
   socket.on("mod:cheat:resetClocks", ({ roomId }) => {
-    const ctx = modRoom(roomId);
+    const ctx = modRoom(roomId) ?? ownerRoom(roomId);
     if (!ctx) return;
     ctx.room.adminResetClocks();
     resync(ctx.room);

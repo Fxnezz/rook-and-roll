@@ -16,6 +16,8 @@ import { ModPanel } from "@/components/moderation/ModPanel";
 import { ModCheatGate } from "@/components/moderation/ModCheatGate";
 import { ModCheatPanel } from "@/components/moderation/ModCheatPanel";
 import { ModShieldMenu } from "@/components/moderation/ModShieldMenu";
+import { OwnerCheatGate } from "@/components/moderation/OwnerCheatGate";
+import { OwnerCheatPanel } from "@/components/moderation/OwnerCheatPanel";
 import { useToasts } from "@/lib/hooks/useToasts";
 import { ToastStack } from "@/components/ui/ToastStack";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
@@ -57,6 +59,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   const [tab, setTab] = useState<"moves" | "chat">("moves");
   const [modPanelOpen, setModPanelOpen] = useState(false);
   const [modCheatPanelOpen, setModCheatPanelOpen] = useState(false);
+  const [ownerCheatPanelOpen, setOwnerCheatPanelOpen] = useState(false);
   const [targetColor, setTargetColor] = useState<Color>("w");
   const [warnCount, setWarnCount] = useState(0);
   const [modLog, setModLog] = useState<{ id: number; text: string; ts: number }[]>([]);
@@ -200,6 +203,14 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   const onModCheatResetClocks = () => {
     online.modCheatResetClocks();
     logMod("God-mode: reset both clocks");
+  };
+  const onOwnerTroll = (type: TrollEffectType, opts?: { text?: string }) => {
+    online.ownerTroll(type, { targetColor, ...opts });
+    logMod(`Owner: trolled ${targetUsername}: ${type}`);
+  };
+  const onOwnerTrollSlowmode = (intervalMs: number) => {
+    online.ownerTrollSlowmode(intervalMs, targetColor);
+    logMod(intervalMs > 0 ? `Owner: set ${targetUsername}'s chat slowmode to ${intervalMs / 1000}s` : `Owner: disabled ${targetUsername}'s chat slowmode`);
   };
 
   return (
@@ -351,6 +362,28 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
           onClock={onModCheatClock}
           onExtendBoth={onModCheatExtendBoth}
           onResetClocks={onModCheatResetClocks}
+        />
+      )}
+      <OwnerCheatGate panelOpen={ownerCheatPanelOpen} onOpen={() => setOwnerCheatPanelOpen(true)} />
+      {ownerCheatPanelOpen && (
+        <OwnerCheatPanel
+          onClose={() => setOwnerCheatPanelOpen(false)}
+          roomId={roomId}
+          currentFen={snapshot.fen}
+          onLoadFen={onModCheatLoadFen}
+          onForceMove={onModCheatForceMove}
+          onForceResult={onModCheatForceResult}
+          onFreeze={onModCheatFreeze}
+          onSwapSides={onModCheatSwap}
+          paused={paused}
+          onTogglePause={onModCheatTogglePause}
+          onClock={onModCheatClock}
+          onExtendBoth={onModCheatExtendBoth}
+          onResetClocks={onModCheatResetClocks}
+          targetUsername={targetUsername}
+          onFireTrollEffect={onOwnerTroll}
+          slowmodeMs={slowmodeMs}
+          onTrollSlowmode={onOwnerTrollSlowmode}
         />
       )}
       <ToastStack toasts={toasts} />

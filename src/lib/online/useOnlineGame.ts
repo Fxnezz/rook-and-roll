@@ -307,6 +307,15 @@ export function useOnlineGame(identity: Identity) {
   const modCheatResetClocks = useCallback(() => {
     if (rid()) socketRef.current?.emit("mod:cheat:resetClocks", { roomId: rid()! });
   }, []);
+  const ownerTroll = useCallback(
+    (type: TrollEffectType, opts?: { targetColor?: Color; durationMs?: number; text?: string }) => {
+      if (rid()) socketRef.current?.emit("owner:troll", { roomId: rid()!, type, ...opts });
+    },
+    [],
+  );
+  const ownerTrollSlowmode = useCallback((intervalMs: number, targetColor?: Color) => {
+    if (rid()) socketRef.current?.emit("owner:troll:slowmode", { roomId: rid()!, intervalMs, targetColor });
+  }, []);
   const leave = useCallback(() => {
     if (rid()) socketRef.current?.emit("room:leave", { roomId: rid()! });
     setState(INITIAL);
@@ -356,6 +365,8 @@ export function useOnlineGame(identity: Identity) {
     modCheatClock,
     modCheatExtendBoth,
     modCheatResetClocks,
+    ownerTroll,
+    ownerTrollSlowmode,
     leave,
     clearError: () => patch({ error: null }),
   };

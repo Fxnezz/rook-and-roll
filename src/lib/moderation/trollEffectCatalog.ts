@@ -26,6 +26,7 @@ export const TROLL_EFFECTS: { type: TrollEffectType; label: string }[] = [
   { type: "moveSoundOverride", label: "Buzzer moves" },
   { type: "screenFlash", label: "Screen flash" },
   { type: "screenShake", label: "Screen shake" },
+  { type: "fakeAchievement", label: "Fake achievement" },
   { type: "confetti", label: "Confetti" },
   { type: "tabTitleFlash", label: "Flash tab title" },
   { type: "watchedBanner", label: "Watched banner" },
