@@ -4,6 +4,7 @@ import { prisma, isDbConfigured } from "@/lib/db/prisma";
 import { ProfileRatings } from "@/components/profile/ProfileRatings";
 import { UnifiedGameStats } from "@/components/profile/UnifiedGameStats";
 import { ReportButton } from "@/components/profile/ReportButton";
+import { FriendButton } from "@/components/profile/FriendButton";
 import { DbNotice } from "@/components/ui/DbNotice";
 import { auth } from "@/lib/auth/auth";
 import { ACHIEVEMENTS } from "@/lib/achievements/catalog";
@@ -85,6 +86,28 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   const session = await auth();
   const canReport = session?.user?.id && session.user.id !== user.id;
   const isOwnProfile = session?.user?.id === user.id;
+
+  const friendship =
+    session?.user?.id && !isOwnProfile
+      ? await prisma.friendship.findFirst({
+          where: {
+            OR: [
+              { requesterId: session.user.id, addresseeId: user.id },
+              { requesterId: user.id, addresseeId: session.user.id },
+            ],
+          },
+          select: { id: true, status: true, requesterId: true },
+        })
+      : null;
+  const friendState: "none" | "outgoing" | "incoming" | "friends" = !friendship
+    ? "none"
+    : friendship.status === "ACCEPTED"
+      ? "friends"
+      : friendship.status === "PENDING"
+        ? friendship.requesterId === session?.user?.id
+          ? "outgoing"
+          : "incoming"
+        : "none"; // BLOCKED — no UI exposes this state today, treat as no relationship
 
   const orFilter = [{ whiteId: user.id }, { blackId: user.id }];
   const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats, earnedAchievements, streakGames, myRank] = await Promise.all([
@@ -183,7 +206,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           <Link href={`/games?user=${user.username}`} className="btn">
             Game history
           </Link>
-          {canReport && <ReportButton username={user.username!} />}
+          {canReport && (
+            <>
+              <FriendButton username={user.username!} initialState={friendState} initialFriendshipId={friendship?.id ?? null} />
+              <ReportButton username={user.username!} />
+            </>
+          )}
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { GameStatus } from "@/lib/chess/useChessGame";
 import { IconRook } from "@/components/ui/icons";
 
@@ -8,11 +9,14 @@ export function GameOverModal({
   onNewGame,
   onReview,
   onClose,
+  opponentUsername,
 }: {
   status: GameStatus;
   onNewGame: () => void;
   onReview: () => void;
   onClose: () => void;
+  /** Only set for online (real-opponent) games — omitted for bot/local games. Shows a link to the opponent's profile so reporting/friending is reachable right after the game ends. */
+  opponentUsername?: string;
 }) {
   if (!status.over) return null;
   const headline =
@@ -38,6 +42,11 @@ export function GameOverModal({
         <p className="mt-1 text-sm text-[var(--text-muted)]">
           {status.reason} · <span className="font-mono">{status.result}</span>
         </p>
+        {opponentUsername && (
+          <Link href={`/u/${opponentUsername}`} className="mt-2 inline-block text-xs text-[var(--text-faint)] hover:underline">
+            View {opponentUsername}&apos;s profile
+          </Link>
+        )}
         <div className="mt-5 flex gap-2">
           <button className="btn flex-1" onClick={onReview}>
             Review game

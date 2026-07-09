@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { Color, PieceSymbol, Square } from "chess.js";
 import { Board } from "@/components/board/Board";
@@ -197,6 +198,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
             />
             <Bar
               name={players.black.username}
+              userId={players.black.userId}
               rating={players.black.rating}
               ms={state.clock.blackMs}
               active={state.clock.activeColor === "b"}
@@ -224,6 +226,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
             />
             <Bar
               name={players.white.username}
+              userId={players.white.userId}
               rating={players.white.rating}
               ms={state.clock.whiteMs}
               active={state.clock.activeColor === "w"}
@@ -311,6 +314,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
 
 function Bar({
   name,
+  userId,
   rating,
   ms,
   active,
@@ -318,6 +322,7 @@ function Bar({
   reversed,
 }: {
   name: string;
+  userId?: string;
   rating: number;
   ms: number;
   active: boolean;
@@ -327,7 +332,14 @@ function Bar({
   return (
     <div className="flex items-center justify-between">
       <span className="text-sm font-semibold">
-        {name} <span className="text-xs text-[var(--text-faint)]">{rating}</span>
+        {userId && !userId.startsWith("guest:") ? (
+          <Link href={`/u/${name}`} className="hover:underline">
+            {name}
+          </Link>
+        ) : (
+          name
+        )}{" "}
+        <span className="text-xs text-[var(--text-faint)]">{rating}</span>
       </span>
       {timed && <Clock ms={ms} active={active} reversed={reversed} />}
     </div>

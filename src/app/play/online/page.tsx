@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "@/components/board/Board";
@@ -553,7 +554,13 @@ export default function OnlinePage() {
             style={{ background: p?.connected ? "var(--good)" : "var(--bad)" }}
             title={p?.connected ? "Connected" : "Disconnected"}
           />
-          <span className="text-sm font-semibold">{p?.username ?? "—"}</span>
+          {p && !p.userId.startsWith("guest:") ? (
+            <Link href={`/u/${p.username}`} className="text-sm font-semibold hover:underline">
+              {p.username}
+            </Link>
+          ) : (
+            <span className="text-sm font-semibold">{p?.username ?? "—"}</span>
+          )}
           {p?.isModerator && (p.userId !== session?.user?.id || showModUI) && (
             <IconShield width={12} height={12} className="text-[var(--accent)]" aria-label="In-game moderator" />
           )}
