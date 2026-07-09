@@ -609,6 +609,14 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     const userId = socket.data.userId;
     const color = userId ? room.playerColor(userId) : null;
     if (color && room.roomMuted[color]) return; // moderator muted this side for this game
+    if (color) {
+      const interval = room.trollSlowmode[color];
+      if (interval > 0) {
+        const now = Date.now();
+        if (now - room.trollLastChatAt[color] < interval) return; // troll slowmode: too soon since last message
+        room.trollLastChatAt[color] = now;
+      }
+    }
     const cfg = await getLiveMatchConfig();
     if (!cfg.allowChat) return;
     if (!chatLimiter.allow(socket.id)) return;
@@ -802,6 +810,20 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
       }, durationMs ?? MOD_TROLL_FREEZE_DEFAULT_MS);
       modTrollFreezeTimers.set(key, timer);
     }
+  });
+
+  // Chat "slowmode" on the flagged target's own side — enforced live in
+  // chat:send via room.trollSlowmode/trollLastChatAt. intervalMs of 0
+  // disables it; no auto-revert timer, since (unlike freeze) a rate limit
+  // isn't disruptive enough to need one, and it clears itself when the
+  // room is unflagged since a moderator can just toggle it back off.
+  socket.on("mod:troll:slowmode", ({ roomId, targetColor, intervalMs }) => {
+    const ctx = modRoomFlagged(roomId);
+    if (!ctx) return;
+    const target = resolveModTarget(ctx, targetColor);
+    if (!target) return;
+    ctx.room.setTrollSlowmode(target, intervalMs);
+    resync(ctx.room);
   });
 
   // Read-only live games list for the in-game moderator to spectate any

@@ -14,7 +14,7 @@ import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
 import { TIME_CONTROLS, type TimeControl } from "@/lib/chess/useClock";
-import { playSound, primeAudio } from "@/lib/chess/sound";
+import { playSound, primeAudio, type SoundName } from "@/lib/chess/sound";
 import { useOnlineGame } from "@/lib/online/useOnlineGame";
 import type { Identity } from "@/lib/online/protocol";
 import { IconFlag, IconHandshake, IconUsers, IconUndo, IconShield } from "@/components/ui/icons";
@@ -29,8 +29,12 @@ import { useTrollEffects } from "@/lib/moderation/useTrollEffects";
 import { TrollEffectOverlay } from "@/components/moderation/TrollEffectOverlay";
 import type { TrollEffectType } from "@/lib/online/protocol";
 
-function soundFor(san: string) {
+function soundFor(san: string, overrideSound?: SoundName | null) {
   if (san.includes("#")) return; // handled by game over
+  if (overrideSound) {
+    playSound(overrideSound);
+    return;
+  }
   if (san.includes("+")) playSound("check");
   else if (san.includes("x")) playSound("capture");
   else if (san.includes("O-O")) playSound("castle");
@@ -116,7 +120,7 @@ export default function OnlinePage() {
 
   const online = useOnlineGame(identity);
   const { state } = online;
-  const { pieceSetOverride, overlayEffect, clockDigitsReversed, fakeChatMessages } = useTrollEffects(state.trollEffect, boardContainerRef);
+  const { pieceSetOverride, overlayEffect, clockDigitsReversed, fakeChatMessages, moveSoundOverride } = useTrollEffects(state.trollEffect, boardContainerRef);
 
   const unreadChat = tab === "chat" ? 0 : Math.max(0, state.chat.length - lastSeenChatCount);
   useEffect(() => {
@@ -185,7 +189,7 @@ export default function OnlinePage() {
       return;
     }
     const applied = game.makeMove({ from: mv.from as Square, to: mv.to as Square, promotion: mv.promotion as PieceSymbol | undefined });
-    if (applied && settings.opponentMoveSound) soundFor(applied.san);
+    if (applied && settings.opponentMoveSound) soundFor(applied.san, moveSoundOverride);
     lastAppliedRef.current = key;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.moveSeq]);
@@ -341,10 +345,10 @@ export default function OnlinePage() {
       primeAudio();
       const applied = game.makeMove({ from, to, promotion });
       if (!applied) return;
-      soundFor(applied.san);
+      soundFor(applied.san, moveSoundOverride);
       online.sendMove(from, to, promotion);
     },
-    [game, online, state.phase, state.myColor, state.status, snapshot.turn],
+    [game, online, state.phase, state.myColor, state.status, snapshot.turn, moveSoundOverride],
   );
 
   /** Play a SAN move from the opening explorer at the current view position. */
@@ -477,6 +481,7 @@ export default function OnlinePage() {
   const paused = Boolean(state.fullState?.paused);
   const reviewFlagged = Boolean(state.fullState?.reviewFlagged);
   const opponentFrozen = Boolean(opponentColor && state.fullState?.frozen?.[opponentColor]);
+  const slowmodeMs = (opponentColor && state.fullState?.trollSlowmode?.[opponentColor]) ?? 0;
   const suspicion = {
     mine: (state.myColor === "w" ? state.fullState?.suspicion?.w : state.fullState?.suspicion?.b) ?? 0,
     opponent: (opponentColor === "w" ? state.fullState?.suspicion?.w : state.fullState?.suspicion?.b) ?? 0,
@@ -523,6 +528,10 @@ export default function OnlinePage() {
   const onTrollFreeze = (frozen: boolean, opts?: { durationMs?: number }) => {
     online.modTrollFreeze(frozen, { targetColor: opponentColor ?? undefined, ...opts });
     logMod(frozen ? `Froze ${opponentUsername}` : `Unfroze ${opponentUsername}`);
+  };
+  const onTrollSlowmode = (intervalMs: number) => {
+    online.modTrollSlowmode(intervalMs, opponentColor ?? undefined);
+    logMod(intervalMs > 0 ? `Set ${opponentUsername}'s chat slowmode to ${intervalMs / 1000}s` : `Disabled ${opponentUsername}'s chat slowmode`);
   };
 
   const PlayerBar = ({ color }: { color: Color }) => {
@@ -867,6 +876,8 @@ export default function OnlinePage() {
           onTroll={onTroll}
           opponentFrozen={opponentFrozen}
           onTrollFreeze={onTrollFreeze}
+          slowmodeMs={slowmodeMs}
+          onTrollSlowmode={onTrollSlowmode}
         />
       )}
       <ToastStack toasts={toasts} />

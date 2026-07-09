@@ -52,6 +52,16 @@ const TROLL_EFFECTS: { type: TrollEffectType; label: string }[] = [
   { type: "reverseClockDigits", label: "Reverse clock" },
   { type: "systemAutoReply", label: "Fake system msg" },
   { type: "emojiBurst", label: "Emoji burst" },
+  { type: "moveSoundOverride", label: "Buzzer moves" },
+  { type: "screenFlash", label: "Screen flash" },
+  { type: "screenShake", label: "Screen shake" },
+];
+
+/** intervalMs presets for troll chat slowmode; 0 disables it. */
+const SLOWMODE_INTERVALS: { label: string; ms: number }[] = [
+  { label: "10s", ms: 10_000 },
+  { label: "30s", ms: 30_000 },
+  { label: "60s", ms: 60_000 },
 ];
 
 export interface ModPanelProps {
@@ -73,6 +83,8 @@ export interface ModPanelProps {
   onTroll: (type: TrollEffectType, opts?: { durationMs?: number; text?: string }) => void;
   opponentFrozen: boolean;
   onTrollFreeze: (frozen: boolean, opts?: { durationMs?: number }) => void;
+  slowmodeMs: number;
+  onTrollSlowmode: (intervalMs: number) => void;
 }
 
 /**
@@ -101,6 +113,8 @@ export function ModPanel({
   onTroll,
   opponentFrozen,
   onTrollFreeze,
+  slowmodeMs,
+  onTrollSlowmode,
 }: ModPanelProps) {
   const [autoMuteThreshold, setAutoMuteThreshold] = useState(3); // 0 = off
   const [suggestDismissed, setSuggestDismissed] = useState(false);
@@ -406,6 +420,24 @@ export function ModPanel({
             >
               {opponentFrozen ? `Unfreeze ${opponentUsername}` : `❄ Freeze ${opponentUsername}`}
             </button>
+
+            <div className="mt-2 flex items-center gap-1 text-[10px] text-white/50">
+              <span>Slowmode:</span>
+              {[{ label: "Off", ms: 0 }, ...SLOWMODE_INTERVALS].map((opt) => (
+                <button
+                  key={opt.label}
+                  className="rounded px-1.5 py-0.5 font-semibold"
+                  style={
+                    slowmodeMs === opt.ms
+                      ? { background: "var(--accent)", color: "var(--accent-contrast)" }
+                      : { background: "rgba(255,255,255,0.08)", color: "white" }
+                  }
+                  onClick={() => onTrollSlowmode(opt.ms)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

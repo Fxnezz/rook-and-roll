@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMsg, TrollEffectMsg, TrollEffectType } from "@/lib/online/protocol";
 import { PIECE_SETS, type PieceSetId } from "@/lib/pieces";
+import type { SoundName } from "@/lib/chess/sound";
 
 /** Effects implemented as a pure CSS class toggle on the board container ref — every new one is just a table entry + a globals.css class. */
 const BOARD_CSS_EFFECTS: Partial<Record<TrollEffectType, string>> = {
@@ -15,6 +16,8 @@ const BOARD_CSS_EFFECTS: Partial<Record<TrollEffectType, string>> = {
   blackoutBoard: "troll-blackout",
   fakeLowTime: "troll-lowtime",
   clockJitter: "troll-jitter",
+  screenFlash: "troll-flash",
+  screenShake: "troll-shake",
 };
 
 const DEFAULT_DURATION_MS: Partial<Record<TrollEffectType, number>> = {
@@ -33,6 +36,9 @@ const DEFAULT_DURATION_MS: Partial<Record<TrollEffectType, number>> = {
   clockJitter: 2500,
   reverseClockDigits: 4000,
   emojiBurst: 2200,
+  moveSoundOverride: 15000,
+  screenFlash: 700,
+  screenShake: 1300,
 };
 
 const DEFAULT_TEXT: Partial<Record<TrollEffectType, string>> = {
@@ -59,9 +65,11 @@ export type OverlayEffectState =
  *
  * `reskinPieces` needs a `pieceSetOverride` (Board takes pieceSet as a prop),
  * `reverseClockDigits` needs a `clockDigitsReversed` boolean threaded into
- * <Clock reversed=…>, and `systemAutoReply` appends a fake, purely local
- * ChatMsg to `fakeChatMessages` — never sent through the real chat:send path,
- * so it never reaches the server or the opponent.
+ * <Clock reversed=…>, `systemAutoReply` appends a fake, purely local ChatMsg
+ * to `fakeChatMessages` — never sent through the real chat:send path, so it
+ * never reaches the server or the opponent — and `moveSoundOverride` returns
+ * a `SoundName` for the page to pass into its own soundFor() calls. Screen
+ * effects (screenFlash, screenShake) are just more BOARD_CSS_EFFECTS entries.
  */
 export function useTrollEffects(trollEffect: TrollEffectMsg | null, boardContainerRef: React.RefObject<HTMLElement | null>) {
   const prevSeq = useRef(0);
@@ -69,6 +77,7 @@ export function useTrollEffects(trollEffect: TrollEffectMsg | null, boardContain
   const [overlayEffect, setOverlayEffect] = useState<OverlayEffectState | null>(null);
   const [clockDigitsReversed, setClockDigitsReversed] = useState(false);
   const [fakeChatMessages, setFakeChatMessages] = useState<ChatMsg[]>([]);
+  const [moveSoundOverride, setMoveSoundOverride] = useState<SoundName | null>(null);
 
   useEffect(() => {
     if (!trollEffect || trollEffect.seq === prevSeq.current) return;
@@ -87,6 +96,13 @@ export function useTrollEffects(trollEffect: TrollEffectMsg | null, boardContain
       setClockDigitsReversed(true);
       const duration = trollEffect.durationMs ?? DEFAULT_DURATION_MS.reverseClockDigits ?? 4000;
       const t = setTimeout(() => setClockDigitsReversed(false), duration);
+      return () => clearTimeout(t);
+    }
+
+    if (trollEffect.type === "moveSoundOverride") {
+      setMoveSoundOverride("illegal"); // every move sounds like a buzzer, real legality is untouched
+      const duration = trollEffect.durationMs ?? DEFAULT_DURATION_MS.moveSoundOverride ?? 15000;
+      const t = setTimeout(() => setMoveSoundOverride(null), duration);
       return () => clearTimeout(t);
     }
 
@@ -137,5 +153,5 @@ export function useTrollEffects(trollEffect: TrollEffectMsg | null, boardContain
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trollEffect, boardContainerRef]);
 
-  return { pieceSetOverride, overlayEffect, clockDigitsReversed, fakeChatMessages };
+  return { pieceSetOverride, overlayEffect, clockDigitsReversed, fakeChatMessages, moveSoundOverride };
 }

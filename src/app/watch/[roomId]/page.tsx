@@ -103,6 +103,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   const paused = Boolean(state.fullState?.paused);
   const reviewFlagged = Boolean(state.fullState?.reviewFlagged);
   const targetFrozen = Boolean(state.fullState?.frozen?.[targetColor]);
+  const slowmodeMs = state.fullState?.trollSlowmode?.[targetColor] ?? 0;
   const suspicion = { mine: 0, opponent: state.fullState?.suspicion?.[targetColor] ?? 0 };
   const flaggedMessages = state.chat
     .filter((m) => m.flagged)
@@ -150,6 +151,10 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   const onTrollFreeze = (frozen: boolean, opts?: { durationMs?: number }) => {
     online.modTrollFreeze(frozen, { targetColor, ...opts });
     logMod(frozen ? `Froze ${targetUsername}` : `Unfroze ${targetUsername}`);
+  };
+  const onTrollSlowmode = (intervalMs: number) => {
+    online.modTrollSlowmode(intervalMs, targetColor);
+    logMod(intervalMs > 0 ? `Set ${targetUsername}'s chat slowmode to ${intervalMs / 1000}s` : `Disabled ${targetUsername}'s chat slowmode`);
   };
 
   return (
@@ -286,6 +291,8 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
           onTroll={onTroll}
           opponentFrozen={targetFrozen}
           onTrollFreeze={onTrollFreeze}
+          slowmodeMs={slowmodeMs}
+          onTrollSlowmode={onTrollSlowmode}
         />
       )}
       <ToastStack toasts={toasts} />

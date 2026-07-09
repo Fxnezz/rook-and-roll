@@ -49,6 +49,9 @@ export class GameRoom {
   roomMuted = { w: false, b: false };
   reviewFlagged = false;
   voided = false;
+  /** Moderator "troll" slowmode — min ms between chat messages per side; 0 = disabled. */
+  trollSlowmode = { w: 0, b: 0 };
+  trollLastChatAt = { w: 0, b: 0 };
   /** ms spent on each ply, index-aligned with chess.history() */
   moveTimesMs: number[] = [];
   private lastMoveAt = 0;
@@ -368,6 +371,10 @@ export class GameRoom {
     }
   }
 
+  setTrollSlowmode(color: Color, intervalMs: number) {
+    this.trollSlowmode[color] = Math.max(0, intervalMs);
+  }
+
   /** Swap which player controls white vs black; board, clocks, colors stay. */
   adminSwap() {
     const w = this.white;
@@ -417,6 +424,7 @@ export class GameRoom {
       disconnectedSince: { ...this.disconnectedSince },
       spectatorList: [...this.spectatorIdentities.values()].map((s) => ({ username: s.username })),
       reviewFlagged: this.reviewFlagged,
+      trollSlowmode: { ...this.trollSlowmode },
     };
   }
 }

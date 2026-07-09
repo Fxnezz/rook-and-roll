@@ -354,6 +354,24 @@ body {
 }
 .troll-emoji-rise { animation: troll-emoji-rise 1.8s ease-out forwards; }
 
+@keyframes troll-screen-flash {
+  0%, 100% { opacity: 0; }
+  10%, 30%, 50% { opacity: 1; }
+  20%, 40% { opacity: 0; }
+}
+.troll-flash { position: relative; }
+.troll-flash::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  z-index: 50;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: troll-screen-flash 0.6s ease-in-out 1;
+}
+.troll-shake { animation: shake 0.4s ease-in-out 3; }
+
 .stagger-item {
   animation: rise-in 0.32s var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 45ms + 30ms);

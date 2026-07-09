@@ -93,7 +93,10 @@ export type TrollEffectType =
   | "clockJitter"
   | "reverseClockDigits"
   | "systemAutoReply"
-  | "emojiBurst";
+  | "emojiBurst"
+  | "moveSoundOverride"
+  | "screenFlash"
+  | "screenShake";
 
 export interface TrollEffectMsg {
   type: TrollEffectType;
