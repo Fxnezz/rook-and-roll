@@ -42,6 +42,8 @@ export function ChatPanel({
   const [hideSpectators, setHideSpectators] = useState(false);
   const [reportedKeys, setReportedKeys] = useState<Set<number>>(new Set());
   const [ignoredFlags, setIgnoredFlags] = useState<Set<number>>(new Set());
+  const [flagAnnouncement, setFlagAnnouncement] = useState("");
+  const prevFlaggedCountRef = useRef(0);
   const [atBottom, setAtBottom] = useState(true);
   const [newSinceScroll, setNewSinceScroll] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -51,6 +53,16 @@ export function ChatPanel({
   useEffect(() => {
     if (focusSignal) inputRef.current?.focus();
   }, [focusSignal]);
+
+  useEffect(() => {
+    if (!isModerator) return;
+    const flagged = messages.filter((m) => m.flagged);
+    if (flagged.length > prevFlaggedCountRef.current) {
+      const latest = flagged[flagged.length - 1];
+      setFlagAnnouncement(`New flagged message from ${latest.from}, severity ${latest.flagSeverity ?? "unknown"}`);
+    }
+    prevFlaggedCountRef.current = flagged.length;
+  }, [messages, isModerator]);
 
   const visibleMessages = messages.filter((m) => {
     if (m.system) return true;
@@ -108,6 +120,11 @@ export function ChatPanel({
 
   return (
     <div className="flex h-full flex-col">
+      {isModerator && (
+        <div className="sr-only" role="status" aria-live="polite">
+          {flagAnnouncement}
+        </div>
+      )}
       <div className="flex items-center justify-end gap-1 border-b border-[var(--border)] px-2 py-1">
         {!disabled && (
           <button

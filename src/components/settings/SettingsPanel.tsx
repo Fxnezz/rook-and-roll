@@ -5,7 +5,7 @@ import { useSettings, type AnimationSpeed, type BoardFrame, type MoveInputMode }
 import { playSound, setSoundPack, type SoundName, type SoundPack } from "@/lib/chess/sound";
 import { BOARD_THEMES } from "@/lib/chess/themes";
 import { PIECE_SETS, Piece } from "@/lib/pieces";
-import { IconPalette, IconVolume, IconVolumeOff, IconSparkles, IconMotion, IconRefresh, IconCheck } from "../ui/icons";
+import { IconPalette, IconVolume, IconVolumeOff, IconSparkles, IconMotion, IconRefresh, IconCheck, IconShield } from "../ui/icons";
 
 const SOUND_PACKS: { id: SoundPack; label: string }[] = [
   { id: "classic", label: "Classic" },
@@ -142,7 +142,7 @@ function Section({ icon, title, i, children }: { icon: ReactNode; title: string;
   );
 }
 
-export function SettingsPanel() {
+export function SettingsPanel({ canModerate = false }: { canModerate?: boolean } = {}) {
   const { settings, update, reset } = useSettings();
   const [confirmingReset, setConfirmingReset] = useState(false);
 
@@ -426,6 +426,26 @@ export function SettingsPanel() {
           onChange={(v) => update({ figurineNotation: v })}
         />
       </Section>
+
+      {canModerate && (
+        <>
+          <div className="h-px bg-[var(--border)]" />
+          <Section icon={<IconShield width={14} height={14} />} title="Moderation" i={4}>
+            <Toggle
+              label="Flagged-message sound"
+              description="Play a distinct sound when a flagged chat message arrives"
+              checked={settings.modFlaggedSound}
+              onChange={(v) => update({ modFlaggedSound: v })}
+            />
+            <Toggle
+              label="Hide moderation UI"
+              description="Fully hide the badge, shield icon, and panel — act like a normal player"
+              checked={settings.modHideUI}
+              onChange={(v) => update({ modHideUI: v })}
+            />
+          </Section>
+        </>
+      )}
 
       <button
         className={`btn hover-lift !justify-start gap-2 !text-sm ${confirmingReset ? "!border-[var(--bad)] !text-[var(--bad)]" : ""}`}

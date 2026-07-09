@@ -20,6 +20,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "blitz_win", name: "Blitz Master", description: "Win a rated blitz game", category: "special", icon: "💨" },
   { id: "rapid_win", name: "Rapid Fire", description: "Win a rated rapid game", category: "special", icon: "🎯" },
   { id: "classical_win", name: "Grandmaster's Patience", description: "Win a rated classical game", category: "special", icon: "🏛️" },
+  { id: "community_guardian", name: "Community Guardian", description: "Take 10 in-game moderation actions", category: "special", icon: "🛡️" },
 ];
 
 export type AchievementId = (typeof ACHIEVEMENTS)[number]["id"];

@@ -114,7 +114,7 @@ export function Header() {
       </div>
 
       <SlideOver open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
-        <SettingsPanel />
+        <SettingsPanel canModerate={Boolean(session?.user?.isModerator)} />
       </SlideOver>
 
       <SlideOver

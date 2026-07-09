@@ -24,6 +24,7 @@ import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
 import { useToasts } from "@/lib/hooks/useToasts";
 import { ToastStack } from "@/components/ui/ToastStack";
 import { ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
+import { useModStats } from "@/lib/moderation/useModStats";
 
 function soundFor(san: string) {
   if (san.includes("#")) return; // handled by game over
@@ -76,6 +77,8 @@ export default function OnlinePage() {
 
   const loggedIn = Boolean(session?.user);
   const isModerator = Boolean(session?.user?.isModerator);
+  const showModUI = isModerator && !settings.modHideUI;
+  const { increment: incrementModStat } = useModStats();
 
   useEffect(() => {
     if (!loggedIn) return;
@@ -217,6 +220,16 @@ export default function OnlinePage() {
     prevChatLenRef.current = state.chat.length;
   }, [state.chat, identity.username, settings.chatSound]);
 
+  // Distinct alert sound for the moderator when a flagged message arrives.
+  const prevFlaggedLenRef = useRef(0);
+  useEffect(() => {
+    const flaggedCount = state.chat.filter((m) => m.flagged).length;
+    if (flaggedCount > prevFlaggedLenRef.current && showModUI && settings.modFlaggedSound) {
+      playSound("flagged");
+    }
+    prevFlaggedLenRef.current = flaggedCount;
+  }, [state.chat, showModUI, settings.modFlaggedSound]);
+
   // Toast whenever the opponent makes a draw/takeback/rematch offer.
   useEffect(() => {
     const prev = prevOffersRef.current;
@@ -302,6 +315,9 @@ export default function OnlinePage() {
     onFocusChat: () => {
       setTab("chat");
       setChatFocusSignal((n) => n + 1);
+    },
+    onOpenModeration: () => {
+      if (showModUI) setModPanelOpen((v) => !v);
     },
   });
 
@@ -465,6 +481,7 @@ export default function OnlinePage() {
     online.modMuteChat(next, undefined, next ? durationMs : undefined);
     pushToast(next ? `Muted ${opponentUsername}'s chat` : `Unmuted ${opponentUsername}'s chat`);
     logMod(next ? `Muted ${opponentUsername}` : `Unmuted ${opponentUsername}`);
+    if (next) incrementModStat("mutes");
   };
   const sendWarn = (text: string) => {
     if (!text.trim()) return;
@@ -477,18 +494,21 @@ export default function OnlinePage() {
     setWarnCount((n) => n + 1);
     pushToast(`Warned ${opponentUsername}`);
     logMod(`Warned ${opponentUsername}: "${text}"`);
+    incrementModStat("warnings");
   };
   const togglePause = () => {
     const next = !paused;
     online.modPause(next);
     pushToast(next ? "Game paused" : "Game resumed");
     logMod(next ? "Paused the game" : "Resumed the game");
+    if (next) incrementModStat("pauses");
   };
   const toggleFlagReview = () => {
     const next = !reviewFlagged;
     online.modFlagReview(next);
     pushToast(next ? "Flagged this game for admin review" : "Removed review flag");
     logMod(next ? "Flagged game for review" : "Removed review flag");
+    if (next) incrementModStat("flagsForReview");
   };
 
   const PlayerBar = ({ color }: { color: Color }) => {
@@ -507,7 +527,7 @@ export default function OnlinePage() {
             title={p?.connected ? "Connected" : "Disconnected"}
           />
           <span className="text-sm font-semibold">{p?.username ?? "—"}</span>
-          {p?.isModerator && (
+          {p?.isModerator && (p.userId !== session?.user?.id || showModUI) && (
             <IconShield width={12} height={12} className="text-[var(--accent)]" aria-label="In-game moderator" />
           )}
           {p && <span className="text-xs text-[var(--text-faint)]">{p.rating}</span>}
@@ -531,7 +551,7 @@ export default function OnlinePage() {
           <button className="btn btn-ghost" onClick={online.leave}>
             ← Leave
           </button>
-          {isModerator && state.phase === "playing" && (
+          {showModUI && state.phase === "playing" && (
             <button
               className="btn btn-ghost relative !px-2.5"
               onClick={() => setModPanelOpen((v) => !v)}
@@ -747,7 +767,7 @@ export default function OnlinePage() {
                 disabled={state.phase === "spectating"}
                 myUsername={identity.username}
                 focusSignal={chatFocusSignal}
-                isModerator={isModerator}
+                isModerator={showModUI}
                 onModMute={() => !opponentMuted && toggleMute()}
                 onModWarn={() => sendWarn("Please follow the chat guidelines.")}
               />
@@ -811,7 +831,7 @@ export default function OnlinePage() {
       )}
 
       {showShortcuts && <ShortcutsHelpModal onClose={() => setShowShortcuts(false)} showDraw showChat />}
-      {isModerator && modPanelOpen && state.phase === "playing" && (
+      {showModUI && modPanelOpen && state.phase === "playing" && (
         <ModPanel
           onClose={() => setModPanelOpen(false)}
           roomId={state.roomId ?? ""}

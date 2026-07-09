@@ -8,6 +8,7 @@ import { DbNotice } from "@/components/ui/DbNotice";
 import { auth } from "@/lib/auth/auth";
 import { ACHIEVEMENTS } from "@/lib/achievements/catalog";
 import { fetchUserRank } from "@/lib/leaderboard/query";
+import { ModStatsCard } from "@/components/profile/ModStatsCard";
 
 const HIGHER_IS_BETTER_GAMES = [
   "snake",
@@ -222,6 +223,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       />
 
       <UnifiedGameStats gameRatings={gameRatings} highScores={highScores} wordStats={wordStats} />
+
+      <ModStatsCard username={user.username ?? ""} />
 
       <AchievementsSection earned={earnedAchievements} />
     </div>

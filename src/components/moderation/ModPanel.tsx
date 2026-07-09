@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { IconShield, IconVolumeOff, IconVolume } from "@/components/ui/icons";
 import { useLastMuteDuration, useCustomWarnPhrases } from "@/lib/moderation/useModPreferences";
+import { useModStats } from "@/lib/moderation/useModStats";
 
 interface PlayerContext {
   found: boolean;
@@ -81,6 +82,7 @@ export function ModPanel({
   const lastActionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { durationMs: muteDurationMs, setDurationMs: setMuteDurationMs } = useLastMuteDuration();
   const { phrases: customPhrases, addPhrase, removePhrase } = useCustomWarnPhrases();
+  const { increment: incrementModStat } = useModStats();
 
   const withUndo = (label: string, undo: () => void) => {
     setLastAction({ label, undo });
@@ -102,6 +104,7 @@ export function ModPanel({
 
   const flagCheating = async () => {
     setCheatFlagSent(true);
+    incrementModStat("cheatFlags");
     try {
       await fetch("/api/reports", {
         method: "POST",
@@ -474,7 +477,24 @@ export function ModPanel({
 
         {actionLog.length > 0 && (
           <div className="mt-3">
-            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-white/70">Action log</p>
+            <div className="mb-1 flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wide text-white/70">Action log</p>
+              <button
+                className="text-[10px] font-semibold text-white/40 hover:text-white"
+                onClick={() => {
+                  const text = actionLog.map((l) => `${new Date(l.ts).toLocaleString()} — ${l.text}`).join("\n");
+                  const blob = new Blob([text], { type: "text/plain" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `mod-log-${roomId}.txt`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                Export
+              </button>
+            </div>
             <div className="flex flex-col gap-0.5 text-[11px] text-white/50">
               {actionLog
                 .slice()

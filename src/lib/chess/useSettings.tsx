@@ -52,6 +52,10 @@ export interface Settings {
   figurineNotation: boolean;
   /** Play a sound when a new chat message arrives. */
   chatSound: boolean;
+  /** Moderator-only: play a distinct sound when a flagged chat message arrives. */
+  modFlaggedSound: boolean;
+  /** Moderator-only: hide all in-game moderation UI (badge, shield icon, ModPanel) and act like a normal player. */
+  modHideUI: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -83,6 +87,8 @@ const DEFAULTS: Settings = {
   speechAnnounceMoves: false,
   figurineNotation: false,
   chatSound: true,
+  modFlaggedSound: true,
+  modHideUI: false,
 };
 
 const STORAGE_KEY = "rr.settings.v1";

@@ -13,6 +13,8 @@ export interface ShortcutHandlers {
   onToggleHelp?: () => void;
   /** Online play only: switch to the Chat tab and focus its message input. */
   onFocusChat?: () => void;
+  /** In-game moderator only: toggle the ModPanel. */
+  onOpenModeration?: () => void;
 }
 
 /** Global chess-page keyboard shortcuts. Ignored while typing in an input/textarea. */
@@ -56,6 +58,10 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
           break;
         case "/":
           h.onFocusChat?.();
+          break;
+        case "m":
+        case "M":
+          h.onOpenModeration?.();
           break;
         default:
           return;

@@ -15,6 +15,9 @@ import { IconShield } from "@/components/ui/icons";
 import { ModPanel } from "@/components/moderation/ModPanel";
 import { useToasts } from "@/lib/hooks/useToasts";
 import { ToastStack } from "@/components/ui/ToastStack";
+import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
+import { playSound } from "@/lib/chess/sound";
+import { useModStats } from "@/lib/moderation/useModStats";
 
 export default function WatchPage({ params }: { params: Promise<{ roomId: string }> }) {
   const { roomId } = use(params);
@@ -26,6 +29,8 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   const { toasts, push: pushToast } = useToasts();
 
   const isModerator = Boolean(session?.user?.isModerator);
+  const showModUI = isModerator && !settings.modHideUI;
+  const { increment: incrementModStat } = useModStats();
   const identity = useMemo(() => {
     if (session?.user) {
       return { userId: session.user.id, username: session.user.username ?? session.user.name ?? "Spectator", rating: 0, guest: false };
@@ -49,6 +54,21 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
     online.spectate(roomId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
+
+  useKeyboardShortcuts({
+    onOpenModeration: () => {
+      if (showModUI) setModPanelOpen((v) => !v);
+    },
+  });
+
+  const prevFlaggedLenRef = useRef(0);
+  useEffect(() => {
+    const flaggedCount = state.chat.filter((m) => m.flagged).length;
+    if (flaggedCount > prevFlaggedLenRef.current && showModUI && settings.modFlaggedSound) {
+      playSound("flagged");
+    }
+    prevFlaggedLenRef.current = flaggedCount;
+  }, [state.chat, showModUI, settings.modFlaggedSound]);
 
   useEffect(() => {
     if (!state.fullState) return;
@@ -88,6 +108,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
     online.modMuteChat(next, targetColor, next ? durationMs : undefined);
     pushToast(next ? `Muted ${targetUsername}'s chat` : `Unmuted ${targetUsername}'s chat`);
     logMod(next ? `Muted ${targetUsername}` : `Unmuted ${targetUsername}`);
+    if (next) incrementModStat("mutes");
   };
   const sendWarn = (text: string) => {
     if (!text.trim()) return;
@@ -100,18 +121,21 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
     setWarnCount((n) => n + 1);
     pushToast(`Warned ${targetUsername}`);
     logMod(`Warned ${targetUsername}: "${text}"`);
+    incrementModStat("warnings");
   };
   const togglePause = () => {
     const next = !paused;
     online.modPause(next);
     pushToast(next ? "Game paused" : "Game resumed");
     logMod(next ? "Paused the game" : "Resumed the game");
+    if (next) incrementModStat("pauses");
   };
   const toggleFlagReview = () => {
     const next = !reviewFlagged;
     online.modFlagReview(next);
     pushToast(next ? "Flagged this game for admin review" : "Removed review flag");
     logMod(next ? "Flagged game for review" : "Removed review flag");
+    if (next) incrementModStat("flagsForReview");
   };
 
   return (
@@ -119,7 +143,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
       <div className="mb-4 flex items-center gap-2">
         <span className="chip">👁 Spectating</span>
         {state.status && <span className="chip">Game over · {state.status.reason}</span>}
-        {isModerator && (
+        {showModUI && (
           <button
             className="btn btn-ghost relative !p-2"
             onClick={() => setModPanelOpen((v) => !v)}
@@ -176,7 +200,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
               </span>
               <span className="text-xs font-normal text-[var(--text-faint)]">{state.fullState?.spectators ?? 0} watching</span>
             </div>
-            {isModerator && (
+            {showModUI && (
               <div className="flex items-center gap-1.5 border-b border-[var(--border)] px-3 py-1.5 text-xs">
                 <span className="text-[var(--text-faint)]">Targeting:</span>
                 <button
@@ -203,7 +227,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
                   messages={state.chat}
                   onSend={online.sendChat}
                   myUsername={identity.username}
-                  isModerator={isModerator}
+                  isModerator={showModUI}
                   onModMute={() => !targetMuted && toggleMute()}
                   onModWarn={() => sendWarn("Please follow the chat guidelines.")}
                 />
@@ -213,7 +237,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
         </div>
       )}
 
-      {isModerator && modPanelOpen && (
+      {showModUI && modPanelOpen && (
         <ModPanel
           onClose={() => setModPanelOpen(false)}
           roomId={roomId}
