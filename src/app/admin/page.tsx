@@ -36,6 +36,7 @@ export default async function AdminHome() {
           badge={openReportCount > 0 ? String(openReportCount) : undefined}
         />
         <Card title="Banned IPs" note="Block sign-in & registration" href="/admin/banned-ips" />
+        <Card title="Manage admins" note="Grant/revoke /admin access" href="/admin/admins" />
       </div>
 
       <section className="panel overflow-hidden">
