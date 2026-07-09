@@ -120,7 +120,12 @@ export default function OnlinePage() {
 
   const online = useOnlineGame(identity);
   const { state } = online;
-  const { pieceSetOverride, overlayEffect, clockDigitsReversed, fakeChatMessages, moveSoundOverride } = useTrollEffects(state.trollEffect, boardContainerRef);
+  const { toasts, push: pushToast } = useToasts();
+  const { pieceSetOverride, overlayEffect, clockDigitsReversed, fakeChatMessages, moveSoundOverride, watchedBanner, confettiTrigger } = useTrollEffects(
+    state.trollEffect,
+    boardContainerRef,
+    pushToast,
+  );
 
   const unreadChat = tab === "chat" ? 0 : Math.max(0, state.chat.length - lastSeenChatCount);
   useEffect(() => {
@@ -151,7 +156,6 @@ export default function OnlinePage() {
   const lastAppliedRef = useRef<string>("");
   const [premove, setPremove] = useState<{ from: Square; to: Square } | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const { toasts, push: pushToast } = useToasts();
   const [notifyDismissed, setNotifyDismissed] = useState(false);
   const prevOffersRef = useRef({ draw: state.drawOfferFrom, takeback: state.takebackOfferFrom, rematch: state.rematchOfferFrom });
 
@@ -706,7 +710,12 @@ export default function OnlinePage() {
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         <div ref={boardContainerRef} className="relative flex w-full flex-col gap-2 lg:max-w-[min(72vh,640px)]">
-          <TrollEffectOverlay effect={overlayEffect} />
+          <TrollEffectOverlay
+            effect={overlayEffect}
+            watchedBanner={watchedBanner}
+            confettiTrigger={confettiTrigger}
+            reduceMotion={settings.reduceMotion}
+          />
           <PlayerBar color={topColor} />
           <Board
             snapshot={snapshot}

@@ -55,6 +55,10 @@ const TROLL_EFFECTS: { type: TrollEffectType; label: string }[] = [
   { type: "moveSoundOverride", label: "Buzzer moves" },
   { type: "screenFlash", label: "Screen flash" },
   { type: "screenShake", label: "Screen shake" },
+  { type: "confetti", label: "Confetti" },
+  { type: "tabTitleFlash", label: "Flash tab title" },
+  { type: "watchedBanner", label: "Watched banner" },
+  { type: "voiceLinePopup", label: "Voice line" },
 ];
 
 /** intervalMs presets for troll chat slowmode; 0 disables it. */
@@ -127,6 +131,7 @@ export function ModPanel({
   const [note, setNote] = useState("");
   const [cheatFlagSent, setCheatFlagSent] = useState(false);
   const [freezeDurationMs, setFreezeDurationMs] = useState(FREEZE_DURATIONS[0].ms);
+  const [trollText, setTrollText] = useState("");
   const autoMutedRef = useRef(false);
   const lastActionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { durationMs: muteDurationMs, setDurationMs: setMuteDurationMs } = useLastMuteDuration();
@@ -378,12 +383,19 @@ export function ModPanel({
             <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-purple-200">
               🎭 Troll {opponentUsername} <span className="font-normal normal-case text-purple-200/60">(unlocked — this game is flagged)</span>
             </p>
+            <input
+              className="input mb-1.5 !py-1 !text-[11px]"
+              placeholder="Optional joke text (fake achievement, voice line, system msg)…"
+              value={trollText}
+              onChange={(e) => setTrollText(e.target.value)}
+              maxLength={80}
+            />
             <div className="mb-2 flex flex-wrap gap-1">
               {TROLL_EFFECTS.map((e) => (
                 <button
                   key={e.type}
                   className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-white/70 hover:bg-white/10 hover:text-white"
-                  onClick={() => onTroll(e.type)}
+                  onClick={() => onTroll(e.type, trollText.trim() ? { text: trollText.trim() } : undefined)}
                 >
                   {e.label}
                 </button>

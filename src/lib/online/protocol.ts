@@ -96,7 +96,12 @@ export type TrollEffectType =
   | "emojiBurst"
   | "moveSoundOverride"
   | "screenFlash"
-  | "screenShake";
+  | "screenShake"
+  | "fakeAchievement"
+  | "confetti"
+  | "tabTitleFlash"
+  | "watchedBanner"
+  | "voiceLinePopup";
 
 export interface TrollEffectMsg {
   type: TrollEffectType;

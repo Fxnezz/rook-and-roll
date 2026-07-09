@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChatMsg, TrollEffectMsg, TrollEffectType } from "@/lib/online/protocol";
 import { PIECE_SETS, type PieceSetId } from "@/lib/pieces";
 import type { SoundName } from "@/lib/chess/sound";
+import { VOICE_LINES } from "@/components/cheats/CheatEffects";
 
 /** Effects implemented as a pure CSS class toggle on the board container ref — every new one is just a table entry + a globals.css class. */
 const BOARD_CSS_EFFECTS: Partial<Record<TrollEffectType, string>> = {
@@ -39,21 +40,36 @@ const DEFAULT_DURATION_MS: Partial<Record<TrollEffectType, number>> = {
   moveSoundOverride: 15000,
   screenFlash: 700,
   screenShake: 1300,
+  tabTitleFlash: 6000,
+  voiceLinePopup: 1200,
 };
 
 const DEFAULT_TEXT: Partial<Record<TrollEffectType, string>> = {
   systemAutoReply: "⚙️ System: this game is being monitored for fair play.",
+  tabTitleFlash: "👀 Look at your board!",
+  fakeAchievement: "Speedrunner",
 };
 
 const EMOJI_BURST_SET = ["😂", "🤡", "💩", "🙃", "😹", "🎉", "👻", "🫠", "🔥", "🐸"];
+const CONFETTI_COLORS = ["#e9a23b", "#5bbf7a", "#5aa8e0", "#e5604d", "#b06fe0"];
 
 /** Effects rendered as real overlay DOM (via <TrollEffectOverlay>) rather than a CSS class on the container. */
-const OVERLAY_EFFECT_TYPES = new Set<TrollEffectType>(["fakeInCheck", "fakeArrow", "fakeLag", "emojiBurst"]);
+const OVERLAY_EFFECT_TYPES = new Set<TrollEffectType>(["fakeInCheck", "fakeArrow", "fakeLag", "emojiBurst", "voiceLinePopup"]);
 
 export type OverlayEffectState =
   | { type: "fakeInCheck" | "fakeLag" }
   | { type: "fakeArrow"; arrow: { x1: number; y1: number; x2: number; y2: number } }
-  | { type: "emojiBurst"; particles: { emoji: string; leftPct: number; delayMs: number }[] };
+  | { type: "emojiBurst"; particles: { emoji: string; leftPct: number; delayMs: number }[] }
+  | { type: "voiceLinePopup"; text: string };
+
+export interface ConfettiParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  color: string;
+}
 
 /**
  * Owns every troll effect's client-side side-effect and auto-revert timer.
@@ -70,14 +86,30 @@ export type OverlayEffectState =
  * never reaches the server or the opponent — and `moveSoundOverride` returns
  * a `SoundName` for the page to pass into its own soundFor() calls. Screen
  * effects (screenFlash, screenShake) are just more BOARD_CSS_EFFECTS entries.
+ *
+ * `fakeAchievement` calls the caller's own `pushToast` verbatim (the exact
+ * same call the real achievement-unlock toast uses) — never touches the
+ * achievements DB. `tabTitleFlash` flips `document.title` on an interval and
+ * always restores it. `watchedBanner` is deliberately NOT part of the timed
+ * `overlayEffect` slot — it's a standalone sticky boolean that (per the
+ * plan) persists for the rest of the flagged game, not just one timeout.
+ * `confettiTrigger` is a bump counter; <TrollEffectOverlay> owns the actual
+ * particle simulation and (per the plan) must explicitly skip it under
+ * reduceMotion, since global CSS motion-suppression doesn't touch canvas/rAF.
  */
-export function useTrollEffects(trollEffect: TrollEffectMsg | null, boardContainerRef: React.RefObject<HTMLElement | null>) {
+export function useTrollEffects(
+  trollEffect: TrollEffectMsg | null,
+  boardContainerRef: React.RefObject<HTMLElement | null>,
+  pushToast?: (text: string) => void,
+) {
   const prevSeq = useRef(0);
   const [pieceSetOverride, setPieceSetOverride] = useState<PieceSetId | null>(null);
   const [overlayEffect, setOverlayEffect] = useState<OverlayEffectState | null>(null);
   const [clockDigitsReversed, setClockDigitsReversed] = useState(false);
   const [fakeChatMessages, setFakeChatMessages] = useState<ChatMsg[]>([]);
   const [moveSoundOverride, setMoveSoundOverride] = useState<SoundName | null>(null);
+  const [watchedBanner, setWatchedBanner] = useState(false);
+  const [confettiTrigger, setConfettiTrigger] = useState(0);
 
   useEffect(() => {
     if (!trollEffect || trollEffect.seq === prevSeq.current) return;
@@ -112,6 +144,42 @@ export function useTrollEffects(trollEffect: TrollEffectMsg | null, boardContain
       return;
     }
 
+    if (trollEffect.type === "fakeAchievement") {
+      const label = trollEffect.text?.trim() || DEFAULT_TEXT.fakeAchievement || "Achievement";
+      pushToast?.(`🏆 Achievement unlocked: ${label}`);
+      return;
+    }
+
+    if (trollEffect.type === "confetti") {
+      setConfettiTrigger((n) => n + 1);
+      return;
+    }
+
+    if (trollEffect.type === "watchedBanner") {
+      setWatchedBanner(true); // sticky — persists for the rest of the flagged game, no auto-revert
+      return;
+    }
+
+    if (trollEffect.type === "tabTitleFlash") {
+      const originalTitle = document.title;
+      const text = trollEffect.text?.trim() || DEFAULT_TEXT.tabTitleFlash || "";
+      let showingFlash = true;
+      const flashInterval = setInterval(() => {
+        document.title = showingFlash ? text : originalTitle;
+        showingFlash = !showingFlash;
+      }, 1000);
+      const duration = trollEffect.durationMs ?? DEFAULT_DURATION_MS.tabTitleFlash ?? 6000;
+      const t = setTimeout(() => {
+        clearInterval(flashInterval);
+        document.title = originalTitle;
+      }, duration);
+      return () => {
+        clearInterval(flashInterval);
+        clearTimeout(t);
+        document.title = originalTitle;
+      };
+    }
+
     if (OVERLAY_EFFECT_TYPES.has(trollEffect.type)) {
       if (trollEffect.type === "fakeArrow") {
         setOverlayEffect({
@@ -130,6 +198,9 @@ export function useTrollEffects(trollEffect: TrollEffectMsg | null, boardContain
           delayMs: Math.random() * 400,
         }));
         setOverlayEffect({ type: "emojiBurst", particles });
+      } else if (trollEffect.type === "voiceLinePopup") {
+        const text = trollEffect.text?.trim() || VOICE_LINES[Math.floor(Math.random() * VOICE_LINES.length)];
+        setOverlayEffect({ type: "voiceLinePopup", text });
       } else {
         setOverlayEffect({ type: trollEffect.type as "fakeInCheck" | "fakeLag" });
       }
@@ -151,7 +222,7 @@ export function useTrollEffects(trollEffect: TrollEffectMsg | null, boardContain
     const t = setTimeout(() => el.classList.remove(cls), duration);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trollEffect, boardContainerRef]);
+  }, [trollEffect, boardContainerRef, pushToast]);
 
-  return { pieceSetOverride, overlayEffect, clockDigitsReversed, fakeChatMessages, moveSoundOverride };
+  return { pieceSetOverride, overlayEffect, clockDigitsReversed, fakeChatMessages, moveSoundOverride, watchedBanner, confettiTrigger };
 }
