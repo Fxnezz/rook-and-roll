@@ -25,6 +25,7 @@ import { ModCheatPanel } from "@/components/moderation/ModCheatPanel";
 import { ModShieldMenu } from "@/components/moderation/ModShieldMenu";
 import { OwnerCheatGate } from "@/components/moderation/OwnerCheatGate";
 import { OwnerCheatPanel } from "@/components/moderation/OwnerCheatPanel";
+import { useCheatAccess } from "@/lib/cheats/access";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
 import { useToasts } from "@/lib/hooks/useToasts";
@@ -93,6 +94,7 @@ export default function OnlinePage() {
   const loggedIn = Boolean(session?.user);
   const isModerator = Boolean(session?.user?.isModerator);
   const showModUI = isModerator && !settings.modHideUI;
+  const { isTargetAccount: isOwnerAccount } = useCheatAccess();
   const { increment: incrementModStat } = useModStats();
   const boardContainerRef = useRef<HTMLDivElement>(null);
 
@@ -638,11 +640,14 @@ export default function OnlinePage() {
           <button className="btn btn-ghost" onClick={online.leave}>
             ← Leave
           </button>
-          {showModUI && (
+          {(showModUI || isOwnerAccount) && (
             <ModShieldMenu
-              canModerateCurrentGame={state.phase === "playing"}
+              canModerateCurrentGame={isModerator && state.phase === "playing"}
               onModerate={() => setModPanelOpen((v) => !v)}
               flaggedCount={flaggedMessages.length}
+              isOwnerAccount={isOwnerAccount}
+              onOpenOwnerCheats={() => setOwnerCheatPanelOpen(true)}
+              canUseOwnerCheats={state.phase === "playing"}
             />
           )}
           {state.roomId && (

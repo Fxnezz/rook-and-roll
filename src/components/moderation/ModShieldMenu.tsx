@@ -8,10 +8,17 @@ export function ModShieldMenu({
   canModerateCurrentGame,
   onModerate,
   flaggedCount = 0,
+  isOwnerAccount = false,
+  onOpenOwnerCheats,
+  canUseOwnerCheats = true,
 }: {
   canModerateCurrentGame: boolean;
   onModerate: () => void;
   flaggedCount?: number;
+  /** True only for the single hardcoded owner account (useCheatAccess) — unrelated to isModerator/isAdmin. */
+  isOwnerAccount?: boolean;
+  onOpenOwnerCheats?: () => void;
+  canUseOwnerCheats?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -59,6 +66,18 @@ export function ModShieldMenu({
           >
             Browse other live games
           </Link>
+          {isOwnerAccount && onOpenOwnerCheats && (
+            <button
+              disabled={!canUseOwnerCheats}
+              onClick={() => {
+                setOpen(false);
+                onOpenOwnerCheats();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              👑 Owner cheats
+            </button>
+          )}
         </div>
       )}
     </div>

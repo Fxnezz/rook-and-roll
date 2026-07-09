@@ -18,6 +18,7 @@ import { ModCheatPanel } from "@/components/moderation/ModCheatPanel";
 import { ModShieldMenu } from "@/components/moderation/ModShieldMenu";
 import { OwnerCheatGate } from "@/components/moderation/OwnerCheatGate";
 import { OwnerCheatPanel } from "@/components/moderation/OwnerCheatPanel";
+import { useCheatAccess } from "@/lib/cheats/access";
 import { useToasts } from "@/lib/hooks/useToasts";
 import { ToastStack } from "@/components/ui/ToastStack";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
@@ -38,6 +39,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
 
   const isModerator = Boolean(session?.user?.isModerator);
   const showModUI = isModerator && !settings.modHideUI;
+  const { isTargetAccount: isOwnerAccount } = useCheatAccess();
   const { increment: incrementModStat } = useModStats();
   const identity = useMemo(() => {
     if (session?.user) {
@@ -218,8 +220,14 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
       <div className="mb-4 flex items-center gap-2">
         <span className="chip">👁 Spectating</span>
         {state.status && <span className="chip">Game over · {state.status.reason}</span>}
-        {showModUI && (
-          <ModShieldMenu canModerateCurrentGame onModerate={() => setModPanelOpen((v) => !v)} flaggedCount={flaggedMessages.length} />
+        {(showModUI || isOwnerAccount) && (
+          <ModShieldMenu
+            canModerateCurrentGame={isModerator}
+            onModerate={() => setModPanelOpen((v) => !v)}
+            flaggedCount={flaggedMessages.length}
+            isOwnerAccount={isOwnerAccount}
+            onOpenOwnerCheats={() => setOwnerCheatPanelOpen(true)}
+          />
         )}
       </div>
       {!players ? (
