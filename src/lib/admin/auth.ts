@@ -1,15 +1,15 @@
 import "server-only";
 import { SignJWT, jwtVerify } from "jose";
-import { cookies } from "next/headers";
 
 /**
- * Admin authentication — deliberately SEPARATE from the NextAuth user session.
- * A short-lived, httpOnly, signed JWT in the `rr_admin` cookie is the only
- * thing that grants admin access, and it is verified server-side on every
- * admin route/event. The client is never trusted to assert admin status.
+ * Admin authentication is now account-based: `/admin` is gated by the
+ * signed-in NextAuth session's `isAdmin` flag (checked in src/middleware.ts
+ * and src/app/admin/layout.tsx), not a shared password. This file only keeps
+ * the short-lived JWT mint/verify used to hand the realtime Socket.IO server
+ * proof that a request came from a verified admin session — Socket.IO can't
+ * read the Next.js session cookie directly, so a fresh token bridges the two.
  */
 
-const COOKIE = "rr_admin";
 const AUDIENCE = "rr-admin";
 const TTL_SECONDS = 30 * 60; // 30 minutes
 
@@ -19,7 +19,7 @@ function key(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-/** Mint an admin token string (used by both the cookie flow and socket handoff). */
+/** Mint a short-lived token for the realtime server's admin:hello handshake. Only ever called after guardAdmin() has confirmed the caller's session is isAdmin. */
 export async function mintAdminToken(): Promise<string> {
   return new SignJWT({ role: "admin" })
     .setProtectedHeader({ alg: "HS256" })
@@ -38,30 +38,3 @@ export async function verifyAdminToken(token: string | undefined | null): Promis
     return false;
   }
 }
-
-/** Set the admin session cookie after a successful password check. */
-export async function issueAdminSession(): Promise<void> {
-  const token = await mintAdminToken();
-  const jar = await cookies();
-  jar.set(COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: TTL_SECONDS,
-  });
-}
-
-export async function clearAdminSession(): Promise<void> {
-  const jar = await cookies();
-  jar.delete(COOKIE);
-}
-
-/** True iff the current request carries a valid admin cookie. Server-only. */
-export async function getAdminSession(): Promise<boolean> {
-  const jar = await cookies();
-  return verifyAdminToken(jar.get(COOKIE)?.value);
-}
-
-export const ADMIN_COOKIE = COOKIE;
-export const ADMIN_TTL_SECONDS = TTL_SECONDS;

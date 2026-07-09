@@ -67,6 +67,8 @@ model User {
   mutedUntil       DateTime? // can play but not chat until this passes
   /** In-game moderator: can mute/warn/report from inside their own games. Distinct from the separate JWT admin god-mode. */
   isModerator      Boolean    @default(false)
+  /** Per-account /admin dashboard access. Independent of isModerator — see src/app/admin/admins/page.tsx for the owner-protected add/remove UI. */
+  isAdmin          Boolean    @default(false)
 
   accounts        Account[]
   sessions        Session[]

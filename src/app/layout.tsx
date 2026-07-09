@@ -4,7 +4,7 @@ import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Header } from "@/components/ui/Header";
 import { isMaintenance, getBroadcast } from "@/lib/admin/config";
-import { getAdminSession } from "@/lib/admin/auth";
+import { auth } from "@/lib/auth/auth";
 import { MaintenanceScreen } from "@/components/ui/MaintenanceScreen";
 import { BroadcastBanner } from "@/components/ui/BroadcastBanner";
 
@@ -51,7 +51,8 @@ export default async function RootLayout({
 }>) {
   // Maintenance mode: non-admins see a "back soon" screen; admins pass through.
   const maintenance = await isMaintenance();
-  const blocked = maintenance && !(await getAdminSession());
+  const session = maintenance ? await auth() : null;
+  const blocked = maintenance && !session?.user?.isAdmin;
   const broadcast = blocked ? null : await getBroadcast();
 
   return (

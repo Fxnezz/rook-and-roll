@@ -1,24 +1,29 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { ADMIN_KEY_SEQUENCE as SEQUENCE, ADMIN_KEY_SEQUENCE_RESET_MS as RESET_MS } from "@/lib/admin/keySequence";
 
 /**
  * Hidden admin entry point. Listens for a key sequence anywhere on the site
- * and, on a match, reveals a password prompt. This is a UI convenience ONLY —
- * discovering the sequence grants nothing. The password is checked server-side
- * (/api/admin/login) and access is gated by an httpOnly admin cookie. There is
- * no admin link anywhere in the UI, nav, sitemap, or robots.txt.
+ * and, on a match for a signed-in isAdmin account, reveals a direct link to
+ * /admin — the real gate is the account's isAdmin flag (checked server-side
+ * in src/middleware.ts and src/app/admin/layout.tsx); the Konami code is now
+ * just a fun shortcut, not a security boundary. For anyone else the listener
+ * isn't even attached, and nothing is ever revealed.
  *
  * Sequence (Konami code): ↑ ↑ ↓ ↓ ← → ← → b a
  */
 
 export function AdminGate() {
+  const { data: session } = useSession();
+  const isAdmin = Boolean(session?.user?.isAdmin);
   const [open, setOpen] = useState(false);
   const posRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (!isAdmin) return;
     const onKey = (e: KeyboardEvent) => {
       // ignore while typing into a field
       const t = e.target as HTMLElement | null;
@@ -44,74 +49,23 @@ export function AdminGate() {
       window.removeEventListener("keydown", onKey);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, []);
+  }, [isAdmin]);
 
-  if (!open) return null;
-  return <AdminLoginModal onClose={() => setOpen(false)} />;
-}
-
-function AdminLoginModal({ onClose }: { onClose: () => void }) {
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, [onClose]);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      if (res.ok) {
-        window.location.href = "/admin";
-        return;
-      }
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Access denied.");
-    } catch {
-      setError("Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  if (!isAdmin || !open) return null;
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 animate-fade"
-      onClick={onClose}
-    >
-      <form
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={submit}
-        className="panel w-full max-w-xs p-6 animate-pop"
-      >
-        <div className="mb-3 flex items-center gap-2">
-          <span className="text-lg">🔒</span>
-          <h2 className="font-bold">Restricted</h2>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 animate-fade" onClick={() => setOpen(false)}>
+      <div onClick={(e) => e.stopPropagation()} className="panel w-full max-w-xs p-6 text-center animate-pop">
+        <div className="mb-3 flex items-center justify-center gap-2">
+          <span className="text-lg">🔓</span>
+          <h2 className="font-bold">Admin</h2>
         </div>
-        <input
-          autoFocus
-          type="password"
-          className="input !font-sans"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="off"
-        />
-        {error && <p className="mt-2 text-sm text-[var(--bad)]">{error}</p>}
-        <button className="btn btn-primary mt-4 w-full" disabled={loading || !password}>
-          {loading ? "…" : "Enter"}
+        <a href="/admin" className="btn btn-primary w-full">
+          Open admin dashboard
+        </a>
+        <button className="btn-ghost mt-2 w-full text-sm" onClick={() => setOpen(false)}>
+          Close
         </button>
-      </form>
+      </div>
     </div>
   );
 }
