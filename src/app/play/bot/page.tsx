@@ -27,16 +27,24 @@ import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
 import { CheatGate } from "@/components/cheats/CheatGate";
 import { CheatPanel, type CheatLogEntry } from "@/components/cheats/CheatPanel";
 import { CheatEffects, VOICE_LINES } from "@/components/cheats/CheatEffects";
-import { illegalCastleFen, clonePieceFen, swapPiecesFen, promoteAnyPawnFen } from "@/lib/cheats/moveManipulation";
+import { illegalCastleFen, clonePieceFen, swapPiecesFen, promoteAnyPawnFen, forceMoveFen } from "@/lib/cheats/moveManipulation";
 import { DEFAULT_BOT_OVERRIDE, resolveOverriddenMove, type BotOverride } from "@/lib/cheats/botManipulation";
 import { useToasts } from "@/lib/hooks/useToasts";
 import { ToastStack } from "@/components/ui/ToastStack";
 import { ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
+import { useTrollEffects } from "@/lib/moderation/useTrollEffects";
+import { TrollEffectOverlay } from "@/components/moderation/TrollEffectOverlay";
+import type { SoundName } from "@/lib/chess/sound";
+import type { TrollEffectMsg, TrollEffectType } from "@/lib/online/protocol";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function playMoveSound(san: string, flags: string, promotion?: string, over?: boolean) {
+function playMoveSound(san: string, flags: string, promotion?: string, over?: boolean, overrideSound?: SoundName | null) {
   if (over) return; // gameEnd handled separately
+  if (overrideSound) {
+    playSound(overrideSound);
+    return;
+  }
   if (san.includes("+")) playSound("check");
   else if (flags.includes("e") || flags.includes("c")) playSound("capture");
   else if (flags.includes("k") || flags.includes("q")) playSound("castle");
@@ -46,11 +54,19 @@ function playMoveSound(san: string, flags: string, promotion?: string, over?: bo
 
 export default function BotGamePage() {
   const [config, setConfig] = useState<BotConfig | null>(null);
+  const [rematchSeq, setRematchSeq] = useState(0);
   if (!config) return <BotSetup onStart={setConfig} />;
-  return <BotGame config={config} onExit={() => setConfig(null)} key={JSON.stringify(config)} />;
+  return (
+    <BotGame
+      config={config}
+      onExit={() => setConfig(null)}
+      onRematch={() => setRematchSeq((n) => n + 1)}
+      key={`${JSON.stringify(config)}-${rematchSeq}`}
+    />
+  );
 }
 
-function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) {
+function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () => void; onRematch: () => void }) {
   const game = useChessGame();
   const { snapshot } = game;
   const { settings } = useSettings();
@@ -58,7 +74,11 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
   const tier = getTier(config.tierId);
   const tc = getTimeControl(config.timeControlId);
 
-  const humanColor = config.color;
+  // A plain useState (not derived from config) so the "swap sides" cheat can flip
+  // it mid-game — every downstream expression below already reads humanColor
+  // reactively (it's already in each effect/callback's own dependency array),
+  // so lifting it here is the only change needed to cascade the swap correctly.
+  const [humanColor, setHumanColor] = useState<Color>(config.color);
   const botColor: Color = humanColor === "w" ? "b" : "w";
   const [manualFlip, setManualFlip] = useState(false);
   const orientation: Color = manualFlip ? botColor : humanColor;
@@ -79,6 +99,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
   const boardWrapperRef = useRef<HTMLDivElement>(null);
 
   // --- cheat panel state (bot games only — see CheatGate/CheatPanel) ---
+  const [paused, setPaused] = useState(false);
   const [botOverride, setBotOverride] = useState<BotOverride>(DEFAULT_BOT_OVERRIDE);
   const [showPredictedMove, setShowPredictedMove] = useState(false);
   const [predictedArrow, setPredictedArrow] = useState<Arrow | null>(null);
@@ -97,6 +118,27 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
   const cheatLogSeq = useRef(0);
   const [assistRunning, setAssistRunning] = useState(false);
   const { toasts, push: pushToast } = useToasts();
+
+  // Locally-fired troll effects — reuses the exact same useTrollEffects/
+  // TrollEffectOverlay infrastructure the online-game moderator's flagged-
+  // game troll toolkit already built; it doesn't care whether the message
+  // came from a socket or (as here) a plain local click, so it's fully
+  // reusable as a self-inflicted bot-page cheat with zero changes to it.
+  const [botTrollEffect, setBotTrollEffect] = useState<TrollEffectMsg | null>(null);
+  const trollSeqRef = useRef(0);
+  const { pieceSetOverride, overlayEffect, clockDigitsReversed, fakeChatMessages, moveSoundOverride, watchedBanner, confettiTrigger } =
+    useTrollEffects(botTrollEffect, boardWrapperRef, pushToast);
+  const fireTrollEffect = useCallback((type: TrollEffectType, opts?: { durationMs?: number; text?: string }) => {
+    trollSeqRef.current += 1;
+    setBotTrollEffect({ type, seq: trollSeqRef.current, ...opts });
+  }, []);
+  const prevFakeChatLenRef = useRef(0);
+  useEffect(() => {
+    if (fakeChatMessages.length > prevFakeChatLenRef.current) {
+      pushToast(fakeChatMessages[fakeChatMessages.length - 1].text);
+    }
+    prevFakeChatLenRef.current = fakeChatMessages.length;
+  }, [fakeChatMessages, pushToast]);
 
   const logCheat = useCallback((text: string) => {
     cheatLogSeq.current += 1;
@@ -196,7 +238,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
         playSound("illegal");
         return null;
       }
-      playMoveSound(move.san, move.flags, move.promotion, false);
+      playMoveSound(move.san, move.flags, move.promotion, false, moveSoundOverride);
       clock.moved(move.color);
 
       const isCapture = move.flags.includes("e") || move.flags.includes("c");
@@ -209,29 +251,29 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
 
       return move;
     },
-    [game, clock],
+    [game, clock, moveSoundOverride],
   );
 
   const onHumanMove = useCallback(
     (from: Square, to: Square, promotion?: PieceSymbol) => {
-      if (status.over || snapshot.turn !== humanColor) return;
+      if (status.over || paused || snapshot.turn !== humanColor) return;
       primeAudio();
       applyMove(from, to, promotion);
     },
-    [applyMove, status.over, snapshot.turn, humanColor],
+    [applyMove, status.over, paused, snapshot.turn, humanColor],
   );
 
   // Fire a queued premove the instant it becomes the human's turn (i.e. right
   // after the bot's move lands), if it's still legal; otherwise drop it.
   const [premove, setPremove] = useState<{ from: Square; to: Square } | null>(null);
   useEffect(() => {
-    if (!premove || status.over || snapshot.turn !== humanColor) return;
+    if (!premove || status.over || paused || snapshot.turn !== humanColor) return;
     const options = game.legalMovesFrom(premove.from).filter((mv) => mv.to === premove.to);
     setPremove(null);
     if (options.length === 0) return;
     onHumanMove(premove.from, premove.to, options.some((mv) => mv.promotion) ? "q" : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot.fen, snapshot.turn, status.over, humanColor]);
+  }, [snapshot.fen, snapshot.turn, status.over, paused, humanColor]);
 
   // --- legit hints & threats (no cheat gate — available to everyone) ---
   const [hintArrow, setHintArrow] = useState<Arrow | null>(null);
@@ -293,7 +335,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
   // briefly shows the chosen move as a ghost arrow before actually playing it
   // — reusing the exact same search result rather than a second engine call.
   useEffect(() => {
-    if (status.over || !snapshot.isLive || snapshot.turn !== botColor) return;
+    if (status.over || paused || !snapshot.isLive || snapshot.turn !== botColor) return;
     if (botFenRef.current === snapshot.fen) return;
     botFenRef.current = snapshot.fen;
     let cancelled = false;
@@ -341,7 +383,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
       if (!done) botFenRef.current = null; // allow re-run (dev StrictMode / interruptions)
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot.fen, snapshot.turn, snapshot.isLive, status.over, botColor, botOverride, showPredictedMove]);
+  }, [snapshot.fen, snapshot.turn, snapshot.isLive, status.over, paused, botColor, botOverride, showPredictedMove]);
 
   // Eval bar on the human's turn.
   useEffect(() => {
@@ -485,6 +527,58 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
     [humanColor, botColor, logCheat],
   );
 
+  const cheatTogglePause = useCallback(() => {
+    setPaused((p) => {
+      const next = !p;
+      if (next) clock.stop();
+      else clock.start(snapshot.turn);
+      logCheat(next ? "Paused the game" : "Resumed the game");
+      return next;
+    });
+  }, [clock, snapshot.turn, logCheat]);
+
+  const cheatSwapSides = useCallback(() => {
+    setHumanColor((c) => (c === "w" ? "b" : "w"));
+    logCheat("Swapped sides");
+  }, [logCheat]);
+
+  const cheatLoadFen = useCallback(
+    (fen: string) => {
+      const ok = game.loadFen(fen.trim());
+      logCheat(ok ? "Loaded custom FEN" : "Invalid FEN — nothing loaded");
+    },
+    [game, logCheat],
+  );
+
+  const cheatForceMove = useCallback(
+    (from: Square, to: Square) => {
+      const fen = forceMoveFen(game.getFen(), from, to);
+      if (fen) {
+        game.loadFen(fen);
+        logCheat(`Forced ${from}→${to}, bypassing legality`);
+      } else {
+        logCheat(`Force move failed — no piece on ${from}`);
+      }
+    },
+    [game, logCheat],
+  );
+
+  const cheatCancelGame = useCallback(() => {
+    logCheat("Voided the game — no record saved");
+    onExit();
+  }, [onExit, logCheat]);
+
+  const cheatExtendBothClocks = useCallback(() => {
+    clock.addTime("w", 60_000);
+    clock.addTime("b", 60_000);
+    logCheat("Added 60s to both clocks");
+  }, [clock, logCheat]);
+
+  const cheatResetClocks = useCallback(() => {
+    clock.reset();
+    logCheat("Reset both clocks to the start");
+  }, [clock, logCheat]);
+
   const cheatStockfishAssist = useCallback(async () => {
     if (status.over || snapshot.turn !== humanColor) return;
     setAssistRunning(true);
@@ -580,6 +674,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
             ms={isWhite ? clock.whiteMs : clock.blackMs}
             active={clock.active === side && !status.over}
             tickSound={side === humanColor}
+            reversed={clockDigitsReversed && side === humanColor}
           />
         )}
       </div>
@@ -611,6 +706,16 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
           onEffectsChange={(patch) => setCheatEffects((e) => ({ ...e, ...patch }))}
           onStockfishAssist={cheatStockfishAssist}
           assistRunning={assistRunning}
+          paused={paused}
+          onTogglePause={cheatTogglePause}
+          onSwapSides={cheatSwapSides}
+          onLoadFen={cheatLoadFen}
+          onForceMove={cheatForceMove}
+          onCancelGame={cheatCancelGame}
+          onRematch={onRematch}
+          onExtendBothClocks={cheatExtendBothClocks}
+          onResetClocks={cheatResetClocks}
+          onFireTrollEffect={fireTrollEffect}
         />
       )}
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -671,7 +776,7 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
                 snapshot={snapshot}
                 orientation={orientation}
                 theme={theme}
-                pieceSet={settings.pieceSet}
+                pieceSet={pieceSetOverride ?? settings.pieceSet}
                 legalMovesFrom={game.legalMovesFrom}
                 onMove={onHumanMove}
                 movableColor={humanColor}
@@ -703,6 +808,12 @@ function BotGame({ config, onExit }: { config: BotConfig; onExit: () => void }) 
                 voiceLine={voiceLine}
                 toggles={cheatEffects}
                 zoomTargetRef={boardWrapperRef}
+              />
+              <TrollEffectOverlay
+                effect={overlayEffect}
+                watchedBanner={watchedBanner}
+                confettiTrigger={confettiTrigger}
+                reduceMotion={settings.reduceMotion}
               />
             </div>
             <PlayerBar side={humanColor} />

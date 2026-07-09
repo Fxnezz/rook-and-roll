@@ -61,3 +61,14 @@ export function promoteAnyPawnFen(fen: string, square: Square, to: Exclude<Piece
   const ok = g.put({ type: to, color: piece.color }, square);
   return ok ? g.fen() : null;
 }
+
+/** Relocates a piece from `from` to `to`, bypassing legality/turn rules entirely — the same escape hatch as the cheats above. */
+export function forceMoveFen(fen: string, from: Square, to: Square, promotion?: Exclude<PieceSymbol, "p" | "k">): string | null {
+  const g = new Chess(fen);
+  const piece = g.get(from);
+  if (!piece) return null;
+  g.remove(from);
+  g.remove(to);
+  const ok = g.put({ type: promotion ?? piece.type, color: piece.color }, to);
+  return ok ? g.fen() : null;
+}

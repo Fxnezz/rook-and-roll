@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { Square } from "chess.js";
 import type { BotOverride, BotPersonality } from "@/lib/cheats/botManipulation";
+import { TROLL_EFFECTS } from "@/lib/moderation/trollEffectCatalog";
+import type { TrollEffectType } from "@/lib/online/protocol";
 
 export interface CheatLogEntry {
   id: number;
@@ -33,9 +35,21 @@ export interface CheatPanelProps {
   onAddTime: (side: "w" | "b", seconds: number) => void;
   onInstantResult: (result: "win" | "loss" | "draw") => void;
 
+  // Category 4 — board & game control (admin-panel parity)
+  paused: boolean;
+  onTogglePause: () => void;
+  onSwapSides: () => void;
+  onLoadFen: (fen: string) => void;
+  onForceMove: (from: Square, to: Square) => void;
+  onCancelGame: () => void;
+  onRematch: () => void;
+  onExtendBothClocks: () => void;
+  onResetClocks: () => void;
+
   // Category 5 — cosmetic
   effects: { explodeCaptures: boolean; confettiOnCheckmate: boolean; dramaticZoom: boolean; pieceVoiceLines: boolean };
   onEffectsChange: (patch: Partial<CheatPanelProps["effects"]>) => void;
+  onFireTrollEffect: (type: TrollEffectType, opts?: { durationMs?: number; text?: string }) => void;
 
   // Category 6 — Stockfish assist
   onStockfishAssist: () => void;
@@ -78,6 +92,11 @@ export function CheatPanel(props: CheatPanelProps) {
   const [sq2, setSq2] = useState("");
   const [reverseN, setReverseN] = useState(1);
   const [promoSq, setPromoSq] = useState("");
+  const [fenInput, setFenInput] = useState("");
+  const [forceFrom, setForceFrom] = useState("");
+  const [forceTo, setForceTo] = useState("");
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [trollText, setTrollText] = useState("");
 
   return (
     <div
@@ -209,10 +228,73 @@ export function CheatPanel(props: CheatPanelProps) {
             <Btn onClick={() => props.onAddTime("w", -30)}>−30s White</Btn>
             <Btn onClick={() => props.onAddTime("b", -30)}>−30s Black</Btn>
           </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <Btn onClick={props.onExtendBothClocks}>+60s both</Btn>
+            <Btn onClick={props.onResetClocks}>Reset clocks</Btn>
+          </div>
           <div className="grid grid-cols-3 gap-1.5">
             <Btn onClick={() => props.onInstantResult("win")}>Instant win</Btn>
             <Btn onClick={() => props.onInstantResult("loss")}>Instant loss</Btn>
             <Btn onClick={() => props.onInstantResult("draw")}>Instant draw</Btn>
+          </div>
+        </Section>
+
+        <Section title="Board & game control">
+          <textarea
+            className="w-full resize-none rounded bg-white/10 px-1.5 py-1 text-[11px]"
+            rows={2}
+            placeholder="Paste a FEN to load…"
+            value={fenInput}
+            onChange={(e) => setFenInput(e.target.value)}
+          />
+          <button
+            className="rounded bg-white/10 px-2 py-1 text-xs font-semibold hover:bg-white/20"
+            onClick={() => fenInput.trim() && props.onLoadFen(fenInput.trim())}
+          >
+            Load FEN
+          </button>
+          <div className="flex items-center gap-1">
+            <input
+              className="w-14 rounded bg-white/10 px-1.5 py-1 text-xs"
+              placeholder="e2"
+              value={forceFrom}
+              onChange={(e) => setForceFrom(e.target.value)}
+            />
+            <span className="text-xs text-white/50">→</span>
+            <input
+              className="w-14 rounded bg-white/10 px-1.5 py-1 text-xs"
+              placeholder="e4"
+              value={forceTo}
+              onChange={(e) => setForceTo(e.target.value)}
+            />
+            <button
+              className="ml-auto rounded bg-white/10 px-2 py-1 text-xs font-semibold hover:bg-white/20"
+              onClick={() => forceFrom && forceTo && props.onForceMove(forceFrom as Square, forceTo as Square)}
+            >
+              Force move
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <Btn active={props.paused} onClick={props.onTogglePause}>
+              {props.paused ? "▶ Resume" : "⏸ Pause"}
+            </Btn>
+            <Btn onClick={props.onSwapSides}>⇄ Swap sides</Btn>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <Btn onClick={props.onRematch}>Force rematch</Btn>
+            <Btn
+              active={confirmingCancel}
+              onClick={() => {
+                if (confirmingCancel) {
+                  props.onCancelGame();
+                  setConfirmingCancel(false);
+                } else {
+                  setConfirmingCancel(true);
+                }
+              }}
+            >
+              {confirmingCancel ? "Confirm cancel?" : "Cancel game"}
+            </Btn>
           </div>
         </Section>
 
@@ -242,6 +324,27 @@ export function CheatPanel(props: CheatPanelProps) {
           <Btn active={props.effects.pieceVoiceLines} onClick={() => props.onEffectsChange({ pieceVoiceLines: !props.effects.pieceVoiceLines })}>
             {props.effects.pieceVoiceLines ? "☑" : "☐"} Piece voice lines
           </Btn>
+        </Section>
+
+        <Section title="Troll effects (self-inflicted)">
+          <input
+            className="input !py-1 !text-[11px]"
+            placeholder="Optional joke text (fake achievement, voice line, system msg)…"
+            value={trollText}
+            onChange={(e) => setTrollText(e.target.value)}
+            maxLength={80}
+          />
+          <div className="grid grid-cols-2 gap-1.5">
+            {TROLL_EFFECTS.map((e) => (
+              <button
+                key={e.type}
+                className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-white/70 hover:bg-white/10 hover:text-white"
+                onClick={() => props.onFireTrollEffect(e.type, trollText.trim() ? { text: trollText.trim() } : undefined)}
+              >
+                {e.label}
+              </button>
+            ))}
+          </div>
         </Section>
       </div>
 
