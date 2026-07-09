@@ -247,8 +247,8 @@ export function useOnlineGame(identity: Identity) {
   const sendChat = useCallback((text: string) => {
     if (rid() && text.trim()) socketRef.current?.emit("chat:send", { roomId: rid()!, text });
   }, []);
-  const modMuteChat = useCallback((muted: boolean, targetColor?: Color) => {
-    if (rid()) socketRef.current?.emit("mod:muteChat", { roomId: rid()!, muted, targetColor });
+  const modMuteChat = useCallback((muted: boolean, targetColor?: Color, durationMs?: number) => {
+    if (rid()) socketRef.current?.emit("mod:muteChat", { roomId: rid()!, muted, targetColor, durationMs });
   }, []);
   const modWarn = useCallback((text: string, targetColor?: Color) => {
     if (rid() && text.trim()) socketRef.current?.emit("mod:warn", { roomId: rid()!, text, targetColor });

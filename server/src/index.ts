@@ -50,6 +50,7 @@ const userRoom = new Map<string, string>(); // userId -> roomId (active game)
 const userSocket = new Map<string, string>(); // userId -> socketId
 const graceTimers = new Map<string, NodeJS.Timeout>(); // userId -> abandonment timer
 const modPauseTimers = new Map<string, NodeJS.Timeout>(); // roomId -> auto-resume timer
+const modMuteTimers = new Map<string, NodeJS.Timeout>(); // `${roomId}:${color}` -> auto-unmute timer
 const MOD_PAUSE_AUTO_RESUME_MS = 60_000;
 
 interface QueueEntry {
@@ -670,13 +671,30 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     return targetColor === "w" || targetColor === "b" ? targetColor : null;
   };
 
-  socket.on("mod:muteChat", ({ roomId, muted, targetColor }) => {
+  socket.on("mod:muteChat", ({ roomId, muted, targetColor, durationMs }) => {
     const ctx = modRoom(roomId);
     if (!ctx) return;
     const target = resolveModTarget(ctx, targetColor);
     if (!target) return;
+    const timerKey = `${roomId}:${target}`;
+    const existingTimer = modMuteTimers.get(timerKey);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      modMuteTimers.delete(timerKey);
+    }
     ctx.room.adminMuteChat(target, muted);
     resync(ctx.room);
+    if (muted && durationMs && durationMs > 0) {
+      const timer = setTimeout(() => {
+        modMuteTimers.delete(timerKey);
+        const r = rooms.get(roomId);
+        if (r && r.roomMuted[target]) {
+          r.adminMuteChat(target, false);
+          io.to(roomId).emit("game:state", stateFor(r));
+        }
+      }, durationMs);
+      modMuteTimers.set(timerKey, timer);
+    }
   });
 
   // Private — delivered only to the opponent's own socket, never broadcast to

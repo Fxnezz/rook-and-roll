@@ -83,9 +83,9 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
     .map((m) => ({ from: m.from, text: m.text, ts: m.ts, severity: m.flagSeverity, reasons: m.flagReasons }));
 
   const logMod = (text: string) => setModLog((l) => [...l, { id: l.length, text, ts: Date.now() }]);
-  const toggleMute = () => {
+  const toggleMute = (durationMs?: number) => {
     const next = !targetMuted;
-    online.modMuteChat(next, targetColor);
+    online.modMuteChat(next, targetColor, next ? durationMs : undefined);
     pushToast(next ? `Muted ${targetUsername}'s chat` : `Unmuted ${targetUsername}'s chat`);
     logMod(next ? `Muted ${targetUsername}` : `Unmuted ${targetUsername}`);
   };
@@ -216,6 +216,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
       {isModerator && modPanelOpen && (
         <ModPanel
           onClose={() => setModPanelOpen(false)}
+          roomId={roomId}
           opponentUsername={targetUsername}
           flaggedMessages={flaggedMessages}
           opponentMuted={targetMuted}

@@ -460,9 +460,9 @@ export default function OnlinePage() {
     opponent: (opponentColor === "w" ? state.fullState?.suspicion?.w : state.fullState?.suspicion?.b) ?? 0,
   };
   const logMod = (text: string) => setModLog((l) => [...l, { id: l.length, text, ts: Date.now() }]);
-  const toggleMute = () => {
+  const toggleMute = (durationMs?: number) => {
     const next = !opponentMuted;
-    online.modMuteChat(next);
+    online.modMuteChat(next, undefined, next ? durationMs : undefined);
     pushToast(next ? `Muted ${opponentUsername}'s chat` : `Unmuted ${opponentUsername}'s chat`);
     logMod(next ? `Muted ${opponentUsername}` : `Unmuted ${opponentUsername}`);
   };
@@ -814,6 +814,7 @@ export default function OnlinePage() {
       {isModerator && modPanelOpen && state.phase === "playing" && (
         <ModPanel
           onClose={() => setModPanelOpen(false)}
+          roomId={state.roomId ?? ""}
           opponentUsername={opponentUsername}
           flaggedMessages={flaggedMessages}
           opponentMuted={opponentMuted}

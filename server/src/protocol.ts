@@ -139,7 +139,7 @@ export interface ClientToServer {
   // socket.data.isModerator AND that the caller is actually a player OR
   // spectator in roomId. targetColor is required (and validated) when
   // spectating, since there's no "the opponent" to infer automatically. ----
-  "mod:muteChat": (p: { roomId: string; muted: boolean; targetColor?: Color }) => void;
+  "mod:muteChat": (p: { roomId: string; muted: boolean; targetColor?: Color; durationMs?: number }) => void;
   "mod:warn": (p: { roomId: string; text: string; targetColor?: Color }) => void;
   "mod:pause": (p: { roomId: string; paused: boolean }) => void;
   "mod:flagReview": (p: { roomId: string; flagged: boolean }) => void;

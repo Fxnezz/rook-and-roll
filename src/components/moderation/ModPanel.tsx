@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { IconShield, IconVolumeOff, IconVolume } from "@/components/ui/icons";
+import { useLastMuteDuration, useCustomWarnPhrases } from "@/lib/moderation/useModPreferences";
 
 interface PlayerContext {
   found: boolean;
@@ -18,12 +19,19 @@ const CANNED_WARN_PHRASES = [
   "Let's keep this respectful.",
 ];
 
+const MUTE_DURATIONS: { label: string; ms: number | null }[] = [
+  { label: "2 min", ms: 120_000 },
+  { label: "5 min", ms: 300_000 },
+  { label: "Rest of game", ms: null },
+];
+
 export interface ModPanelProps {
   onClose: () => void;
+  roomId: string;
   opponentUsername: string;
   flaggedMessages: { from: string; text: string; ts: number; severity?: "low" | "medium" | "high"; reasons?: string[] }[];
   opponentMuted: boolean;
-  onToggleMute: () => void;
+  onToggleMute: (durationMs?: number) => void;
   warnCount: number;
   onWarn: (text: string) => void;
   paused: boolean;
@@ -44,6 +52,7 @@ export interface ModPanelProps {
  */
 export function ModPanel({
   onClose,
+  roomId,
   opponentUsername,
   flaggedMessages,
   opponentMuted,
@@ -61,10 +70,52 @@ export function ModPanel({
   const [autoMuteThreshold, setAutoMuteThreshold] = useState(3); // 0 = off
   const [suggestDismissed, setSuggestDismissed] = useState(false);
   const [warnText, setWarnText] = useState("");
+  const [newPhrase, setNewPhrase] = useState("");
   const [confirmingPause, setConfirmingPause] = useState(false);
   const [context, setContext] = useState<PlayerContext | null>(null);
   const [dismissed, setDismissed] = useState<Set<number>>(new Set());
+  const [lastAction, setLastAction] = useState<{ label: string; undo: () => void } | null>(null);
+  const [note, setNote] = useState("");
+  const [cheatFlagSent, setCheatFlagSent] = useState(false);
   const autoMutedRef = useRef(false);
+  const lastActionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { durationMs: muteDurationMs, setDurationMs: setMuteDurationMs } = useLastMuteDuration();
+  const { phrases: customPhrases, addPhrase, removePhrase } = useCustomWarnPhrases();
+
+  const withUndo = (label: string, undo: () => void) => {
+    setLastAction({ label, undo });
+    if (lastActionTimerRef.current) clearTimeout(lastActionTimerRef.current);
+    lastActionTimerRef.current = setTimeout(() => setLastAction(null), 8000);
+  };
+
+  useEffect(() => {
+    setNote(localStorage.getItem(`rr.mod.note.${roomId}`) ?? "");
+  }, [roomId]);
+  const updateNote = (v: string) => {
+    setNote(v);
+    try {
+      localStorage.setItem(`rr.mod.note.${roomId}`, v);
+    } catch {
+      /* ignore storage errors */
+    }
+  };
+
+  const flagCheating = async () => {
+    setCheatFlagSent(true);
+    try {
+      await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reportedUsername: opponentUsername,
+          reason: "Suspected cheating (flagged by moderator)",
+          detail: `Move-timing suspicion score: ${Math.round(suspicion.opponent * 100)}%`,
+        }),
+      });
+    } catch {
+      /* best-effort */
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +134,7 @@ export function ModPanel({
   const armPause = () => {
     if (paused) {
       onTogglePause(); // resuming is always immediate, never needs confirmation
+      withUndo("Resumed the game", onTogglePause);
       return;
     }
     if (!confirmingPause) {
@@ -92,6 +144,7 @@ export function ModPanel({
     }
     setConfirmingPause(false);
     onTogglePause();
+    withUndo("Paused the game", onTogglePause);
   };
 
   // "Not a problem" dismissals drop a message from every count/suggestion below.
@@ -111,9 +164,15 @@ export function ModPanel({
   useEffect(() => {
     if (autoMuteThreshold > 0 && !opponentMuted && !autoMutedRef.current && activeFlags.length >= autoMuteThreshold) {
       autoMutedRef.current = true;
-      onToggleMute();
+      onToggleMute(muteDurationMs ?? undefined);
     }
-  }, [activeFlags.length, autoMuteThreshold, opponentMuted, onToggleMute]);
+  }, [activeFlags.length, autoMuteThreshold, opponentMuted, onToggleMute, muteDurationMs]);
+
+  const clickMute = () => {
+    const wasMuted = opponentMuted;
+    onToggleMute(wasMuted ? undefined : (muteDurationMs ?? undefined));
+    withUndo(wasMuted ? `Unmuted ${opponentUsername}` : `Muted ${opponentUsername}`, () => onToggleMute());
+  };
 
   return (
     <div
@@ -146,8 +205,27 @@ export function ModPanel({
           </p>
         )}
 
+        {!opponentMuted && (
+          <div className="mb-1.5 flex items-center gap-1 text-[10px] text-white/50">
+            <span>Duration:</span>
+            {MUTE_DURATIONS.map((opt) => (
+              <button
+                key={opt.label}
+                className="rounded px-1.5 py-0.5 font-semibold"
+                style={
+                  muteDurationMs === opt.ms
+                    ? { background: "var(--accent)", color: "var(--accent-contrast)" }
+                    : { background: "rgba(255,255,255,0.08)", color: "white" }
+                }
+                onClick={() => setMuteDurationMs(opt.ms)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
         <button
-          onClick={onToggleMute}
+          onClick={clickMute}
           className="mb-3 flex w-full items-center justify-center gap-1.5 rounded px-2 py-1.5 text-xs font-semibold transition-colors"
           style={{
             background: opponentMuted ? "var(--accent)" : "rgba(255,255,255,0.08)",
@@ -158,12 +236,27 @@ export function ModPanel({
           {opponentMuted ? `Unmute ${opponentUsername}` : `Mute ${opponentUsername}`}
         </button>
 
+        {lastAction && (
+          <div className="mb-3 flex items-center justify-between rounded bg-white/5 px-2 py-1.5 text-xs">
+            <span className="text-white/60">{lastAction.label}</span>
+            <button
+              className="font-semibold text-[var(--accent)] hover:underline"
+              onClick={() => {
+                lastAction.undo();
+                setLastAction(null);
+              }}
+            >
+              Undo
+            </button>
+          </div>
+        )}
+
         {showSuggestion && (
           <div className="mb-3 flex items-center justify-between gap-2 rounded border border-yellow-500/30 bg-yellow-500/10 px-2 py-1.5 text-xs">
             <span className="text-yellow-200">{hasHighSeverity ? "Flagged chat detected — mute?" : "Minor issue detected — warn?"}</span>
             <span className="flex shrink-0 gap-1">
               {hasHighSeverity ? (
-                <button className="rounded bg-white/10 px-1.5 py-0.5 font-semibold hover:bg-white/20" onClick={onToggleMute}>
+                <button className="rounded bg-white/10 px-1.5 py-0.5 font-semibold hover:bg-white/20" onClick={clickMute}>
                   Mute
                 </button>
               ) : (
@@ -194,7 +287,11 @@ export function ModPanel({
               {paused ? "Resume game" : confirmingPause ? "Confirm pause?" : "Pause game"}
             </button>
             <button
-              onClick={onToggleFlagReview}
+              onClick={() => {
+                const wasFlagged = reviewFlagged;
+                onToggleFlagReview();
+                withUndo(wasFlagged ? "Removed review flag" : "Flagged for review", onToggleFlagReview);
+              }}
               className="flex-1 rounded px-2 py-1.5 text-xs font-semibold transition-colors"
               style={{
                 background: reviewFlagged ? "var(--accent)" : "rgba(255,255,255,0.08)",
@@ -207,7 +304,7 @@ export function ModPanel({
           </div>
         )}
 
-        <div className="mb-3 flex items-center justify-between rounded bg-white/5 px-2 py-1.5 text-[11px] text-white/60">
+        <div className="mb-2 flex items-center justify-between rounded bg-white/5 px-2 py-1.5 text-[11px] text-white/60">
           <span>
             Suspicion — you: <span className="font-mono text-white/80">{Math.round(suspicion.mine * 100)}%</span>
           </span>
@@ -215,6 +312,14 @@ export function ModPanel({
             {opponentUsername}: <span className="font-mono text-white/80">{Math.round(suspicion.opponent * 100)}%</span>
           </span>
         </div>
+        <button
+          onClick={flagCheating}
+          disabled={cheatFlagSent}
+          className="mb-3 w-full rounded px-2 py-1.5 text-xs font-semibold text-white/70 transition-colors hover:bg-white/10 disabled:opacity-50"
+          style={{ background: "rgba(255,255,255,0.05)" }}
+        >
+          {cheatFlagSent ? "Flagged as possible cheating" : "Flag as possible cheating"}
+        </button>
 
         <div className="mb-3">
           <div className="mb-1 flex items-center justify-between">
@@ -229,15 +334,41 @@ export function ModPanel({
             </p>
           )}
           <div className="mb-1.5 flex flex-wrap gap-1">
-            {CANNED_WARN_PHRASES.map((p) => (
-              <button
-                key={p}
-                className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-white/70 hover:text-white"
-                onClick={() => onWarn(p)}
-              >
-                {p}
-              </button>
+            {[...CANNED_WARN_PHRASES, ...customPhrases].map((p) => (
+              <span key={p} className="group inline-flex items-center rounded-full border border-white/15 text-[11px] text-white/70">
+                <button className="px-2 py-0.5 hover:text-white" onClick={() => onWarn(p)}>
+                  {p}
+                </button>
+                {customPhrases.includes(p) && (
+                  <button
+                    className="pr-1.5 text-white/30 opacity-0 group-hover:opacity-100 hover:text-white"
+                    onClick={() => removePhrase(p)}
+                    title="Remove saved phrase"
+                  >
+                    ✕
+                  </button>
+                )}
+              </span>
             ))}
+          </div>
+          <div className="mb-1.5 flex gap-1">
+            <input
+              className="min-w-0 flex-1 rounded bg-white/10 px-2 py-1 text-xs"
+              placeholder="Save a new phrase…"
+              value={newPhrase}
+              onChange={(e) => setNewPhrase(e.target.value)}
+              maxLength={200}
+            />
+            <button
+              className="shrink-0 rounded bg-white/10 px-2 py-1 text-xs font-semibold hover:bg-white/20"
+              disabled={!newPhrase.trim()}
+              onClick={() => {
+                addPhrase(newPhrase);
+                setNewPhrase("");
+              }}
+            >
+              Save
+            </button>
           </div>
           <div className="flex gap-1">
             <input
@@ -278,6 +409,18 @@ export function ModPanel({
               +
             </button>
           </div>
+        </div>
+
+        <div className="mb-3">
+          <p className="mb-1 text-xs font-bold uppercase tracking-wide text-white/70">Private note (only you see this)</p>
+          <textarea
+            className="w-full resize-none rounded bg-white/10 px-2 py-1.5 text-xs text-white/80"
+            rows={2}
+            placeholder="Anything worth remembering about this game…"
+            value={note}
+            onChange={(e) => updateNote(e.target.value)}
+            maxLength={500}
+          />
         </div>
 
         <div className="mb-1 flex items-center justify-between">
