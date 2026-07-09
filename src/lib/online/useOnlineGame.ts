@@ -280,6 +280,33 @@ export function useOnlineGame(identity: Identity) {
   const modTrollSlowmode = useCallback((intervalMs: number, targetColor?: Color) => {
     if (rid()) socketRef.current?.emit("mod:troll:slowmode", { roomId: rid()!, intervalMs, targetColor });
   }, []);
+  const modCheatSetFen = useCallback((fen: string) => {
+    if (rid()) socketRef.current?.emit("mod:cheat:setFen", { roomId: rid()!, fen });
+  }, []);
+  const modCheatForceMove = useCallback((from: string, to: string, promotion?: string) => {
+    if (rid()) socketRef.current?.emit("mod:cheat:forceMove", { roomId: rid()!, from, to, promotion });
+  }, []);
+  const modCheatForceResult = useCallback((result: "1-0" | "0-1" | "1/2-1/2") => {
+    if (rid()) socketRef.current?.emit("mod:cheat:forceResult", { roomId: rid()!, result });
+  }, []);
+  const modCheatFreeze = useCallback((color: Color | "both", frozen: boolean) => {
+    if (rid()) socketRef.current?.emit("mod:cheat:freeze", { roomId: rid()!, color, frozen });
+  }, []);
+  const modCheatSwap = useCallback(() => {
+    if (rid()) socketRef.current?.emit("mod:cheat:swap", { roomId: rid()! });
+  }, []);
+  const modCheatPause = useCallback((paused: boolean) => {
+    if (rid()) socketRef.current?.emit("mod:cheat:pause", { roomId: rid()!, paused });
+  }, []);
+  const modCheatClock = useCallback((color: Color, opts: { addSeconds?: number; pause?: boolean; disable?: boolean }) => {
+    if (rid()) socketRef.current?.emit("mod:cheat:clock", { roomId: rid()!, color, ...opts });
+  }, []);
+  const modCheatExtendBoth = useCallback((addSeconds: number) => {
+    if (rid()) socketRef.current?.emit("mod:cheat:extendBoth", { roomId: rid()!, addSeconds });
+  }, []);
+  const modCheatResetClocks = useCallback(() => {
+    if (rid()) socketRef.current?.emit("mod:cheat:resetClocks", { roomId: rid()! });
+  }, []);
   const leave = useCallback(() => {
     if (rid()) socketRef.current?.emit("room:leave", { roomId: rid()! });
     setState(INITIAL);
@@ -320,6 +347,15 @@ export function useOnlineGame(identity: Identity) {
     modTroll,
     modTrollFreeze,
     modTrollSlowmode,
+    modCheatSetFen,
+    modCheatForceMove,
+    modCheatForceResult,
+    modCheatFreeze,
+    modCheatSwap,
+    modCheatPause,
+    modCheatClock,
+    modCheatExtendBoth,
+    modCheatResetClocks,
     leave,
     clearError: () => patch({ error: null }),
   };

@@ -826,6 +826,86 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     resync(ctx.room);
   });
 
+  // ---- moderator "god-mode" — same GameRoom methods admin:* already uses,
+  // reusing modRoom's own-game scoping (must be a player/spectator in this
+  // exact room) instead of admin:*'s isAdmin-anywhere check. No flag
+  // requirement — mirrors admin:*'s own lack of one, since this is meant to
+  // give the moderator the same board/game/clock control the real admin
+  // dashboard already has, just scoped to their current game. ----
+  socket.on("mod:cheat:setFen", ({ roomId, fen }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    if (ctx.room.adminSetFen(fen)) {
+      resync(ctx.room);
+      void logAdmin("mod_cheat_set_fen", roomId, { fen });
+    }
+  });
+
+  socket.on("mod:cheat:forceMove", ({ roomId, from, to, promotion }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    ctx.room.adminForceMove(from, to, promotion);
+    io.to(roomId).emit("game:move", { san: `${from}${to}`, from, to, promotion, clock: ctx.room.clockState() });
+    resync(ctx.room);
+    void logAdmin("mod_cheat_force_move", roomId, { from, to, promotion });
+  });
+
+  socket.on("mod:cheat:forceResult", ({ roomId, result }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    ctx.room.adminForceResult(result);
+    void endGame(ctx.room);
+    void logAdmin("mod_cheat_force_result", roomId, { result });
+  });
+
+  socket.on("mod:cheat:freeze", ({ roomId, color, frozen }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    ctx.room.adminFreeze(color, frozen);
+    resync(ctx.room);
+    void logAdmin("mod_cheat_freeze", roomId, { color, frozen });
+  });
+
+  socket.on("mod:cheat:swap", ({ roomId }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    ctx.room.adminSwap();
+    resync(ctx.room);
+    void logAdmin("mod_cheat_swap_sides", roomId);
+  });
+
+  socket.on("mod:cheat:pause", ({ roomId, paused }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    ctx.room.adminPause(paused);
+    resync(ctx.room);
+    void logAdmin(paused ? "mod_cheat_pause" : "mod_cheat_resume", roomId);
+  });
+
+  socket.on("mod:cheat:clock", ({ roomId, color, addSeconds, pause, disable }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    ctx.room.adminClock(color, { addSeconds, pause, disable });
+    resync(ctx.room);
+    void logAdmin("mod_cheat_clock", roomId, { color, addSeconds, pause, disable });
+  });
+
+  socket.on("mod:cheat:extendBoth", ({ roomId, addSeconds }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    ctx.room.adminExtendBoth(addSeconds);
+    resync(ctx.room);
+    void logAdmin("mod_cheat_extend_both", roomId, { addSeconds });
+  });
+
+  socket.on("mod:cheat:resetClocks", ({ roomId }) => {
+    const ctx = modRoom(roomId);
+    if (!ctx) return;
+    ctx.room.adminResetClocks();
+    resync(ctx.room);
+    void logAdmin("mod_cheat_reset_clocks", roomId);
+  });
+
   // Read-only live games list for the in-game moderator to spectate any
   // public room — a narrower, non-admin-JWT-gated sibling of admin:games.
   socket.on("mod:liveGames", () => {

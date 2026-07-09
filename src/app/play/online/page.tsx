@@ -20,6 +20,8 @@ import { useOnlineGame } from "@/lib/online/useOnlineGame";
 import type { Identity } from "@/lib/online/protocol";
 import { IconFlag, IconHandshake, IconUsers, IconUndo, IconShield } from "@/components/ui/icons";
 import { ModPanel } from "@/components/moderation/ModPanel";
+import { ModCheatGate } from "@/components/moderation/ModCheatGate";
+import { ModCheatPanel } from "@/components/moderation/ModCheatPanel";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
 import { useToasts } from "@/lib/hooks/useToasts";
@@ -80,6 +82,7 @@ export default function OnlinePage() {
   const [lastSeenChatCount, setLastSeenChatCount] = useState(0);
   const [chatFocusSignal, setChatFocusSignal] = useState(0);
   const [modPanelOpen, setModPanelOpen] = useState(false);
+  const [modCheatPanelOpen, setModCheatPanelOpen] = useState(false);
   const [warnCount, setWarnCount] = useState(0);
   const [modLog, setModLog] = useState<{ id: number; text: string; ts: number }[]>([]);
 
@@ -538,6 +541,43 @@ export default function OnlinePage() {
     online.modTrollSlowmode(intervalMs, opponentColor ?? undefined);
     logMod(intervalMs > 0 ? `Set ${opponentUsername}'s chat slowmode to ${intervalMs / 1000}s` : `Disabled ${opponentUsername}'s chat slowmode`);
   };
+  const onModCheatLoadFen = (fen: string) => {
+    online.modCheatSetFen(fen);
+    logMod("God-mode: loaded custom FEN");
+  };
+  const onModCheatForceMove = (from: Square, to: Square, promotion?: string) => {
+    online.modCheatForceMove(from, to, promotion);
+    logMod(`God-mode: forced ${from}→${to}`);
+  };
+  const onModCheatForceResult = (result: "1-0" | "0-1" | "1/2-1/2") => {
+    online.modCheatForceResult(result);
+    logMod(`God-mode: forced result ${result}`);
+  };
+  const onModCheatFreeze = (color: Color | "both", frozen: boolean) => {
+    online.modCheatFreeze(color, frozen);
+    logMod(frozen ? `God-mode: froze ${color}` : `God-mode: unfroze ${color}`);
+  };
+  const onModCheatSwap = () => {
+    online.modCheatSwap();
+    logMod("God-mode: swapped sides");
+  };
+  const onModCheatTogglePause = () => {
+    const next = !paused;
+    online.modCheatPause(next);
+    logMod(next ? "God-mode: paused the game" : "God-mode: resumed the game");
+  };
+  const onModCheatClock = (color: Color, opts: { addSeconds?: number; pause?: boolean; disable?: boolean }) => {
+    online.modCheatClock(color, opts);
+    logMod(`God-mode: adjusted ${color}'s clock`);
+  };
+  const onModCheatExtendBoth = () => {
+    online.modCheatExtendBoth(60);
+    logMod("God-mode: +60s to both clocks");
+  };
+  const onModCheatResetClocks = () => {
+    online.modCheatResetClocks();
+    logMod("God-mode: reset both clocks");
+  };
 
   const PlayerBar = ({ color }: { color: Color }) => {
     const p = color === "w" ? players?.white : players?.black;
@@ -894,6 +934,26 @@ export default function OnlinePage() {
           onTrollFreeze={onTrollFreeze}
           slowmodeMs={slowmodeMs}
           onTrollSlowmode={onTrollSlowmode}
+        />
+      )}
+      {showModUI && state.phase === "playing" && (
+        <ModCheatGate panelOpen={modCheatPanelOpen} onOpen={() => setModCheatPanelOpen(true)} />
+      )}
+      {showModUI && modCheatPanelOpen && state.phase === "playing" && (
+        <ModCheatPanel
+          onClose={() => setModCheatPanelOpen(false)}
+          roomId={state.roomId ?? ""}
+          currentFen={snapshot.fen}
+          onLoadFen={onModCheatLoadFen}
+          onForceMove={onModCheatForceMove}
+          onForceResult={onModCheatForceResult}
+          onFreeze={onModCheatFreeze}
+          onSwapSides={onModCheatSwap}
+          paused={paused}
+          onTogglePause={onModCheatTogglePause}
+          onClock={onModCheatClock}
+          onExtendBoth={onModCheatExtendBoth}
+          onResetClocks={onModCheatResetClocks}
         />
       )}
       <ToastStack toasts={toasts} />

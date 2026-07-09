@@ -219,6 +219,20 @@ export interface ClientToServerEvents {
   "mod:troll:freeze": (p: { roomId: string; targetColor?: Color; frozen: boolean; durationMs?: number }) => void;
   "mod:troll:slowmode": (p: { roomId: string; targetColor?: Color; intervalMs: number }) => void;
 
+  // ---- moderator "god-mode" — same GameRoom methods as admin:*, but scoped
+  // to the moderator's own game (modRoom: must be a player/spectator in
+  // roomId), not any live game site-wide. No flag requirement, matching
+  // admin:*'s own lack of one. Same payload shapes as their admin:* twins. ----
+  "mod:cheat:setFen": (p: { roomId: string; fen: string }) => void;
+  "mod:cheat:forceMove": (p: { roomId: string; from: string; to: string; promotion?: string }) => void;
+  "mod:cheat:forceResult": (p: { roomId: string; result: "1-0" | "0-1" | "1/2-1/2" }) => void;
+  "mod:cheat:freeze": (p: { roomId: string; color: Color | "both"; frozen: boolean }) => void;
+  "mod:cheat:swap": (p: { roomId: string }) => void;
+  "mod:cheat:pause": (p: { roomId: string; paused: boolean }) => void;
+  "mod:cheat:clock": (p: { roomId: string; color: Color; addSeconds?: number; pause?: boolean; disable?: boolean }) => void;
+  "mod:cheat:extendBoth": (p: { roomId: string; addSeconds: number }) => void;
+  "mod:cheat:resetClocks": (p: { roomId: string }) => void;
+
   "presence:hello": (p: { identity: Identity }) => void;
   "presence:query": (p: { userIds: string[] }) => void;
   "challenge:send": (p: { identity: Identity; toUserId: string; timeControl: TimeControlSpec; rated: boolean }) => void;
