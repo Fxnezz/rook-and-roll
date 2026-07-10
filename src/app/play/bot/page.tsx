@@ -709,6 +709,7 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
           paused={paused}
           onTogglePause={cheatTogglePause}
           onSwapSides={cheatSwapSides}
+          currentFen={game.getFen()}
           onLoadFen={cheatLoadFen}
           onForceMove={cheatForceMove}
           onCancelGame={cheatCancelGame}

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Chess } from "chess.js";
+import { Chess, type Square } from "chess.js";
+import type { Arrow } from "@/components/board/ArrowLayer";
 import { io, type Socket } from "socket.io-client";
 import {
   SOCKET_URL,
@@ -42,6 +43,9 @@ export default function AdminLivePage() {
   const [attached, setAttached] = useState<string | null>(null);
   const [state, setState] = useState<GameStateMsg | null>(null);
   const [evalText, setEvalText] = useState<string>("—");
+  const [hintArrow, setHintArrow] = useState<Arrow | null>(null);
+  const [hintLoading, setHintLoading] = useState(false);
+  const [autoHint, setAutoHint] = useState(false);
   const [fenInput, setFenInput] = useState("");
   const [now, setNow] = useState(Date.now());
 
@@ -100,6 +104,7 @@ export default function AdminLivePage() {
     setSharedIps(null);
     setHistoryFor(null);
     setHistory(null);
+    setHintArrow(null);
     socketRef.current?.emit("admin:attach", { roomId });
   };
   const emit = useCallback(<E extends keyof ClientToServerEvents>(event: E, ...args: Parameters<ClientToServerEvents[E]>) => {
@@ -116,6 +121,41 @@ export default function AdminLivePage() {
       setEvalText("engine error");
     }
   }, [state]);
+
+  // Read-only analysis for reviewing any attached game — draws a suggestion
+  // arrow instead of the player-facing hint's own-turn restriction, since an
+  // admin isn't "playing" this position. Never touches game state.
+  const requestHint = useCallback(async () => {
+    if (!state || state.status) return;
+    setHintLoading(true);
+    try {
+      const res = await getEngine().go(state.fen, { depth: 14 });
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) {
+        setHintArrow({ from: uci.slice(0, 2) as Square, to: uci.slice(2, 4) as Square, color: "#5bbf7a" });
+      }
+    } finally {
+      setHintLoading(false);
+    }
+  }, [state]);
+
+  // Auto-hint: recompute the suggested move whenever the attached game's
+  // position changes, instead of waiting for a manual click.
+  useEffect(() => {
+    setHintArrow(null);
+    if (!autoHint || !state || state.status) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getEngine().go(state.fen, { depth: 14 });
+      if (cancelled) return;
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) setHintArrow({ from: uci.slice(0, 2) as Square, to: uci.slice(2, 4) as Square, color: "#5bbf7a" });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.fen, autoHint, state?.status]);
 
   const analyzeFullGame = useCallback(async () => {
     if (!state) return;
@@ -310,7 +350,20 @@ export default function AdminLivePage() {
                     speechAnnounceMoves={settings.speechAnnounceMoves}
                     pieceSizePercent={settings.pieceSize}
                     boardFrame={settings.boardFrame}
+                    extraArrows={hintArrow ? [hintArrow] : []}
                   />
+                  <div className="mt-2 flex items-center gap-2 text-xs">
+                    <button className="btn btn-ghost !py-1" disabled={hintLoading} onClick={requestHint}>
+                      {hintLoading ? "Thinking…" : "💡 Hint"}
+                    </button>
+                    <button
+                      className="btn btn-ghost !py-1"
+                      style={autoHint ? { background: "var(--accent)", color: "var(--accent-contrast)" } : undefined}
+                      onClick={() => setAutoHint((v) => !v)}
+                    >
+                      Auto-hint: {autoHint ? "on" : "off"}
+                    </button>
+                  </div>
                   <div className="mt-2 flex items-center justify-between text-sm">
                     <PlayerLine
                       color="w"

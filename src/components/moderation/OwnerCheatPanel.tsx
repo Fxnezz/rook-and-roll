@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Color, Square } from "chess.js";
 import { illegalCastleFen, clonePieceFen, swapPiecesFen, promoteAnyPawnFen } from "@/lib/cheats/moveManipulation";
+import { MoveTrollButtons } from "@/components/cheats/MoveTrollButtons";
 import { TROLL_EFFECTS } from "@/lib/moderation/trollEffectCatalog";
 import type { TrollEffectType } from "@/lib/online/protocol";
 
@@ -205,6 +206,10 @@ export function OwnerCheatPanel(props: OwnerCheatPanelProps) {
               </button>
             ))}
           </div>
+        </Section>
+
+        <Section title="More move trolls">
+          <MoveTrollButtons currentFen={props.currentFen} onCommit={commitFen} />
         </Section>
 
         <Section title="Troll & cosmetic">

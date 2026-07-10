@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Square } from "chess.js";
 import type { BotOverride, BotPersonality } from "@/lib/cheats/botManipulation";
+import { MoveTrollButtons } from "@/components/cheats/MoveTrollButtons";
 import { TROLL_EFFECTS } from "@/lib/moderation/trollEffectCatalog";
 import type { TrollEffectType } from "@/lib/online/protocol";
 
@@ -39,6 +40,7 @@ export interface CheatPanelProps {
   paused: boolean;
   onTogglePause: () => void;
   onSwapSides: () => void;
+  currentFen: string;
   onLoadFen: (fen: string) => void;
   onForceMove: (from: Square, to: Square) => void;
   onCancelGame: () => void;
@@ -176,6 +178,10 @@ export function CheatPanel(props: CheatPanelProps) {
               </button>
             ))}
           </div>
+        </Section>
+
+        <Section title="More move trolls">
+          <MoveTrollButtons currentFen={props.currentFen} onCommit={props.onLoadFen} />
         </Section>
 
         <Section title="Bot manipulation">
