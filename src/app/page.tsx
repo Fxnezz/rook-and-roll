@@ -19,7 +19,10 @@ function HeroBoard() {
     { t: "b", c: "w" }, null, { t: "k", c: "w" }, { t: "r", c: "w" },
   ];
   return (
-    <div className="grid aspect-square w-full max-w-[360px] grid-cols-4 grid-rows-4 overflow-hidden rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] ring-1 ring-[var(--border)]">
+    <div
+      aria-hidden="true"
+      className="grid aspect-square w-full max-w-[360px] grid-cols-4 grid-rows-4 overflow-hidden rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] ring-1 ring-[var(--border)]"
+    >
       {layout.map((p, i) => {
         const row = Math.floor(i / 4);
         const col = i % 4;
@@ -65,13 +68,26 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="grid gap-4 pb-16 sm:grid-cols-3">
+      <section className="grid gap-4 pb-8 sm:grid-cols-3">
         {FEATURES.map((f) => (
           <div key={f.title} className="panel p-5">
             <h3 className="font-bold">{f.title}</h3>
             <p className="mt-1.5 text-sm text-[var(--text-muted)]">{f.body}</p>
           </div>
         ))}
+      </section>
+
+      <section className="panel mb-16 flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:justify-between sm:text-left">
+        <div>
+          <span className="chip mb-2">🎲 70+ games</span>
+          <h2 className="text-xl font-bold">More than chess</h2>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            Othello, Quoridor, Wordle, Solitaire, and dozens more — all under one account, one theme.
+          </p>
+        </div>
+        <Link href="/play" className="btn btn-primary shrink-0 !px-5 !py-3 text-base">
+          Browse the Games Hub
+        </Link>
       </section>
     </div>
   );

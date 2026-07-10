@@ -71,7 +71,7 @@ function Section({ title, children, defaultOpen = false }: { title: string; chil
         className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-bold uppercase tracking-wide text-white/70 hover:text-white"
       >
         {title}
-        <span className="text-white/40">{open ? "−" : "+"}</span>
+        <span className="text-white/50">{open ? "−" : "+"}</span>
       </button>
       {open && <div className="flex flex-col gap-2 px-3 pb-3">{children}</div>}
     </div>
@@ -201,7 +201,7 @@ export function CheatPanel(props: CheatPanelProps) {
               value={props.botOverride.skillOverride ?? 10}
               onChange={(e) => props.onBotOverrideChange({ skillOverride: Number(e.target.value) })}
             />
-            <div className="flex justify-between text-[10px] text-white/40">
+            <div className="flex justify-between text-[10px] text-white/50">
               <span>{props.botOverride.skillOverride ?? "tier default"}</span>
               <button className="underline" onClick={() => props.onBotOverrideChange({ skillOverride: null })}>
                 reset
@@ -372,14 +372,14 @@ export function CheatPanel(props: CheatPanelProps) {
 
       <div className="max-h-28 overflow-y-auto border-t border-white/10 bg-black/30 px-3 py-2 text-[11px] text-white/60">
         {props.log.length === 0 ? (
-          <p className="text-white/30">No cheats fired yet this session.</p>
+          <p className="text-white/50">No cheats fired yet this session.</p>
         ) : (
           props.log
             .slice()
             .reverse()
             .map((l) => (
               <div key={l.id}>
-                <span className="text-white/30">{new Date(l.ts).toLocaleTimeString()}</span> {l.text}
+                <span className="text-white/50">{new Date(l.ts).toLocaleTimeString()}</span> {l.text}
               </div>
             ))
         )}

@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { IconClose } from "./icons";
+
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function SlideOver({
   open,
@@ -26,10 +29,31 @@ export function SlideOver({
   // the viewport's.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  const asideRef = useRef<HTMLElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const panel = asideRef.current;
+      if (!panel) return;
+      const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -38,6 +62,18 @@ export function SlideOver({
       document.body.style.overflow = prevOverflow;
     };
   }, [open, onClose]);
+
+  // Move focus into the panel on open, and back to whatever triggered it on close.
+  useEffect(() => {
+    if (!open) return;
+    previouslyFocused.current = document.activeElement as HTMLElement | null;
+    const panel = asideRef.current;
+    const focusable = panel?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+    (focusable ?? panel)?.focus();
+    return () => {
+      previouslyFocused.current?.focus();
+    };
+  }, [open]);
 
   if (!mounted) return null;
 
@@ -51,6 +87,11 @@ export function SlideOver({
     >
       <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" onClick={onClose} />
       <aside
+        ref={asideRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
         className={`absolute top-0 flex h-full w-[min(88vw,23rem)] flex-col border-[var(--border)] bg-[var(--panel)] shadow-2xl transition-transform duration-300 ${edge}`}
         style={{ transform: open ? "translateX(0)" : closed, transitionTimingFunction: "var(--ease-smooth)" }}
       >

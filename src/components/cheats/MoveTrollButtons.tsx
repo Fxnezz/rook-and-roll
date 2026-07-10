@@ -77,7 +77,7 @@ export function MoveTrollButtons({ currentFen, onCommit }: { currentFen: string;
 
   return (
     <>
-      <p className="text-[10px] uppercase tracking-wide text-white/40">Steal / vanish</p>
+      <p className="text-[10px] uppercase tracking-wide text-white/50">Steal / vanish</p>
       <div className="flex items-center gap-1">
         <input
           className="w-14 rounded bg-white/10 px-1.5 py-1 text-xs"
@@ -93,7 +93,7 @@ export function MoveTrollButtons({ currentFen, onCommit }: { currentFen: string;
         </button>
       </div>
 
-      <p className="text-[10px] uppercase tracking-wide text-white/40">Block / barricade</p>
+      <p className="text-[10px] uppercase tracking-wide text-white/50">Block / barricade</p>
       <div className="flex items-center gap-1">
         <div className="flex overflow-hidden rounded">
           <button
@@ -136,13 +136,13 @@ export function MoveTrollButtons({ currentFen, onCommit }: { currentFen: string;
         <Btn onClick={() => commit(nukeAreaFen(currentFen, "g8" as Square))}>💣 Nuke g8</Btn>
       </div>
 
-      <p className="text-[10px] uppercase tracking-wide text-white/40">Duplicate / teleport</p>
+      <p className="text-[10px] uppercase tracking-wide text-white/50">Duplicate / teleport</p>
       <div className="grid grid-cols-2 gap-1.5">
         <Btn onClick={() => commit(sq() && duplicateToRandomFen(currentFen, sq()!))}>🧬 Clone → random</Btn>
         <Btn onClick={() => commit(sq() && teleportToRandomFen(currentFen, sq()!))}>🌀 Teleport → random</Btn>
       </div>
 
-      <p className="text-[10px] uppercase tracking-wide text-white/40">Power shift (uses square above)</p>
+      <p className="text-[10px] uppercase tracking-wide text-white/50">Power shift (uses square above)</p>
       <div className="grid grid-cols-2 gap-1.5">
         <Btn onClick={() => commit(sq() && demotePieceFen(currentFen, sq()!))}>📉 Demote</Btn>
         <Btn onClick={() => commit(sq() && upgradePieceFen(currentFen, sq()!))}>📈 Upgrade</Btn>
@@ -150,7 +150,7 @@ export function MoveTrollButtons({ currentFen, onCommit }: { currentFen: string;
         <Btn onClick={() => commit(sq() && defectPieceFen(currentFen, sq()!))}>🔄 Defect</Btn>
       </div>
 
-      <p className="text-[10px] uppercase tracking-wide text-white/40">Whole-army shuffles</p>
+      <p className="text-[10px] uppercase tracking-wide text-white/50">Whole-army shuffles</p>
       <div className="grid grid-cols-2 gap-1.5">
         <Btn onClick={() => commit(shuffleBackRankFen(currentFen, "w"))}>♟️ Shuffle back rank (W)</Btn>
         <Btn onClick={() => commit(shuffleBackRankFen(currentFen, "b"))}>♟️ Shuffle back rank (B)</Btn>
@@ -158,13 +158,13 @@ export function MoveTrollButtons({ currentFen, onCommit }: { currentFen: string;
         <Btn onClick={() => commit(shufflePawnsFen(currentFen, "b"))}>♟ Shuffle pawns (B)</Btn>
       </div>
 
-      <p className="text-[10px] uppercase tracking-wide text-white/40">Whole-board transforms</p>
+      <p className="text-[10px] uppercase tracking-wide text-white/50">Whole-board transforms</p>
       <div className="grid grid-cols-2 gap-1.5">
         <Btn onClick={() => commit(mirrorPositionFen(currentFen))}>🪞 Mirror position</Btn>
         <Btn onClick={() => commit(invertAllColorsFen(currentFen))}>🌍 Invert all colors</Btn>
       </div>
 
-      <p className="text-[10px] uppercase tracking-wide text-white/40">Rank / file swaps</p>
+      <p className="text-[10px] uppercase tracking-wide text-white/50">Rank / file swaps</p>
       <div className="flex items-center gap-1">
         <input className="w-10 rounded bg-white/10 px-1.5 py-1 text-xs" value={rankA} onChange={(e) => setRankA(e.target.value)} />
         <span className="text-xs text-white/50">↔</span>
@@ -188,7 +188,7 @@ export function MoveTrollButtons({ currentFen, onCommit }: { currentFen: string;
         </button>
       </div>
 
-      <p className="text-[10px] uppercase tracking-wide text-white/40">Chaos additions</p>
+      <p className="text-[10px] uppercase tracking-wide text-white/50">Chaos additions</p>
       <div className="grid grid-cols-2 gap-1.5">
         <Btn onClick={() => commit(addBonusPieceFen(currentFen, "w", "q"))}>👑 Bonus queen (W)</Btn>
         <Btn onClick={() => commit(addBonusPieceFen(currentFen, "b", "q"))}>👑 Bonus queen (B)</Btn>
@@ -201,7 +201,7 @@ export function MoveTrollButtons({ currentFen, onCommit }: { currentFen: string;
         <Btn onClick={() => commit(stripPawnsFen(currentFen, "b"))}>🚫 Strip pawns (B)</Btn>
       </div>
 
-      <p className="text-[10px] uppercase tracking-wide text-white/40">Misc</p>
+      <p className="text-[10px] uppercase tracking-wide text-white/50">Misc</p>
       <div className="grid grid-cols-2 gap-1.5">
         <Btn onClick={() => commit(scrambleEnPassantFen(currentFen))}>👻 Scramble en passant</Btn>
         <Btn onClick={() => commit(RANDOM_FNS[Math.floor(Math.random() * RANDOM_FNS.length)]())}>🧨 Chaos (random)</Btn>

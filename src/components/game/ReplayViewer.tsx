@@ -5,9 +5,12 @@ import type { Color } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { MoveList } from "@/components/game/MoveList";
 import { GameControls } from "@/components/game/GameControls";
+import { SharePanel } from "@/components/game/SharePanel";
 import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
+
+type Tab = "moves" | "share";
 
 export function ReplayViewer({
   pgn,
@@ -23,6 +26,7 @@ export function ReplayViewer({
   const { settings } = useSettings();
   const theme = getTheme(settings.boardTheme);
   const [orientation, setOrientation] = useState<Color>("w");
+  const [tab, setTab] = useState<Tab>("moves");
 
   useEffect(() => {
     game.loadPgn(pgn);
@@ -77,9 +81,28 @@ export function ReplayViewer({
         </div>
       </div>
       <div className="panel flex w-full flex-col lg:h-[min(72vh,640px)] lg:w-[340px]">
-        <div className="border-b border-[var(--border)] px-4 py-3 text-sm font-semibold">Moves</div>
+        <div className="flex border-b border-[var(--border)] text-sm font-semibold">
+          <button
+            className={`px-4 py-3 ${tab === "moves" ? "border-b-2 border-[var(--accent)] text-[var(--accent)]" : "text-[var(--text-faint)]"}`}
+            onClick={() => setTab("moves")}
+          >
+            Moves
+          </button>
+          <button
+            className={`px-4 py-3 ${tab === "share" ? "border-b-2 border-[var(--accent)] text-[var(--accent)]" : "text-[var(--text-faint)]"}`}
+            onClick={() => setTab("share")}
+          >
+            Share
+          </button>
+        </div>
         <div className="flex-1 overflow-hidden">
-          <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+          {tab === "moves" ? (
+            <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+          ) : (
+            <div className="h-full overflow-y-auto">
+              <SharePanel fen={snapshot.fen} pgn={pgn} theme={theme} orientation={orientation} showImport={false} />
+            </div>
+          )}
         </div>
       </div>
     </div>

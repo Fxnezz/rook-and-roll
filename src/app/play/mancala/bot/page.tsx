@@ -11,6 +11,7 @@ export default function MancalaBotPage() {
       title="Mancala"
       blurb="Standard Kalah rules — sow seeds, land in your store for an extra turn, capture across the board."
       mode="bot"
+      gameKey="mancala"
       engine={mancalaEngine}
       botFn={pickMancalaMove}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

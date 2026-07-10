@@ -11,8 +11,14 @@ export default function OthelloBotPage() {
       title="Othello"
       blurb="Flank a line of your opponent's discs to flip them — most discs when the board settles wins."
       mode="bot"
+      gameKey="othello"
       engine={othelloEngine}
       botFn={pickOthelloMove}
+      difficulties={[
+        { label: "Easy", depth: 2 },
+        { label: "Medium", depth: 4 },
+        { label: "Hard", depth: 6 },
+      ]}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <OthelloBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

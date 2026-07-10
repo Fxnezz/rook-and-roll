@@ -11,6 +11,7 @@ export default function DomineeringBotPage() {
       title="Domineering"
       blurb="Vertical vs horizontal domino placement on a shared grid — whoever can't move loses."
       mode="bot"
+      gameKey="domineering"
       engine={domineeringEngine}
       botFn={(state, player) => pickDomineeringMove(state, player)}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

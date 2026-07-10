@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma, isDbConfigured } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth/auth";
+import { ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
 
 export const runtime = "nodejs";
 
@@ -48,6 +49,7 @@ const GAMES = new Set([
   "rps",
   "farkle",
   "wordsearch",
+  "wordle",
 ]);
 const LOWER_IS_BETTER = new Set([
   "minesweeper",
@@ -122,8 +124,26 @@ export async function POST(req: Request) {
   const score = Math.round(Number(body.score));
   if (!Number.isFinite(score) || score < 0) return NextResponse.json({ error: "Bad score" }, { status: 400 });
 
-  await prisma.highScore.create({
-    data: { userId: session.user.id, game, score, level: body.level ?? null },
-  });
-  return NextResponse.json({ ok: true });
+  const userId = session.user.id;
+  // Scoped to the arcade GAMES set — board-game "win" rows (see /api/minigames/win)
+  // share this same table under different game keys and shouldn't count here.
+  const priorCount = await prisma.highScore.count({ where: { userId, game: { in: [...GAMES] } } });
+  await prisma.highScore.create({ data: { userId, game, score, level: body.level ?? null } });
+
+  let achievements: string[] = [];
+  if (priorCount === 0) {
+    const already = await prisma.userAchievement.findFirst({ where: { userId, achievementId: "arcade_first_score" } });
+    if (!already) {
+      const def = ACHIEVEMENT_BY_ID.arcade_first_score;
+      await prisma.achievement.upsert({
+        where: { id: "arcade_first_score" },
+        create: { id: "arcade_first_score", name: def.name, description: def.description, category: def.category, icon: def.icon },
+        update: {},
+      });
+      await prisma.userAchievement.createMany({ data: [{ userId, achievementId: "arcade_first_score" }], skipDuplicates: true });
+      achievements = ["arcade_first_score"];
+    }
+  }
+
+  return NextResponse.json({ ok: true, achievements });
 }

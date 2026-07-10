@@ -110,7 +110,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
         : "none"; // BLOCKED — no UI exposes this state today, treat as no relationship
 
   const orFilter = [{ whiteId: user.id }, { blackId: user.id }];
-  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats, earnedAchievements, streakGames, myRank] = await Promise.all([
+  const viewerId = session?.user?.id;
+  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats, earnedAchievements, streakGames, myRank, headToHeadGames] = await Promise.all([
     prisma.game.count({
       where: {
         OR: [
@@ -157,7 +158,35 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       select: { result: true, whiteId: true },
     }),
     isOwnProfile ? fetchUserRank({ field: "ratingBlitz", period: "all", userId: user.id }) : Promise.resolve(null),
+    viewerId && !isOwnProfile
+      ? prisma.game.findMany({
+          where: {
+            NOT: { result: "ABORTED" },
+            OR: [
+              { whiteId: viewerId, blackId: user.id },
+              { whiteId: user.id, blackId: viewerId },
+            ],
+          },
+          select: { result: true, whiteId: true },
+        })
+      : Promise.resolve(null),
   ]);
+
+  let headToHead: { wins: number; losses: number; draws: number } | null = null;
+  if (headToHeadGames && viewerId) {
+    let w = 0;
+    let l = 0;
+    let d = 0;
+    for (const g of headToHeadGames) {
+      if (g.result === "DRAW") d++;
+      else {
+        const viewerWon = (g.result === "WHITE_WINS") === (g.whiteId === viewerId);
+        if (viewerWon) w++;
+        else l++;
+      }
+    }
+    headToHead = { wins: w, losses: l, draws: d };
+  }
 
   let currentStreak = 0;
   let bestStreak = 0;
@@ -214,6 +243,17 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           )}
         </div>
       </div>
+
+      {headToHead && headToHead.wins + headToHead.losses + headToHead.draws > 0 && (
+        <div className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elev)] px-3 py-2 text-sm">
+          <span className="text-[var(--text-muted)]">Your record vs {user.username}:</span>
+          <span className="font-semibold">
+            <span style={{ color: "var(--good)" }}>{headToHead.wins}W</span>{" "}
+            <span style={{ color: "var(--bad)" }}>{headToHead.losses}L</span>{" "}
+            <span style={{ color: "var(--text-muted)" }}>{headToHead.draws}D</span>
+          </span>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         <Stat label="Wins" value={wins} accent="var(--good)" />

@@ -11,6 +11,7 @@ export default function CheckersBotPage() {
       title="Checkers"
       blurb="Standard American rules — forced capture, kings, multi-jumps."
       mode="bot"
+      gameKey="checkers"
       engine={checkersEngine}
       botFn={pickCheckersMove}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

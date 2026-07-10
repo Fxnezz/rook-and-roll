@@ -17,7 +17,7 @@ function Section({ title, children, defaultOpen = false }: { title: string; chil
         className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-bold uppercase tracking-wide text-white/70 hover:text-white"
       >
         {title}
-        <span className="text-white/40">{open ? "−" : "+"}</span>
+        <span className="text-white/50">{open ? "−" : "+"}</span>
       </button>
       {open && <div className="flex flex-col gap-2 px-3 pb-3">{children}</div>}
     </div>

@@ -11,6 +11,7 @@ export default function YGameBotPage() {
       title="Y"
       blurb="Connect all three sides of the triangle with one unbroken group of stones — no draws are possible."
       mode="bot"
+      gameKey="y-game"
       engine={yGameEngine}
       botFn={(state, player) => pickYGameMove(state, player)}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

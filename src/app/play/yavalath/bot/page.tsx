@@ -11,6 +11,7 @@ export default function YavalathBotPage() {
       title="Yavalath"
       blurb="Four in a row wins. Three in a row loses — unless that same move also makes four."
       mode="bot"
+      gameKey="yavalath"
       engine={yavalathEngine}
       botFn={(state, player) => pickYavalathMove(state, player)}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

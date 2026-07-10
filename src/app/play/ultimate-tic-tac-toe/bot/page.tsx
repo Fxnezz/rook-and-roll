@@ -11,6 +11,7 @@ export default function UltimateTicTacToeBotPage() {
       title="Ultimate Tic-Tac-Toe"
       blurb="A 3x3 grid of tic-tac-toe boards — your move sends your opponent to the matching sub-board. Win 3 sub-boards in a row."
       mode="bot"
+      gameKey="ultimate-tic-tac-toe"
       engine={ultimateTicTacToeEngine}
       botFn={pickUltimateTicTacToeMove}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

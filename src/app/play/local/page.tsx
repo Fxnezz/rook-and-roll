@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { MoveList } from "@/components/game/MoveList";
@@ -14,10 +15,14 @@ import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
 import { playSound, primeAudio } from "@/lib/chess/sound";
 import { getEngine } from "@/lib/engine/stockfish";
-import { classify, toCpWhite, type MoveQuality } from "@/lib/engine/analysis";
+import { classify, toCpWhite, analyzeGame, type MoveQuality, type GameAnalysis } from "@/lib/engine/analysis";
+import { AnalysisPanel } from "@/components/bot/AnalysisPanel";
 import { IconPlus, IconUsers } from "@/components/ui/icons";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
+import { useToasts } from "@/lib/hooks/useToasts";
+import { ToastStack } from "@/components/ui/ToastStack";
+import { ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
 import { Clock } from "@/components/game/Clock";
 import {
   TIME_CONTROLS,
@@ -46,19 +51,24 @@ const QUALITY_COLOR: Record<MoveQuality, string> = {
   blunder: "var(--bad)",
 };
 
-type Tab = "moves" | "openings" | "share";
+type Tab = "moves" | "openings" | "analysis" | "share";
 
 export default function LocalGamePage() {
   const game = useChessGame();
   const { snapshot } = game;
   const { settings } = useSettings();
   const theme = getTheme(settings.boardTheme);
+  const { data: session } = useSession();
+  const { toasts, push: pushToast } = useToasts();
+  const savedRef = useRef(false);
 
   const [manualOrientation, setManualOrientation] = useState<Color>("w");
   const [tab, setTab] = useState<Tab>("moves");
   const [showResult, setShowResult] = useState(true);
   const [lastQuality, setLastQuality] = useState<{ ply: number; san: string; quality: MoveQuality } | null>(null);
   const [analyzingPly, setAnalyzingPly] = useState<number | null>(null);
+  const [analysis, setAnalysis] = useState<GameAnalysis | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState<{ done: number; total: number } | null>(null);
 
   const orientation: Color =
     settings.autoFlip && snapshot.isLive ? snapshot.turn : manualOrientation;
@@ -105,6 +115,55 @@ export default function LocalGamePage() {
   });
   const status: GameStatus = override ?? snapshot.status;
 
+  // Save finished pass-and-play games to Game History, mirroring the bot
+  // page's saveGame (src/app/play/bot/page.tsx) — same API, opponentType
+  // "HUMAN" instead of "BOT" so it's never treated as rated (the API only
+  // applies rating changes for opponentType === "BOT"). Pass-and-play has no
+  // per-player accounts, so the signed-in user is recorded as White and the
+  // other side as a plain name, matching how bot mode's "opponent" side gets
+  // no userId either.
+  const saveGame = useCallback(
+    (finalStatus: GameStatus) => {
+      if (savedRef.current || !session?.user || !finalStatus.result) return;
+      if (snapshot.moves.length === 0) return;
+      savedRef.current = true;
+      const resultMap = { "1-0": "WHITE_WINS", "0-1": "BLACK_WINS", "1/2-1/2": "DRAW" } as const;
+      const body = {
+        pgn: game.getPgn(),
+        finalFen: game.getFen(),
+        result: resultMap[finalStatus.result],
+        termination: finalStatus.reason ?? "Game over",
+        category: tc.category,
+        timeControl: tc.id,
+        opponentType: "HUMAN" as const,
+        color: "w" as const,
+        opponentName: "Local opponent",
+        rated: false,
+        moves: snapshot.moves.map((m, i) => ({
+          ply: i + 1,
+          san: m.san,
+          uci: m.from + m.to + (m.promotion ?? ""),
+          fen: m.after,
+        })),
+      };
+      fetch("/api/games", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+        .then((r) => r.json())
+        .then((d: { achievements?: string[] }) => {
+          for (const id of d.achievements ?? []) {
+            const a = ACHIEVEMENT_BY_ID[id];
+            if (a) pushToast(`${a.icon} Achievement unlocked: ${a.name}`);
+          }
+        })
+        .catch(() => {});
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [session, snapshot.moves, tc, game],
+  );
+
   // Reset + (re)start the clock whenever the time control changes (including on mount).
   useEffect(() => {
     clock.reset();
@@ -119,6 +178,7 @@ export default function LocalGamePage() {
       clock.stop();
       setShowResult(true);
       playSound("gameEnd");
+      saveGame(status);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.over]);
@@ -187,6 +247,9 @@ export default function LocalGamePage() {
     setManualOrientation("w");
     setShowResult(true);
     setOverride(null);
+    savedRef.current = false;
+    setAnalysis(null);
+    setAnalysisProgress(null);
     clock.reset();
     if (!clock.untimed) clock.start("w");
     primeAudio();
@@ -219,6 +282,30 @@ export default function LocalGamePage() {
     },
     [snapshot.fen, onMove],
   );
+
+  const runAnalysis = useCallback(async () => {
+    setTab("analysis");
+    setShowResult(false);
+    setAnalysis(null);
+    const moves = snapshot.moves;
+    if (moves.length === 0) return;
+    const positions = moves.map((m) => m.before).concat(moves[moves.length - 1].after);
+    const input = {
+      positions,
+      moves: moves.map((m) => ({
+        san: m.san,
+        uci: m.from + m.to + (m.promotion ?? ""),
+        color: m.color,
+      })),
+    };
+    setAnalysisProgress({ done: 0, total: positions.length });
+    const result = await analyzeGame(getEngine(), input, {
+      depth: 12,
+      onProgress: (done, total) => setAnalysisProgress({ done, total }),
+    });
+    setAnalysis(result);
+    setAnalysisProgress(null);
+  }, [snapshot.moves]);
 
   const canBack = snapshot.viewPly > 0;
   const canForward = snapshot.viewPly < snapshot.moves.length;
@@ -405,7 +492,7 @@ export default function LocalGamePage() {
             )}
           </div>
           <div className="flex border-b border-[var(--border)]">
-            {(["moves", "openings", "share"] as Tab[]).map((t) => (
+            {(["moves", "openings", "analysis", "share"] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -415,7 +502,7 @@ export default function LocalGamePage() {
                     : "border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"
                 }`}
               >
-                {t === "moves" ? "Moves" : t === "openings" ? "Openings" : "Share"}
+                {t === "moves" ? "Moves" : t === "openings" ? "Openings" : t === "analysis" ? "Analysis" : "Share"}
               </button>
             ))}
           </div>
@@ -459,6 +546,19 @@ export default function LocalGamePage() {
               </>
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
+            ) : tab === "analysis" ? (
+              <div className="flex h-full flex-col">
+                <div className="flex-1 overflow-hidden">
+                  <AnalysisPanel analysis={analysis} progress={analysisProgress} onGoToPly={game.goToPly} viewPly={snapshot.viewPly} />
+                </div>
+                {!analysis && !analysisProgress && (
+                  <div className="shrink-0 border-t border-[var(--border)] p-3">
+                    <button className="btn w-full" onClick={runAnalysis} disabled={snapshot.moves.length === 0}>
+                      Analyze game
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="h-full overflow-y-auto">
                 <SharePanel
@@ -482,12 +582,14 @@ export default function LocalGamePage() {
           onReview={() => {
             setShowResult(false);
             game.goStart();
+            runAnalysis();
           }}
           onClose={() => setShowResult(false)}
         />
       )}
 
       {showShortcuts && <ShortcutsHelpModal onClose={() => setShowShortcuts(false)} />}
+      <ToastStack toasts={toasts} />
     </div>
   );
 }

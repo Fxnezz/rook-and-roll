@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Seat } from "@/lib/boardgames/protocol";
+import { playArcadeSound } from "@/lib/arcade/sound";
 
 export interface QuartoState {
   board: (number | null)[];
@@ -88,6 +89,7 @@ export function QuartoBoard({
 
   const placeAt = (cell: number) => {
     if (!canPlay || state.pieceInHand == null || state.board[cell] != null) return;
+    playArcadeSound("place");
     if (wouldWin(state.board, cell, state.pieceInHand) || state.available.length === 0) {
       onMove({ cell, give: state.available[0] ?? null });
       return;
@@ -97,6 +99,7 @@ export function QuartoBoard({
 
   const give = (piece: number) => {
     if (!canPlay) return;
+    playArcadeSound("click");
     onMove({ cell: pendingCell, give: piece });
     setPendingCell(null);
   };

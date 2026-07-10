@@ -3,6 +3,7 @@
 import { LocalBoardGamePage } from "@/components/boardgames/LocalBoardGamePage";
 import { NineMensMorrisBoard, type NineMensMorrisState, type NineMensMorrisMove } from "@/components/boardgames/NineMensMorrisBoard";
 import { nineMensMorrisEngine } from "@/lib/boardgames/engines/ninemensmorris";
+import { NINE_MENS_MORRIS_RULES } from "@/lib/boardgames/rules";
 
 export default function NineMensMorrisLocalPage() {
   return (
@@ -12,6 +13,7 @@ export default function NineMensMorrisLocalPage() {
       mode="passplay"
       engine={nineMensMorrisEngine}
       seatLabel={(s) => (s === "a" ? "Player 1" : "Player 2")}
+      rules={NINE_MENS_MORRIS_RULES}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <NineMensMorrisBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

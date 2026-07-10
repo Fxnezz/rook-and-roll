@@ -3,6 +3,7 @@
 import { LocalBoardGamePage } from "@/components/boardgames/LocalBoardGamePage";
 import { LoaBoard, type LoaState, type LoaMove } from "@/components/boardgames/LoaBoard";
 import { loaEngine } from "@/lib/boardgames/engines/linesofaction";
+import { LINES_OF_ACTION_RULES } from "@/lib/boardgames/rules";
 
 export default function LoaLocalPage() {
   return (
@@ -12,6 +13,7 @@ export default function LoaLocalPage() {
       mode="passplay"
       engine={loaEngine}
       seatLabel={(s) => (s === "a" ? "Player 1" : "Player 2")}
+      rules={LINES_OF_ACTION_RULES}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <LoaBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

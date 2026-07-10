@@ -9,6 +9,7 @@ import { MoveList } from "@/components/game/MoveList";
 import { CapturedTray } from "@/components/game/CapturedTray";
 import { GameControls } from "@/components/game/GameControls";
 import { GameOverModal } from "@/components/game/GameOverModal";
+import { SharePanel } from "@/components/game/SharePanel";
 import { EvalBar } from "@/components/game/EvalBar";
 import { Clock } from "@/components/game/Clock";
 import { BotSetup, type BotConfig } from "@/components/bot/BotSetup";
@@ -88,7 +89,7 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
   const [evalScore, setEvalScore] = useState<{ cp: number | null; mate: number | null }>({ cp: 0, mate: null });
   const [override, setOverride] = useState<GameStatus | null>(null);
   const [showResult, setShowResult] = useState(false);
-  const [tab, setTab] = useState<"moves" | "analysis">("moves");
+  const [tab, setTab] = useState<"moves" | "analysis" | "share">("moves");
   const [analysis, setAnalysis] = useState<GameAnalysis | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -850,7 +851,7 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
             )}
           </div>
           <div className="flex border-b border-[var(--border)]">
-            {(["moves", "analysis"] as const).map((t) => (
+            {(["moves", "analysis", "share"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -867,13 +868,24 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
           <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0">
             {tab === "moves" ? (
               <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
-            ) : (
+            ) : tab === "analysis" ? (
               <AnalysisPanel
                 analysis={analysis}
                 progress={analysisProgress}
                 onGoToPly={game.goToPly}
                 viewPly={snapshot.viewPly}
               />
+            ) : (
+              <div className="h-full overflow-y-auto">
+                <SharePanel
+                  fen={snapshot.fen}
+                  pgn={game.getPgn()}
+                  onLoadFen={game.loadFen}
+                  onLoadPgn={game.loadPgn}
+                  theme={theme}
+                  orientation={orientation}
+                />
+              </div>
             )}
           </div>
           {tab === "analysis" && !analysis && !analysisProgress && (

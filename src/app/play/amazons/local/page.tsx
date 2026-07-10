@@ -3,6 +3,7 @@
 import { LocalBoardGamePage } from "@/components/boardgames/LocalBoardGamePage";
 import { AmazonsBoard, type AmazonsState, type AmazonsMove } from "@/components/boardgames/AmazonsBoard";
 import { amazonsEngine } from "@/lib/boardgames/engines/amazons";
+import { AMAZONS_RULES } from "@/lib/boardgames/rules";
 
 export default function AmazonsLocalPage() {
   return (
@@ -12,6 +13,7 @@ export default function AmazonsLocalPage() {
       mode="passplay"
       engine={amazonsEngine}
       seatLabel={(s) => (s === "a" ? "Player 1" : "Player 2")}
+      rules={AMAZONS_RULES}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <AmazonsBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

@@ -3,6 +3,7 @@
 import { LocalBoardGamePage } from "@/components/boardgames/LocalBoardGamePage";
 import { FanoronaBoard, type FanoronaState, type FanoronaMove } from "@/components/boardgames/FanoronaBoard";
 import { fanoronaEngine } from "@/lib/boardgames/engines/fanorona";
+import { FANORONA_RULES } from "@/lib/boardgames/rules";
 
 export default function FanoronaLocalPage() {
   return (
@@ -12,6 +13,7 @@ export default function FanoronaLocalPage() {
       mode="passplay"
       engine={fanoronaEngine}
       seatLabel={(s) => (s === "a" ? "Player 1" : "Player 2")}
+      rules={FANORONA_RULES}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <FanoronaBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

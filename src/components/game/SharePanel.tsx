@@ -82,13 +82,16 @@ export function SharePanel({
   onLoadPgn,
   theme = { light: "#ebecd0", dark: "#6f8f5a" },
   orientation = "w",
+  showImport = true,
 }: {
   fen: string;
   pgn: string;
-  onLoadFen: (fen: string) => boolean;
-  onLoadPgn: (pgn: string) => boolean;
+  onLoadFen?: (fen: string) => boolean;
+  onLoadPgn?: (pgn: string) => boolean;
   theme?: { light: string; dark: string };
   orientation?: Color;
+  /** Hide the "load a position/game" import sections — for read-only contexts (spectating, reviewing a finished game, live online games where importing a position would bypass server authority). */
+  showImport?: boolean;
 }) {
   const { copied, copy } = useCopy();
   const [fenInput, setFenInput] = useState("");
@@ -155,51 +158,55 @@ export function SharePanel({
         </code>
       </section>
 
-      <div className="h-px bg-[var(--border)]" />
+      {showImport && onLoadFen && onLoadPgn && (
+        <>
+          <div className="h-px bg-[var(--border)]" />
 
-      <section className="flex flex-col gap-2">
-        <span className="label">Import position (FEN)</span>
-        <input
-          className="input"
-          placeholder="Paste a FEN string…"
-          value={fenInput}
-          onChange={(e) => setFenInput(e.target.value)}
-        />
-        <button
-          className="btn"
-          onClick={() => {
-            setErr(null);
-            if (!onLoadFen(fenInput.trim())) setErr("That FEN could not be loaded.");
-            else setFenInput("");
-          }}
-          disabled={!fenInput.trim()}
-        >
-          Load FEN
-        </button>
-      </section>
+          <section className="flex flex-col gap-2">
+            <span className="label">Import position (FEN)</span>
+            <input
+              className="input"
+              placeholder="Paste a FEN string…"
+              value={fenInput}
+              onChange={(e) => setFenInput(e.target.value)}
+            />
+            <button
+              className="btn"
+              onClick={() => {
+                setErr(null);
+                if (!onLoadFen(fenInput.trim())) setErr("That FEN could not be loaded.");
+                else setFenInput("");
+              }}
+              disabled={!fenInput.trim()}
+            >
+              Load FEN
+            </button>
+          </section>
 
-      <section className="flex flex-col gap-2">
-        <span className="label">Import game (PGN)</span>
-        <textarea
-          className="input min-h-[80px] resize-y"
-          placeholder="Paste a PGN game…"
-          value={pgnInput}
-          onChange={(e) => setPgnInput(e.target.value)}
-        />
-        <button
-          className="btn"
-          onClick={() => {
-            setErr(null);
-            if (!onLoadPgn(pgnInput.trim())) setErr("That PGN could not be parsed.");
-            else setPgnInput("");
-          }}
-          disabled={!pgnInput.trim()}
-        >
-          Load PGN
-        </button>
-      </section>
+          <section className="flex flex-col gap-2">
+            <span className="label">Import game (PGN)</span>
+            <textarea
+              className="input min-h-[80px] resize-y"
+              placeholder="Paste a PGN game…"
+              value={pgnInput}
+              onChange={(e) => setPgnInput(e.target.value)}
+            />
+            <button
+              className="btn"
+              onClick={() => {
+                setErr(null);
+                if (!onLoadPgn(pgnInput.trim())) setErr("That PGN could not be parsed.");
+                else setPgnInput("");
+              }}
+              disabled={!pgnInput.trim()}
+            >
+              Load PGN
+            </button>
+          </section>
 
-      {err && <p className="text-xs text-[var(--bad)]">{err}</p>}
+          {err && <p className="text-xs text-[var(--bad)]">{err}</p>}
+        </>
+      )}
     </div>
   );
 }

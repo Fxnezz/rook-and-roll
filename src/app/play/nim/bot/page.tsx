@@ -10,6 +10,7 @@ export default function NimBotPage() {
       title="Nim"
       blurb="Take turns removing tokens from a pile — whoever takes the last token wins."
       mode="bot"
+      gameKey="nim"
       engine={nimEngine}
       botFn={(state, player) => pickNimMove(state, player)}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

@@ -11,6 +11,7 @@ export default function SimBotPage() {
       title="Sim"
       blurb="Color the lines between 6 points — whoever completes a triangle in their own color loses."
       mode="bot"
+      gameKey="sim"
       engine={simEngine}
       botFn={(state, player) => pickSimMove(state, player)}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

@@ -11,6 +11,7 @@ export default function HalmaBotPage() {
       title="Halma"
       blurb="Hop your pieces across the board into the opposite corner — first to fill the far camp wins."
       mode="bot"
+      gameKey="halma"
       engine={halmaEngine}
       botFn={(state, player) => pickHalmaMove(state, player)}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

@@ -11,6 +11,7 @@ export default function LGameBotPage() {
       title="L-Game"
       blurb="Reposition your L-piece and optionally nudge a neutral piece — trap your opponent's L with nowhere to go."
       mode="bot"
+      gameKey="l-game"
       engine={lGameEngine}
       botFn={(state, player) => pickLGameMove(state, player)}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

@@ -230,7 +230,7 @@ export function ModPanel({
           )}
         </p>
         {context?.found && (
-          <p className="mb-3 text-[11px] text-white/40">
+          <p className="mb-3 text-[11px] text-white/50">
             {context.reportsReceived} lifetime report{context.reportsReceived === 1 ? "" : "s"} · {context.muteCount} prior admin mute
             {context.muteCount === 1 ? "" : "s"}
           </p>
@@ -447,7 +447,7 @@ export function ModPanel({
                 </button>
                 {customPhrases.includes(p) && (
                   <button
-                    className="pr-1.5 text-white/30 opacity-0 group-hover:opacity-100 hover:text-white"
+                    className="pr-1.5 text-white/50 opacity-0 group-hover:opacity-100 hover:text-white"
                     onClick={() => removePhrase(p)}
                     title="Remove saved phrase"
                   >
@@ -536,7 +536,7 @@ export function ModPanel({
           </span>
         </div>
         {flaggedMessages.length === 0 ? (
-          <p className="py-2 text-xs text-white/30">No flagged messages this game.</p>
+          <p className="py-2 text-xs text-white/50">No flagged messages this game.</p>
         ) : (
           <div className="flex flex-col gap-1.5">
             {flaggedMessages.map((m, i) =>
@@ -548,7 +548,7 @@ export function ModPanel({
                       <span className="text-white/80">{m.text}</span>
                     </span>
                     <button
-                      className="shrink-0 text-[10px] font-semibold text-white/40 hover:text-white"
+                      className="shrink-0 text-[10px] font-semibold text-white/50 hover:text-white"
                       onClick={() => setDismissed((s) => new Set(s).add(i))}
                       title="Not a problem"
                     >
@@ -583,7 +583,7 @@ export function ModPanel({
             <div className="mb-1 flex items-center justify-between">
               <p className="text-xs font-bold uppercase tracking-wide text-white/70">Action log</p>
               <button
-                className="text-[10px] font-semibold text-white/40 hover:text-white"
+                className="text-[10px] font-semibold text-white/50 hover:text-white"
                 onClick={() => {
                   const text = actionLog.map((l) => `${new Date(l.ts).toLocaleString()} — ${l.text}`).join("\n");
                   const blob = new Blob([text], { type: "text/plain" });
@@ -604,7 +604,7 @@ export function ModPanel({
                 .reverse()
                 .map((l) => (
                   <div key={l.id}>
-                    <span className="text-white/30">{new Date(l.ts).toLocaleTimeString()}</span> {l.text}
+                    <span className="text-white/50">{new Date(l.ts).toLocaleTimeString()}</span> {l.text}
                   </div>
                 ))}
             </div>

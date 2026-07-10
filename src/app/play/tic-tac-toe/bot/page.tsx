@@ -11,6 +11,7 @@ export default function TicTacToeBotPage() {
       title="Tic-Tac-Toe"
       blurb="Three in a row wins."
       mode="bot"
+      gameKey="tic-tac-toe"
       engine={ticTacToeEngine}
       botFn={pickTicTacToeMove}
       renderBoard={({ state, mySeat, interactive, onMove, status }) => (

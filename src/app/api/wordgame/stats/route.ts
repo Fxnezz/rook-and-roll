@@ -76,5 +76,11 @@ export async function POST(req: Request) {
     },
   });
 
+  // Also record on the shared arcade high-score ledger (best streak so far) so
+  // Word Game participates in the same cross-game leaderboard infrastructure
+  // as the rest of the arcade — additive, doesn't replace the richer
+  // streak/guess-distribution stats tracked above.
+  await prisma.highScore.create({ data: { userId: session.user.id, game: "wordle", score: updated.maxStreak, level: null } });
+
   return NextResponse.json({ ok: true, stats: updated });
 }

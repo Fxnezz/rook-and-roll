@@ -11,6 +11,7 @@ export default function Connect6BotPage() {
       title="Connect6"
       blurb="Place two stones each turn (one on the opening move) — six in a row wins."
       mode="bot"
+      gameKey="connect6"
       engine={connect6Engine}
       botFn={(state, player) => pickConnect6Move(state, player)}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

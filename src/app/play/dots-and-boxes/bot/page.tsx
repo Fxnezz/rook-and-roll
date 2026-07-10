@@ -11,6 +11,7 @@ export default function DotsAndBoxesBotPage() {
       title="Dots and Boxes"
       blurb="Draw a line, complete a box to claim it and go again — most boxes wins."
       mode="bot"
+      gameKey="dots-and-boxes"
       engine={dotsBoxesEngine}
       botFn={pickDotsBoxesMove}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

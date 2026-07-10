@@ -11,6 +11,7 @@ export default function PentagoBotPage() {
       title="Pentago"
       blurb="Place a marble, then rotate a quadrant — five in a row after the rotation wins."
       mode="bot"
+      gameKey="pentago"
       engine={pentagoEngine}
       botFn={pickPentagoMove}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

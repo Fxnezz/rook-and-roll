@@ -11,6 +11,7 @@ export default function QuartoBotPage() {
       title="Quarto"
       blurb="Your opponent picks the piece you must place — get four in a line sharing an attribute to win."
       mode="bot"
+      gameKey="quarto"
       engine={quartoEngine}
       botFn={(state, player) => pickQuartoMove(state, player)}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

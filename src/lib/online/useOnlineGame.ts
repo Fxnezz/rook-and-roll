@@ -30,7 +30,8 @@ export interface OnlineState {
   players: { white: PlayerInfo; black: PlayerInfo } | null;
   myColor: Color | null;
   timeControl: TimeControlSpec | null;
-  clock: { whiteMs: number; blackMs: number; activeColor: Color | null; running: boolean };
+  /** Raw last-synced snapshot from the server — NOT ticked locally. Display components (see LiveClock) extrapolate the running side's remaining time themselves so a 200ms countdown tick doesn't force a full page re-render. */
+  clock: ClockState;
   status: GameOverMsg | null;
   drawOfferFrom: Color | null;
   takebackOfferFrom: Color | null;
@@ -61,7 +62,7 @@ const INITIAL: OnlineState = {
   players: null,
   myColor: null,
   timeControl: null,
-  clock: { whiteMs: 0, blackMs: 0, activeColor: null, running: false },
+  clock: { whiteMs: 0, blackMs: 0, activeColor: null, running: false, updatedAt: 0 },
   status: null,
   drawOfferFrom: null,
   takebackOfferFrom: null,
@@ -83,7 +84,6 @@ const INITIAL: OnlineState = {
 export function useOnlineGame(identity: Identity) {
   const [state, setState] = useState<OnlineState>(INITIAL);
   const socketRef = useRef<OnlineSocket | null>(null);
-  const clockRef = useRef<ClockState | null>(null);
   const identityRef = useRef(identity);
   identityRef.current = identity;
   const roomRef = useRef<string | null>(null);
@@ -115,7 +115,6 @@ export function useOnlineGame(identity: Identity) {
     });
 
     socket.on("game:state", (gs) => {
-      clockRef.current = gs.clock;
       const my = playerColorOf(gs.players, identityRef.current.userId);
       roomRef.current = gs.roomId;
       setState((s) => ({
@@ -129,27 +128,23 @@ export function useOnlineGame(identity: Identity) {
         drawOfferFrom: gs.drawOfferFrom ?? null,
         takebackOfferFrom: gs.takebackOfferFrom ?? null,
         rated: gs.rated,
-        clock: liveClock(gs.clock),
+        clock: gs.clock,
         stateSeq: s.stateSeq + 1,
         fullState: gs,
       }));
     });
 
     socket.on("game:move", (m) => {
-      clockRef.current = m.clock;
       setState((s) => ({
         ...s,
-        clock: liveClock(m.clock),
+        clock: m.clock,
         moveSeq: s.moveSeq + 1,
         lastServerMove: { san: m.san, from: m.from, to: m.to, promotion: m.promotion },
       }));
     });
 
     socket.on("game:over", (o) => patch({ status: o }));
-    socket.on("clock:sync", (c) => {
-      clockRef.current = c;
-      patch({ clock: liveClock(c) });
-    });
+    socket.on("clock:sync", (c) => patch({ clock: c }));
     socket.on("draw:offered", ({ from }) => patch({ drawOfferFrom: from }));
     socket.on("draw:declined", () => patch({ drawOfferFrom: null }));
     socket.on("takeback:offered", ({ from }) => patch({ takebackOfferFrom: from }));
@@ -176,15 +171,6 @@ export function useOnlineGame(identity: Identity) {
 
     return socket;
   }, [patch]);
-
-  // local clock ticking
-  useEffect(() => {
-    const iv = setInterval(() => {
-      if (!clockRef.current) return;
-      setState((s) => (s.phase === "playing" || s.phase === "spectating" ? { ...s, clock: liveClock(clockRef.current!) } : s));
-    }, 200);
-    return () => clearInterval(iv);
-  }, []);
 
   // searching timer
   useEffect(() => {
@@ -386,15 +372,4 @@ function playerColorOf(players: { white: PlayerInfo; black: PlayerInfo }, userId
   if (players.white.userId === userId) return "w";
   if (players.black.userId === userId) return "b";
   return null;
-}
-
-/** Extrapolate the active side's remaining time from a server snapshot. */
-function liveClock(c: ClockState): { whiteMs: number; blackMs: number; activeColor: Color | null; running: boolean } {
-  const elapsed = c.running ? Date.now() - c.updatedAt : 0;
-  return {
-    whiteMs: c.activeColor === "w" ? Math.max(0, c.whiteMs - elapsed) : c.whiteMs,
-    blackMs: c.activeColor === "b" ? Math.max(0, c.blackMs - elapsed) : c.blackMs,
-    activeColor: c.activeColor,
-    running: c.running,
-  };
 }

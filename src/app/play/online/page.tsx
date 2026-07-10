@@ -7,14 +7,22 @@ import { useSession } from "next-auth/react";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { MoveList } from "@/components/game/MoveList";
-import { Clock } from "@/components/game/Clock";
+import { LiveClock } from "@/components/game/Clock";
 import { ChatPanel } from "@/components/game/ChatPanel";
 import { CapturedTray } from "@/components/game/CapturedTray";
 import { OpeningExplorer } from "@/components/game/OpeningExplorer";
+import { SharePanel } from "@/components/game/SharePanel";
 import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
-import { TIME_CONTROLS, type TimeControl } from "@/lib/chess/useClock";
+import {
+  TIME_CONTROLS,
+  getTimeControl,
+  clampCustomMinutes,
+  clampCustomIncrementSec,
+  customTimeControlId,
+  type TimeControl,
+} from "@/lib/chess/useClock";
 import { playSound, primeAudio, type SoundName } from "@/lib/chess/sound";
 import { useOnlineGame } from "@/lib/online/useOnlineGame";
 import type { Identity } from "@/lib/online/protocol";
@@ -80,9 +88,36 @@ export default function OnlinePage() {
   const { snapshot } = game;
 
   const [tc, setTc] = useState<TimeControl>(TIME_CONTROLS[4]); // 3+2 default
+  const [customMinutes, setCustomMinutes] = useState(10);
+  const [customIncrement, setCustomIncrement] = useState(0);
+  const isCustomTc = tc.id.startsWith("custom:");
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("rr.customTimeControl.online.v1");
+      if (raw) {
+        const parsed = JSON.parse(raw) as { minutes?: number; increment?: number };
+        if (typeof parsed.minutes === "number") setCustomMinutes(clampCustomMinutes(parsed.minutes));
+        if (typeof parsed.increment === "number") setCustomIncrement(clampCustomIncrementSec(parsed.increment));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const applyCustom = (minutes: number, increment: number) => {
+    const m = clampCustomMinutes(minutes);
+    const i = clampCustomIncrementSec(increment);
+    setCustomMinutes(m);
+    setCustomIncrement(i);
+    setTc(getTimeControl(customTimeControlId(m, i)));
+    try {
+      localStorage.setItem("rr.customTimeControl.online.v1", JSON.stringify({ minutes: m, increment: i }));
+    } catch {
+      /* ignore */
+    }
+  };
   const [rated, setRated] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number> | null>(null);
-  const [tab, setTab] = useState<"moves" | "openings" | "chat">("moves");
+  const [tab, setTab] = useState<"moves" | "openings" | "chat" | "share">("moves");
   const [confirmingResign, setConfirmingResign] = useState(false);
   const [drawCoolingDown, setDrawCoolingDown] = useState(false);
   const [lastSeenChatCount, setLastSeenChatCount] = useState(0);
@@ -505,6 +540,46 @@ export default function OnlinePage() {
                 })}
               </div>
             ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-16 shrink-0 text-xs capitalize text-[var(--text-faint)]">custom</span>
+              <button
+                onClick={() => applyCustom(customMinutes, customIncrement)}
+                className="rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors"
+                style={{
+                  borderColor: isCustomTc ? "var(--accent)" : "var(--border)",
+                  background: isCustomTc ? "var(--bg-elev-2)" : "transparent",
+                  color: isCustomTc ? "var(--text)" : "var(--text-muted)",
+                }}
+              >
+                {isCustomTc ? tc.name : "Custom…"}
+              </button>
+              {isCustomTc && (
+                <>
+                  <input
+                    type="number"
+                    min={0.25}
+                    max={180}
+                    step={0.25}
+                    value={customMinutes}
+                    onChange={(e) => applyCustom(Number(e.target.value), customIncrement)}
+                    className="input !w-16 !py-1.5 text-xs"
+                    aria-label="Custom minutes"
+                  />
+                  <span className="text-xs text-[var(--text-faint)]">min +</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    step={1}
+                    value={customIncrement}
+                    onChange={(e) => applyCustom(customMinutes, Number(e.target.value))}
+                    className="input !w-14 !py-1.5 text-xs"
+                    aria-label="Custom increment seconds"
+                  />
+                  <span className="text-xs text-[var(--text-faint)]">sec</span>
+                </>
+              )}
+            </div>
           </div>
         </section>
 
@@ -701,9 +776,10 @@ export default function OnlinePage() {
           <CapturedTray pieces={captured} color={isWhite ? "b" : "w"} set={settings.pieceSet} advantage={adv} />
         </div>
         {state.timeControl?.initialMs != null && (
-          <Clock
-            ms={color === "w" ? state.clock.whiteMs : state.clock.blackMs}
-            active={state.clock.activeColor === color && !state.status}
+          <LiveClock
+            clock={state.clock}
+            color={color}
+            gameOver={Boolean(state.status)}
             tickSound={color === state.myColor}
             reversed={clockDigitsReversed && color === state.myColor}
           />
@@ -791,6 +867,12 @@ export default function OnlinePage() {
           </div>
         )}
       </div>
+
+      {!state.connected && (
+        <div className="mb-3 rounded-lg border border-[var(--bad)]/40 bg-[var(--bad)]/10 px-3 py-2 text-sm text-[var(--bad)]">
+          Reconnecting to the game server… your moves won&apos;t be sent until this comes back.
+        </div>
+      )}
 
       {!state.opponentConnected && !state.status && (
         <div className="mb-3 rounded-lg border border-[var(--warn)]/40 bg-[var(--warn)]/10 px-3 py-2 text-sm text-[var(--warn)]">
@@ -909,7 +991,7 @@ export default function OnlinePage() {
             )}
           </div>
           <div className="flex border-b border-[var(--border)]">
-            {(["moves", "openings", "chat"] as const).map((t) => (
+            {(["moves", "openings", "chat", "share"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -931,7 +1013,7 @@ export default function OnlinePage() {
               <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
-            ) : (
+            ) : tab === "chat" ? (
               <ChatPanel
                 messages={fakeChatMessages.length ? [...state.chat, ...fakeChatMessages].sort((a, b) => a.ts - b.ts) : state.chat}
                 onSend={online.sendChat}
@@ -942,6 +1024,10 @@ export default function OnlinePage() {
                 onModMute={() => !opponentMuted && toggleMute()}
                 onModWarn={() => sendWarn("Please follow the chat guidelines.")}
               />
+            ) : (
+              <div className="h-full overflow-y-auto">
+                <SharePanel fen={snapshot.fen} pgn={game.getPgn()} theme={theme} orientation={orientation} showImport={false} />
+              </div>
             )}
           </div>
         </div>

@@ -1,16 +1,33 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import type { BotCapableEngine, GameResult, Player } from "@/lib/boardgames/engines/types";
 import { useLocalMatch, type LocalMode } from "@/lib/boardgames/useLocalMatch";
 import { playArcadeSound } from "@/lib/arcade/sound";
+import { RulesModal } from "@/components/ui/RulesModal";
+import { useToasts } from "@/lib/hooks/useToasts";
+import { ToastStack } from "@/components/ui/ToastStack";
+import { ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
+
+export interface BotDifficulty {
+  label: string;
+  depth: number;
+}
 
 export interface LocalBoardGamePageProps<TMove, TState> {
   title: string;
   blurb: string;
   mode: LocalMode;
   engine: BotCapableEngine<TMove, TState>;
-  botFn?: (state: TState, player: Player) => TMove | null;
+  botFn?: (state: TState, player: Player, depth?: number) => TMove | null;
+  /** Optional Easy/Medium/Hard presets — when provided (bot mode only), shows a difficulty picker that maps to the bot's search depth. */
+  difficulties?: BotDifficulty[];
+  defaultDifficultyIndex?: number;
+  /** Optional "How to play" bullet list — shows a "?" button in the header that opens a rules modal. */
+  rules?: string[];
+  /** Stable slug (e.g. "othello") — when set, a bot-mode win is reported to /api/minigames/win for achievement tracking. */
+  gameKey?: string;
   seatLabel?: (seat: Player) => string;
   renderBoard: (opts: {
     state: TState;
@@ -30,11 +47,26 @@ export function LocalBoardGamePage<TMove, TState>({
   mode,
   engine,
   botFn,
+  difficulties,
+  defaultDifficultyIndex = difficulties ? Math.floor(difficulties.length / 2) : 0,
+  rules,
+  gameKey,
   seatLabel = (s) => (s === "a" ? "Player 1" : "Player 2"),
   renderBoard,
 }: LocalBoardGamePageProps<TMove, TState>) {
+  const { data: session } = useSession();
+  const { toasts, push: pushToast } = useToasts();
   const [humanSeat, setHumanSeat] = useState<Player>("a");
-  const match = useLocalMatch(engine, mode, botFn ?? noBot, humanSeat);
+  const [difficultyIdx, setDifficultyIdx] = useState(defaultDifficultyIndex);
+  const [showRules, setShowRules] = useState(false);
+  const reportedWinRef = useRef(false);
+  const effectiveBotFn = useMemo(() => {
+    if (!botFn) return undefined;
+    if (!difficulties) return botFn;
+    const depth = difficulties[difficultyIdx]?.depth;
+    return (state: TState, player: Player) => botFn(state, player, depth);
+  }, [botFn, difficulties, difficultyIdx]);
+  const match = useLocalMatch(engine, mode, effectiveBotFn ?? noBot, humanSeat);
   const [showResult, setShowResult] = useState(false);
   const prevStatus = useRef<GameResult | null>(null);
 
@@ -50,15 +82,36 @@ export function LocalBoardGamePage<TMove, TState>({
     prevStatus.current = match.status;
   }, [match.status, mode, humanSeat]);
 
+  useEffect(() => {
+    if (!gameKey || !session?.user || mode !== "bot" || reportedWinRef.current) return;
+    if (!match.status || match.status.winner !== humanSeat) return;
+    reportedWinRef.current = true;
+    fetch("/api/minigames/win", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ game: gameKey }),
+    })
+      .then((r) => r.json())
+      .then((d: { achievements?: string[] }) => {
+        for (const id of d.achievements ?? []) {
+          const a = ACHIEVEMENT_BY_ID[id];
+          if (a) pushToast(`${a.icon} Achievement unlocked: ${a.name}`);
+        }
+      })
+      .catch(() => {});
+  }, [match.status, mode, humanSeat, gameKey, session, pushToast]);
+
   const newGame = () => {
     match.reset();
     setShowResult(false);
+    reportedWinRef.current = false;
   };
 
   const swapAndNewGame = () => {
     setHumanSeat((s) => (s === "a" ? "b" : "a"));
     match.reset();
     setShowResult(false);
+    reportedWinRef.current = false;
   };
 
   const mySeatForBoard = mode === "passplay" ? match.turn : humanSeat;
@@ -83,12 +136,45 @@ export function LocalBoardGamePage<TMove, TState>({
     <div className="mx-auto max-w-4xl px-4 py-6">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">{title}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">{title}</h1>
+            {rules && (
+              <button
+                className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border)] text-xs font-bold text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                onClick={() => setShowRules(true)}
+                aria-label="How to play"
+                title="How to play"
+              >
+                ?
+              </button>
+            )}
+          </div>
           <p className="text-sm text-[var(--text-muted)]">
             {blurb} · {mode === "bot" ? "vs Bot" : "Pass & Play"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {mode === "bot" && difficulties && (
+            <div className="flex gap-1" role="group" aria-label="Bot difficulty">
+              {difficulties.map((d, i) => (
+                <button
+                  key={d.label}
+                  className="rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors"
+                  style={{
+                    borderColor: i === difficultyIdx ? "var(--accent)" : "var(--border)",
+                    background: i === difficultyIdx ? "var(--bg-elev-2)" : "transparent",
+                    color: i === difficultyIdx ? "var(--text)" : "var(--text-muted)",
+                  }}
+                  onClick={() => {
+                    setDifficultyIdx(i);
+                    newGame();
+                  }}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          )}
           {mode === "bot" && (
             <button className="btn btn-ghost !py-1.5 text-sm" onClick={swapAndNewGame}>
               Swap sides
@@ -138,6 +224,9 @@ export function LocalBoardGamePage<TMove, TState>({
           </div>
         </div>
       )}
+
+      {showRules && rules && <RulesModal title={title} rules={rules} onClose={() => setShowRules(false)} />}
+      <ToastStack toasts={toasts} />
     </div>
   );
 }

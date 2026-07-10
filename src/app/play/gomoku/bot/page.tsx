@@ -11,6 +11,7 @@ export default function GomokuBotPage() {
       title="Gomoku"
       blurb="Five in a row, any direction — freestyle rules, no forbidden moves."
       mode="bot"
+      gameKey="gomoku"
       engine={gomokuEngine}
       botFn={pickGomokuMove}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (

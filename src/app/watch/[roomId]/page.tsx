@@ -6,16 +6,18 @@ import { useSession } from "next-auth/react";
 import type { Color, PieceSymbol, Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { MoveList } from "@/components/game/MoveList";
-import { Clock } from "@/components/game/Clock";
+import { LiveClock } from "@/components/game/Clock";
 import { ChatPanel } from "@/components/game/ChatPanel";
 import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
 import { useOnlineGame } from "@/lib/online/useOnlineGame";
+import type { ClockState } from "@/lib/online/protocol";
 import { ModPanel } from "@/components/moderation/ModPanel";
 import { ModCheatGate } from "@/components/moderation/ModCheatGate";
 import { ModCheatPanel } from "@/components/moderation/ModCheatPanel";
 import { ModShieldMenu } from "@/components/moderation/ModShieldMenu";
+import { SharePanel } from "@/components/game/SharePanel";
 import { OwnerCheatGate } from "@/components/moderation/OwnerCheatGate";
 import { OwnerCheatPanel } from "@/components/moderation/OwnerCheatPanel";
 import { useCheatAccess } from "@/lib/cheats/access";
@@ -60,7 +62,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
     pushToast,
   );
 
-  const [tab, setTab] = useState<"moves" | "chat">("moves");
+  const [tab, setTab] = useState<"moves" | "chat" | "share">("moves");
   const [modPanelOpen, setModPanelOpen] = useState(false);
   const [modCheatPanelOpen, setModCheatPanelOpen] = useState(false);
   const [ownerCheatPanelOpen, setOwnerCheatPanelOpen] = useState(false);
@@ -313,8 +315,9 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
               name={players.black.username}
               userId={players.black.userId}
               rating={players.black.rating}
-              ms={state.clock.blackMs}
-              active={state.clock.activeColor === "b"}
+              clock={state.clock}
+              color="b"
+              gameOver={Boolean(state.status)}
               timed={state.timeControl?.initialMs != null}
               reversed={clockDigitsReversed && targetColor === "b"}
             />
@@ -342,8 +345,9 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
               name={players.white.username}
               userId={players.white.userId}
               rating={players.white.rating}
-              ms={state.clock.whiteMs}
-              active={state.clock.activeColor === "w"}
+              clock={state.clock}
+              color="w"
+              gameOver={Boolean(state.status)}
               timed={state.timeControl?.initialMs != null}
               reversed={clockDigitsReversed && targetColor === "w"}
             />
@@ -356,6 +360,9 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
                 </button>
                 <button className={tab === "chat" ? "text-[var(--accent)]" : "text-[var(--text-faint)]"} onClick={() => setTab("chat")}>
                   Chat
+                </button>
+                <button className={tab === "share" ? "text-[var(--accent)]" : "text-[var(--text-faint)]"} onClick={() => setTab("share")}>
+                  Share
                 </button>
               </span>
               <span className="text-xs font-normal text-[var(--text-faint)]">{state.fullState?.spectators ?? 0} watching</span>
@@ -382,6 +389,10 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
             <div className="flex-1 overflow-hidden">
               {tab === "moves" ? (
                 <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+              ) : tab === "share" ? (
+                <div className="h-full overflow-y-auto">
+                  <SharePanel fen={snapshot.fen} pgn={game.getPgn()} theme={theme} orientation="w" showImport={false} />
+                </div>
               ) : (
                 <ChatPanel
                   messages={fakeChatMessages.length ? [...state.chat, ...fakeChatMessages].sort((a, b) => a.ts - b.ts) : state.chat}
@@ -486,16 +497,18 @@ function Bar({
   name,
   userId,
   rating,
-  ms,
-  active,
+  clock,
+  color,
+  gameOver,
   timed,
   reversed,
 }: {
   name: string;
   userId?: string;
   rating: number;
-  ms: number;
-  active: boolean;
+  clock: ClockState;
+  color: Color;
+  gameOver: boolean;
   timed: boolean;
   reversed?: boolean;
 }) {
@@ -511,7 +524,7 @@ function Bar({
         )}{" "}
         <span className="text-xs text-[var(--text-faint)]">{rating}</span>
       </span>
-      {timed && <Clock ms={ms} active={active} reversed={reversed} />}
+      {timed && <LiveClock clock={clock} color={color} gameOver={gameOver} reversed={reversed} />}
     </div>
   );
 }

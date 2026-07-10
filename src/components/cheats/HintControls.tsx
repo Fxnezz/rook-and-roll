@@ -52,7 +52,7 @@ export function HintControls(props: HintControlsProps) {
         />
         Also send this hint to the opponent
       </label>
-      <p className="text-[10px] uppercase tracking-wide text-white/40">Auto move</p>
+      <p className="text-[10px] uppercase tracking-wide text-white/50">Auto move</p>
       <div className="grid grid-cols-3 gap-1.5">
         <Btn active={props.autoMoveColor === "w"} onClick={() => props.onAutoMoveColorChange(props.autoMoveColor === "w" ? null : "w")}>
           White

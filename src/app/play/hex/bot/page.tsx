@@ -11,8 +11,14 @@ export default function HexBotPage() {
       title="Hex"
       blurb="Connect your two sides of the board with an unbroken chain — no draws are possible."
       mode="bot"
+      gameKey="hex"
       engine={hexEngine}
       botFn={pickHexMove}
+      difficulties={[
+        { label: "Easy", depth: 1 },
+        { label: "Medium", depth: 2 },
+        { label: "Hard", depth: 3 },
+      ]}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <HexBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

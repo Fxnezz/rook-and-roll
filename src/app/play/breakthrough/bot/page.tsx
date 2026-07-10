@@ -11,6 +11,7 @@ export default function BreakthroughBotPage() {
       title="Breakthrough"
       blurb="Race your pawns to the far row — capture diagonally, but only advance straight onto an empty square."
       mode="bot"
+      gameKey="breakthrough"
       engine={breakthroughEngine}
       botFn={(state, player) => pickBreakthroughMove(state, player)}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
