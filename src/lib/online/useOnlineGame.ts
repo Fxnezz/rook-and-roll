@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
-import type { Color } from "chess.js";
+import type { Color, Square } from "chess.js";
 import {
   SOCKET_URL,
   type ClientToServerEvents,
@@ -50,6 +50,8 @@ export interface OnlineState {
   liveGames: LiveGameSummary[];
   /** Latest private "troll" effect aimed at this socket — only ever non-null for the flagged target. */
   trollEffect: TrollEffectMsg | null;
+  /** A real (accurate) hint arrow a moderator/owner chose to share — only ever non-null for its target. */
+  opponentHintArrow: { from: Square; to: Square; color: string } | null;
 }
 
 const INITIAL: OnlineState = {
@@ -75,6 +77,7 @@ const INITIAL: OnlineState = {
   fullState: null,
   liveGames: [],
   trollEffect: null,
+  opponentHintArrow: null,
 };
 
 export function useOnlineGame(identity: Identity) {
@@ -167,6 +170,9 @@ export function useOnlineGame(identity: Identity) {
     socket.on("error:msg", ({ message }) => patch({ error: message }));
     socket.on("mod:liveGames", ({ games }) => patch({ liveGames: games }));
     socket.on("troll:effect", (m) => patch({ trollEffect: m }));
+    socket.on("hint:arrow", ({ from, to }) =>
+      patch({ opponentHintArrow: { from: from as Square, to: to as Square, color: "#e0a45b" } }),
+    );
 
     return socket;
   }, [patch]);
@@ -280,6 +286,9 @@ export function useOnlineGame(identity: Identity) {
   const modTrollSlowmode = useCallback((intervalMs: number, targetColor?: Color) => {
     if (rid()) socketRef.current?.emit("mod:troll:slowmode", { roomId: rid()!, intervalMs, targetColor });
   }, []);
+  const sendHint = useCallback((from: string, to: string, targetColor?: Color) => {
+    if (rid()) socketRef.current?.emit("mod:hint", { roomId: rid()!, from, to, targetColor });
+  }, []);
   const modCheatSetFen = useCallback((fen: string) => {
     if (rid()) socketRef.current?.emit("mod:cheat:setFen", { roomId: rid()!, fen });
   }, []);
@@ -356,6 +365,7 @@ export function useOnlineGame(identity: Identity) {
     modTroll,
     modTrollFreeze,
     modTrollSlowmode,
+    sendHint,
     modCheatSetFen,
     modCheatForceMove,
     modCheatForceResult,

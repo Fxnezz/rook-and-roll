@@ -238,6 +238,30 @@ export class GameRoom {
     return true;
   }
 
+  /**
+   * Admin-only unilateral takeback — reverts exactly one ply, no
+   * negotiation. Same mechanics as takeback() (chess.js .undo(), splice
+   * moveTimesMs, clear draw/takeback offers, restore the active-clock
+   * side), just without the requester/turn-parity logic since an admin
+   * always undoes a single ply regardless of whose turn it is. Same
+   * limitation as takeback(): doesn't refund clock time debited on the
+   * undone move, and refuses on an already-finished game.
+   */
+  adminUndo(): boolean {
+    if (this.status) return false;
+    if (this.chess.history().length < 1) return false;
+    this.chess.undo();
+    this.moveTimesMs.splice(-1, 1);
+    this.drawOfferFrom = null;
+    this.takebackOfferFrom = null;
+    if (!this.untimed && this.started) {
+      this.activeColor = this.chess.turn();
+      this.lastTickTs = Date.now();
+      this.running = true;
+    }
+    return true;
+  }
+
   private finish(result: GameOverMsg["result"], winner: Color | null, reason: string, voided = false) {
     this.running = false;
     this.activeColor = null;

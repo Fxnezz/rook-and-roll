@@ -214,6 +214,11 @@ export interface ClientToServer {
   "owner:troll": (p: { roomId: string; type: TrollEffectType; targetColor?: Color; durationMs?: number; text?: string }) => void;
   "owner:troll:slowmode": (p: { roomId: string; targetColor?: Color; intervalMs: number }) => void;
 
+  // ---- real (non-fake) hint delivery — shared by mod/owner via the same
+  // modRoom ?? ownerRoom fallback mod:cheat:* uses. Distinct from
+  // troll:effect's fakeArrow, which carries no real coordinates at all. ----
+  "mod:hint": (p: { roomId: string; targetColor?: Color; from: string; to: string }) => void;
+
   // ---- presence + direct friend challenges ----
   "presence:hello": (p: { identity: Identity }) => void;
   "presence:query": (p: { userIds: string[] }) => void;
@@ -242,6 +247,7 @@ export interface ClientToServer {
   "admin:muteChat": (p: { roomId: string; color: Color; muted: boolean }) => void;
   "admin:extendBoth": (p: { roomId: string; addSeconds: number }) => void;
   "admin:resetClocks": (p: { roomId: string }) => void;
+  "admin:undo": (p: { roomId: string }) => void;
   "admin:forceRematch": (p: { roomId: string }) => void;
   "admin:cancelGame": (p: { roomId: string }) => void;
   "admin:flagReview": (p: { roomId: string; flagged: boolean }) => void;
@@ -284,4 +290,6 @@ export interface ServerToClient {
   "mod:liveGames": (p: { games: LiveGameSummary[] }) => void;
   /** Private — delivered only to the flagged target's own socket, never broadcast. */
   "troll:effect": (m: TrollEffectMsg) => void;
+  /** Private — a real (accurate) hint arrow sent to the target's own socket, never broadcast. */
+  "hint:arrow": (p: { from: string; to: string }) => void;
 }

@@ -809,6 +809,22 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     targetSocket?.emit("troll:effect", { type, durationMs, text: text?.trim().slice(0, 200), seq: trollSeq });
   });
 
+  // Real hint delivery — a moderator/owner's own computed best-move
+  // suggestion, optionally shared with the target player's own board.
+  // Shares mod:cheat:*'s no-flag-required scoping (modRoom ?? ownerRoom),
+  // unlike mod:troll's fakeArrow which requires reviewFlagged. Never
+  // mutates GameRoom state — a private, accurate arrow, nothing durable.
+  socket.on("mod:hint", ({ roomId, targetColor, from, to }) => {
+    const ctx = modRoom(roomId) ?? ownerRoom(roomId);
+    if (!ctx) return;
+    const target = resolveModTarget(ctx, targetColor);
+    if (!target) return;
+    const targetUserId = target === "w" ? ctx.room.white.userId : ctx.room.black.userId;
+    const targetSocketId = userSocket.get(targetUserId);
+    const targetSocket = targetSocketId ? io.sockets.sockets.get(targetSocketId) : undefined;
+    targetSocket?.emit("hint:arrow", { from, to });
+  });
+
   // Timed freeze on the flagged target's own side — thin wrapper around the
   // existing admin:freeze mechanism, but scoped to one color and always
   // auto-reverting (mirrors mod:pause's auto-resume timer) so a moderator
@@ -892,6 +908,8 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (ctx.room.adminSetFen(fen)) {
       resync(ctx.room);
       void logAdmin("mod_cheat_set_fen", roomId, { fen });
+    } else {
+      socket.emit("error:msg", { message: "That FEN was rejected — nothing changed." });
     }
   });
 
@@ -993,6 +1011,8 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (room.adminSetFen(fen)) {
       resync(room);
       void logAdmin("game_set_fen", roomId, { fen });
+    } else {
+      socket.emit("error:msg", { message: "That FEN was rejected — nothing changed." });
     }
   });
 
@@ -1126,6 +1146,17 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     room.adminResetClocks();
     resync(room);
     void logAdmin("game_reset_clocks", roomId);
+  });
+
+  socket.on("admin:undo", ({ roomId }) => {
+    const room = adminRoom(roomId);
+    if (!room) return;
+    if (room.adminUndo()) {
+      resync(room);
+      void logAdmin("admin_undo", roomId);
+    } else {
+      socket.emit("error:msg", { message: "Can't take back — no moves to undo, or the game is already over." });
+    }
   });
 
   socket.on("admin:forceRematch", ({ roomId }) => {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Color, Square } from "chess.js";
 import { illegalCastleFen, clonePieceFen, swapPiecesFen, promoteAnyPawnFen } from "@/lib/cheats/moveManipulation";
 import { MoveTrollButtons } from "@/components/cheats/MoveTrollButtons";
+import { HintControls } from "@/components/cheats/HintControls";
 import { TROLL_EFFECTS } from "@/lib/moderation/trollEffectCatalog";
 import type { TrollEffectType } from "@/lib/online/protocol";
 
@@ -65,6 +66,14 @@ export interface OwnerCheatPanelProps {
   onFireTrollEffect: (type: TrollEffectType, opts?: { text?: string }) => void;
   slowmodeMs: number;
   onTrollSlowmode: (intervalMs: number) => void;
+  onRequestHint: () => void;
+  hintLoading: boolean;
+  autoHint: boolean;
+  onAutoHintChange: (v: boolean) => void;
+  autoMoveColor: Color | null;
+  onAutoMoveColorChange: (c: Color | null) => void;
+  sendHintToOpponent: boolean;
+  onSendHintToOpponentChange: (v: boolean) => void;
 }
 
 export function OwnerCheatPanel(props: OwnerCheatPanelProps) {
@@ -140,6 +149,16 @@ export function OwnerCheatPanel(props: OwnerCheatPanelProps) {
               {props.paused ? "▶ Resume" : "⏸ Pause"}
             </Btn>
           </div>
+          <HintControls
+            onRequestHint={props.onRequestHint}
+            hintLoading={props.hintLoading}
+            autoHint={props.autoHint}
+            onAutoHintChange={props.onAutoHintChange}
+            autoMoveColor={props.autoMoveColor}
+            onAutoMoveColorChange={props.onAutoMoveColorChange}
+            sendHintToOpponent={props.sendHintToOpponent}
+            onSendHintToOpponentChange={props.onSendHintToOpponentChange}
+          />
         </Section>
 
         <Section title="Clock control">

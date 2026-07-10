@@ -717,6 +717,10 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
           onExtendBothClocks={cheatExtendBothClocks}
           onResetClocks={cheatResetClocks}
           onFireTrollEffect={fireTrollEffect}
+          onRequestHint={requestHint}
+          hintLoading={hintLoading}
+          autoHint={autoHint}
+          onAutoHintChange={setAutoHint}
         />
       )}
       <div className="mb-4 flex items-center justify-between gap-3">

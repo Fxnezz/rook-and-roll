@@ -363,6 +363,9 @@ export default function AdminLivePage() {
                     >
                       Auto-hint: {autoHint ? "on" : "off"}
                     </button>
+                    <button className="btn btn-ghost !py-1" onClick={() => emit("admin:undo", { roomId: attached })}>
+                      ↩ Take back
+                    </button>
                   </div>
                   <div className="mt-2 flex items-center justify-between text-sm">
                     <PlayerLine

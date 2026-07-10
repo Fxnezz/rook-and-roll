@@ -42,6 +42,10 @@ export interface CheatPanelProps {
   onSwapSides: () => void;
   currentFen: string;
   onLoadFen: (fen: string) => void;
+  onRequestHint: () => void;
+  hintLoading: boolean;
+  autoHint: boolean;
+  onAutoHintChange: (v: boolean) => void;
   onForceMove: (from: Square, to: Square) => void;
   onCancelGame: () => void;
   onRematch: () => void;
@@ -300,6 +304,18 @@ export function CheatPanel(props: CheatPanelProps) {
               }}
             >
               {confirmingCancel ? "Confirm cancel?" : "Cancel game"}
+            </Btn>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              className="rounded bg-white/10 px-2 py-1.5 text-xs font-semibold hover:bg-white/20 disabled:opacity-50"
+              disabled={props.hintLoading}
+              onClick={props.onRequestHint}
+            >
+              {props.hintLoading ? "Thinking…" : "💡 Hint"}
+            </button>
+            <Btn active={props.autoHint} onClick={() => props.onAutoHintChange(!props.autoHint)}>
+              Auto-hint: {props.autoHint ? "on" : "off"}
             </Btn>
           </div>
         </Section>

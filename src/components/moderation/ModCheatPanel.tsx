@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Color, Square } from "chess.js";
 import { illegalCastleFen, clonePieceFen, swapPiecesFen, promoteAnyPawnFen } from "@/lib/cheats/moveManipulation";
 import { MoveTrollButtons } from "@/components/cheats/MoveTrollButtons";
+import { HintControls } from "@/components/cheats/HintControls";
 
 function Section({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -51,6 +52,14 @@ export interface ModCheatPanelProps {
   onClock: (color: Color, opts: { addSeconds?: number; pause?: boolean; disable?: boolean }) => void;
   onExtendBoth: () => void;
   onResetClocks: () => void;
+  onRequestHint: () => void;
+  hintLoading: boolean;
+  autoHint: boolean;
+  onAutoHintChange: (v: boolean) => void;
+  autoMoveColor: Color | null;
+  onAutoMoveColorChange: (c: Color | null) => void;
+  sendHintToOpponent: boolean;
+  onSendHintToOpponentChange: (v: boolean) => void;
 }
 
 export function ModCheatPanel(props: ModCheatPanelProps) {
@@ -125,6 +134,16 @@ export function ModCheatPanel(props: ModCheatPanelProps) {
               {props.paused ? "▶ Resume" : "⏸ Pause"}
             </Btn>
           </div>
+          <HintControls
+            onRequestHint={props.onRequestHint}
+            hintLoading={props.hintLoading}
+            autoHint={props.autoHint}
+            onAutoHintChange={props.onAutoHintChange}
+            autoMoveColor={props.autoMoveColor}
+            onAutoMoveColorChange={props.onAutoMoveColorChange}
+            sendHintToOpponent={props.sendHintToOpponent}
+            onSendHintToOpponentChange={props.onSendHintToOpponentChange}
+          />
         </Section>
 
         <Section title="Clock control">

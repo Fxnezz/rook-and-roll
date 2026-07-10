@@ -26,6 +26,8 @@ import { ModShieldMenu } from "@/components/moderation/ModShieldMenu";
 import { OwnerCheatGate } from "@/components/moderation/OwnerCheatGate";
 import { OwnerCheatPanel } from "@/components/moderation/OwnerCheatPanel";
 import { useCheatAccess } from "@/lib/cheats/access";
+import { getEngine } from "@/lib/engine/stockfish";
+import type { Arrow } from "@/components/board/ArrowLayer";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
 import { useToasts } from "@/lib/hooks/useToasts";
@@ -90,6 +92,11 @@ export default function OnlinePage() {
   const [ownerCheatPanelOpen, setOwnerCheatPanelOpen] = useState(false);
   const [warnCount, setWarnCount] = useState(0);
   const [modLog, setModLog] = useState<{ id: number; text: string; ts: number }[]>([]);
+  const [modHintArrow, setModHintArrow] = useState<Arrow | null>(null);
+  const [modHintLoading, setModHintLoading] = useState(false);
+  const [modAutoHint, setModAutoHint] = useState(false);
+  const [modAutoMoveColor, setModAutoMoveColor] = useState<Color | null>(null);
+  const [sendHintToOpponent, setSendHintToOpponent] = useState(false);
 
   const loggedIn = Boolean(session?.user);
   const isModerator = Boolean(session?.user?.isModerator);
@@ -593,6 +600,71 @@ export default function OnlinePage() {
     logMod(intervalMs > 0 ? `Owner: set ${opponentUsername}'s chat slowmode to ${intervalMs / 1000}s` : `Owner: disabled ${opponentUsername}'s chat slowmode`);
   };
 
+  // Read-only analysis for the moderator/owner panels — draws a suggestion
+  // arrow, never touches game state. Optionally also delivers the same move
+  // to the opponent's own client as a real hint (Part 4).
+  const requestModHint = async () => {
+    if (state.status) return;
+    setModHintLoading(true);
+    try {
+      const res = await getEngine().go(snapshot.fen, { depth: 14 });
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) {
+        const from = uci.slice(0, 2) as Square;
+        const to = uci.slice(2, 4) as Square;
+        setModHintArrow({ from, to, color: "#5bbf7a" });
+        if (sendHintToOpponent) online.sendHint(from, to, opponentColor ?? undefined);
+      }
+    } finally {
+      setModHintLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setModHintArrow(null);
+    if (!modAutoHint || state.status) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getEngine().go(snapshot.fen, { depth: 14 });
+      if (cancelled) return;
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) {
+        const from = uci.slice(0, 2) as Square;
+        const to = uci.slice(2, 4) as Square;
+        setModHintArrow({ from, to, color: "#5bbf7a" });
+        if (sendHintToOpponent) online.sendHint(from, to, opponentColor ?? undefined);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.fen, modAutoHint, state.status, sendHintToOpponent]);
+
+  // "Auto move" god-mode — force-plays the engine's move for the selected
+  // side every time it becomes that side's turn, reusing the same
+  // mod:cheat:forceMove path the manual "Force move" button already uses.
+  useEffect(() => {
+    if (!modAutoMoveColor || state.status || paused || snapshot.turn !== modAutoMoveColor) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getEngine().go(snapshot.fen, { depth: 12 });
+      if (cancelled) return;
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) {
+        const from = uci.slice(0, 2) as Square;
+        const to = uci.slice(2, 4) as Square;
+        const promotion = uci.length > 4 ? uci[4] : undefined;
+        online.modCheatForceMove(from, to, promotion);
+        logMod(`Auto-move: played ${uci} for ${modAutoMoveColor}`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.fen, modAutoMoveColor, state.status, paused]);
+
   const PlayerBar = ({ color }: { color: Color }) => {
     const p = color === "w" ? players?.white : players?.black;
     const isWhite = color === "w";
@@ -801,11 +873,13 @@ export default function OnlinePage() {
             premove={premove}
             onSetPremove={(from, to) => setPremove({ from, to })}
             onCancelPremove={() => setPremove(null)}
-            extraArrows={
-              snapshot.lastMove && settings.highlightLastMove
+            extraArrows={[
+              ...(snapshot.lastMove && settings.highlightLastMove
                 ? [{ from: snapshot.lastMove.from, to: snapshot.lastMove.to, color: "rgba(255,255,255,0.4)" }]
-                : []
-            }
+                : []),
+              ...(modHintArrow ? [modHintArrow] : []),
+              ...(state.opponentHintArrow ? [state.opponentHintArrow] : []),
+            ]}
           />
           <PlayerBar color={bottomColor} />
         </div>
@@ -963,6 +1037,14 @@ export default function OnlinePage() {
           onClock={onModCheatClock}
           onExtendBoth={onModCheatExtendBoth}
           onResetClocks={onModCheatResetClocks}
+          onRequestHint={requestModHint}
+          hintLoading={modHintLoading}
+          autoHint={modAutoHint}
+          onAutoHintChange={setModAutoHint}
+          autoMoveColor={modAutoMoveColor}
+          onAutoMoveColorChange={setModAutoMoveColor}
+          sendHintToOpponent={sendHintToOpponent}
+          onSendHintToOpponentChange={setSendHintToOpponent}
         />
       )}
       {state.phase === "playing" && (
@@ -987,6 +1069,14 @@ export default function OnlinePage() {
           onFireTrollEffect={onOwnerTroll}
           slowmodeMs={slowmodeMs}
           onTrollSlowmode={onOwnerTrollSlowmode}
+          onRequestHint={requestModHint}
+          hintLoading={modHintLoading}
+          autoHint={modAutoHint}
+          onAutoHintChange={setModAutoHint}
+          autoMoveColor={modAutoMoveColor}
+          onAutoMoveColorChange={setModAutoMoveColor}
+          sendHintToOpponent={sendHintToOpponent}
+          onSendHintToOpponentChange={setSendHintToOpponent}
         />
       )}
       <ToastStack toasts={toasts} />

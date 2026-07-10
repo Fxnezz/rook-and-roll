@@ -19,6 +19,8 @@ import { ModShieldMenu } from "@/components/moderation/ModShieldMenu";
 import { OwnerCheatGate } from "@/components/moderation/OwnerCheatGate";
 import { OwnerCheatPanel } from "@/components/moderation/OwnerCheatPanel";
 import { useCheatAccess } from "@/lib/cheats/access";
+import { getEngine } from "@/lib/engine/stockfish";
+import type { Arrow } from "@/components/board/ArrowLayer";
 import { useToasts } from "@/lib/hooks/useToasts";
 import { ToastStack } from "@/components/ui/ToastStack";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
@@ -63,6 +65,11 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
   const [modCheatPanelOpen, setModCheatPanelOpen] = useState(false);
   const [ownerCheatPanelOpen, setOwnerCheatPanelOpen] = useState(false);
   const [targetColor, setTargetColor] = useState<Color>("w");
+  const [modHintArrow, setModHintArrow] = useState<Arrow | null>(null);
+  const [modHintLoading, setModHintLoading] = useState(false);
+  const [modAutoHint, setModAutoHint] = useState(false);
+  const [modAutoMoveColor, setModAutoMoveColor] = useState<Color | null>(null);
+  const [sendHintToOpponent, setSendHintToOpponent] = useState(false);
   const [warnCount, setWarnCount] = useState(0);
   const [modLog, setModLog] = useState<{ id: number; text: string; ts: number }[]>([]);
 
@@ -215,6 +222,65 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
     logMod(intervalMs > 0 ? `Owner: set ${targetUsername}'s chat slowmode to ${intervalMs / 1000}s` : `Owner: disabled ${targetUsername}'s chat slowmode`);
   };
 
+  const requestModHint = async () => {
+    if (state.status) return;
+    setModHintLoading(true);
+    try {
+      const res = await getEngine().go(snapshot.fen, { depth: 14 });
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) {
+        const from = uci.slice(0, 2) as Square;
+        const to = uci.slice(2, 4) as Square;
+        setModHintArrow({ from, to, color: "#5bbf7a" });
+        if (sendHintToOpponent) online.sendHint(from, to, targetColor);
+      }
+    } finally {
+      setModHintLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setModHintArrow(null);
+    if (!modAutoHint || state.status) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getEngine().go(snapshot.fen, { depth: 14 });
+      if (cancelled) return;
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) {
+        const from = uci.slice(0, 2) as Square;
+        const to = uci.slice(2, 4) as Square;
+        setModHintArrow({ from, to, color: "#5bbf7a" });
+        if (sendHintToOpponent) online.sendHint(from, to, targetColor);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.fen, modAutoHint, state.status, sendHintToOpponent, targetColor]);
+
+  useEffect(() => {
+    if (!modAutoMoveColor || state.status || paused || snapshot.turn !== modAutoMoveColor) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getEngine().go(snapshot.fen, { depth: 12 });
+      if (cancelled) return;
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) {
+        const from = uci.slice(0, 2) as Square;
+        const to = uci.slice(2, 4) as Square;
+        const promotion = uci.length > 4 ? uci[4] : undefined;
+        online.modCheatForceMove(from, to, promotion);
+        logMod(`Auto-move: played ${uci} for ${modAutoMoveColor}`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.fen, modAutoMoveColor, state.status, paused]);
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-5">
       <div className="mb-4 flex items-center gap-2">
@@ -270,6 +336,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
               animationSpeed={settings.animationSpeed}
               boardFrame={settings.boardFrame}
               zoomPercent={settings.boardZoom}
+              extraArrows={modHintArrow ? [modHintArrow] : []}
             />
             <Bar
               name={players.white.username}
@@ -370,6 +437,14 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
           onClock={onModCheatClock}
           onExtendBoth={onModCheatExtendBoth}
           onResetClocks={onModCheatResetClocks}
+          onRequestHint={requestModHint}
+          hintLoading={modHintLoading}
+          autoHint={modAutoHint}
+          onAutoHintChange={setModAutoHint}
+          autoMoveColor={modAutoMoveColor}
+          onAutoMoveColorChange={setModAutoMoveColor}
+          sendHintToOpponent={sendHintToOpponent}
+          onSendHintToOpponentChange={setSendHintToOpponent}
         />
       )}
       <OwnerCheatGate panelOpen={ownerCheatPanelOpen} onOpen={() => setOwnerCheatPanelOpen(true)} />
@@ -392,6 +467,14 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
           onFireTrollEffect={onOwnerTroll}
           slowmodeMs={slowmodeMs}
           onTrollSlowmode={onOwnerTrollSlowmode}
+          onRequestHint={requestModHint}
+          hintLoading={modHintLoading}
+          autoHint={modAutoHint}
+          onAutoHintChange={setModAutoHint}
+          autoMoveColor={modAutoMoveColor}
+          onAutoMoveColorChange={setModAutoMoveColor}
+          sendHintToOpponent={sendHintToOpponent}
+          onSendHintToOpponentChange={setSendHintToOpponent}
         />
       )}
       <ToastStack toasts={toasts} />

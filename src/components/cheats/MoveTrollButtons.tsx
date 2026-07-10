@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Square } from "chess.js";
 import {
   stealPieceFen,
@@ -49,9 +49,18 @@ export function MoveTrollButtons({ currentFen, onCommit }: { currentFen: string;
   const [rankB, setRankB] = useState("8");
   const [fileA, setFileA] = useState("a");
   const [fileB, setFileB] = useState("h");
+  const [failed, setFailed] = useState(false);
+  const failTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const commit = (fen: string | null) => {
-    if (fen) onCommit(fen);
+    if (fen) {
+      setFailed(false);
+      onCommit(fen);
+    } else {
+      setFailed(true);
+      if (failTimer.current) clearTimeout(failTimer.current);
+      failTimer.current = setTimeout(() => setFailed(false), 2000);
+    }
   };
   const sq = () => (moveSq.trim() || null) as Square | null;
 
@@ -197,6 +206,10 @@ export function MoveTrollButtons({ currentFen, onCommit }: { currentFen: string;
         <Btn onClick={() => commit(scrambleEnPassantFen(currentFen))}>👻 Scramble en passant</Btn>
         <Btn onClick={() => commit(RANDOM_FNS[Math.floor(Math.random() * RANDOM_FNS.length)]())}>🧨 Chaos (random)</Btn>
       </div>
+
+      {failed && (
+        <p className="text-[10px] text-[var(--bad)]">No effect — square empty, king targeted, or not enough pieces.</p>
+      )}
     </>
   );
 }
