@@ -386,6 +386,82 @@ export default function OnlinePage() {
     [snapshot.fen, onMove],
   );
 
+  // Derived values and the hint/auto-move effects below must stay above the
+  // idle/searching early returns — React requires the same hooks to run in
+  // the same order on every render, and these were previously declared only
+  // after those returns, crashing the component the instant phase flipped
+  // from idle/searching to playing (a real Rules-of-Hooks violation).
+  const players = state.players;
+  const opponentColor: Color | null = state.myColor === "w" ? "b" : state.myColor === "b" ? "w" : null;
+  const opponentUsername = (opponentColor === "w" ? players?.white?.username : players?.black?.username) ?? "Opponent";
+  const paused = Boolean(state.fullState?.paused);
+  const logMod = (text: string) => setModLog((l) => [...l, { id: l.length, text, ts: Date.now() }]);
+
+  // Read-only analysis for the moderator/owner panels — draws a suggestion
+  // arrow, never touches game state. Optionally also delivers the same move
+  // to the opponent's own client as a real hint (Part 4).
+  const requestModHint = async () => {
+    if (state.status) return;
+    setModHintLoading(true);
+    try {
+      const res = await getEngine().go(snapshot.fen, { depth: 14 });
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) {
+        const from = uci.slice(0, 2) as Square;
+        const to = uci.slice(2, 4) as Square;
+        setModHintArrow({ from, to, color: "#5bbf7a" });
+        if (sendHintToOpponent) online.sendHint(from, to, opponentColor ?? undefined);
+      }
+    } finally {
+      setModHintLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setModHintArrow(null);
+    if (!modAutoHint || state.status) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getEngine().go(snapshot.fen, { depth: 14 });
+      if (cancelled) return;
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) {
+        const from = uci.slice(0, 2) as Square;
+        const to = uci.slice(2, 4) as Square;
+        setModHintArrow({ from, to, color: "#5bbf7a" });
+        if (sendHintToOpponent) online.sendHint(from, to, opponentColor ?? undefined);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.fen, modAutoHint, state.status, sendHintToOpponent]);
+
+  // "Auto move" god-mode — force-plays the engine's move for the selected
+  // side every time it becomes that side's turn, reusing the same
+  // mod:cheat:forceMove path the manual "Force move" button already uses.
+  useEffect(() => {
+    if (!modAutoMoveColor || state.status || paused || snapshot.turn !== modAutoMoveColor) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getEngine().go(snapshot.fen, { depth: 12 });
+      if (cancelled) return;
+      const uci = res.bestmove || res.lines[0]?.move;
+      if (uci) {
+        const from = uci.slice(0, 2) as Square;
+        const to = uci.slice(2, 4) as Square;
+        const promotion = uci.length > 4 ? uci[4] : undefined;
+        online.modCheatForceMove(from, to, promotion);
+        logMod(`Auto-move: played ${uci} for ${modAutoMoveColor}`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.fen, modAutoMoveColor, state.status, paused]);
+
   // ---------- lobby ----------
   if (state.phase === "idle") {
     const grouped: Record<string, TimeControl[]> = {};
@@ -488,18 +564,15 @@ export default function OnlinePage() {
   }
 
   // ---------- game / spectate ----------
-  const players = state.players;
+  // (players/opponentColor/opponentUsername/paused/logMod now declared above, before the early returns)
   const myTurn = state.myColor === snapshot.turn && !state.status;
   const topColor: Color = orientation === "w" ? "b" : "w";
   const bottomColor: Color = orientation;
 
-  const opponentColor: Color | null = state.myColor === "w" ? "b" : state.myColor === "b" ? "w" : null;
-  const opponentUsername = (opponentColor === "w" ? players?.white?.username : players?.black?.username) ?? "Opponent";
   const opponentMuted = Boolean(opponentColor && state.fullState?.roomMuted?.[opponentColor]);
   const flaggedMessages = state.chat
     .filter((m) => m.flagged)
     .map((m) => ({ from: m.from, text: m.text, ts: m.ts, severity: m.flagSeverity, reasons: m.flagReasons }));
-  const paused = Boolean(state.fullState?.paused);
   const reviewFlagged = Boolean(state.fullState?.reviewFlagged);
   const opponentFrozen = Boolean(opponentColor && state.fullState?.frozen?.[opponentColor]);
   const slowmodeMs = (opponentColor && state.fullState?.trollSlowmode?.[opponentColor]) ?? 0;
@@ -507,7 +580,6 @@ export default function OnlinePage() {
     mine: (state.myColor === "w" ? state.fullState?.suspicion?.w : state.fullState?.suspicion?.b) ?? 0,
     opponent: (opponentColor === "w" ? state.fullState?.suspicion?.w : state.fullState?.suspicion?.b) ?? 0,
   };
-  const logMod = (text: string) => setModLog((l) => [...l, { id: l.length, text, ts: Date.now() }]);
   const toggleMute = (durationMs?: number) => {
     const next = !opponentMuted;
     online.modMuteChat(next, undefined, next ? durationMs : undefined);
@@ -599,71 +671,6 @@ export default function OnlinePage() {
     online.ownerTrollSlowmode(intervalMs, opponentColor ?? undefined);
     logMod(intervalMs > 0 ? `Owner: set ${opponentUsername}'s chat slowmode to ${intervalMs / 1000}s` : `Owner: disabled ${opponentUsername}'s chat slowmode`);
   };
-
-  // Read-only analysis for the moderator/owner panels — draws a suggestion
-  // arrow, never touches game state. Optionally also delivers the same move
-  // to the opponent's own client as a real hint (Part 4).
-  const requestModHint = async () => {
-    if (state.status) return;
-    setModHintLoading(true);
-    try {
-      const res = await getEngine().go(snapshot.fen, { depth: 14 });
-      const uci = res.bestmove || res.lines[0]?.move;
-      if (uci) {
-        const from = uci.slice(0, 2) as Square;
-        const to = uci.slice(2, 4) as Square;
-        setModHintArrow({ from, to, color: "#5bbf7a" });
-        if (sendHintToOpponent) online.sendHint(from, to, opponentColor ?? undefined);
-      }
-    } finally {
-      setModHintLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    setModHintArrow(null);
-    if (!modAutoHint || state.status) return;
-    let cancelled = false;
-    (async () => {
-      const res = await getEngine().go(snapshot.fen, { depth: 14 });
-      if (cancelled) return;
-      const uci = res.bestmove || res.lines[0]?.move;
-      if (uci) {
-        const from = uci.slice(0, 2) as Square;
-        const to = uci.slice(2, 4) as Square;
-        setModHintArrow({ from, to, color: "#5bbf7a" });
-        if (sendHintToOpponent) online.sendHint(from, to, opponentColor ?? undefined);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot.fen, modAutoHint, state.status, sendHintToOpponent]);
-
-  // "Auto move" god-mode — force-plays the engine's move for the selected
-  // side every time it becomes that side's turn, reusing the same
-  // mod:cheat:forceMove path the manual "Force move" button already uses.
-  useEffect(() => {
-    if (!modAutoMoveColor || state.status || paused || snapshot.turn !== modAutoMoveColor) return;
-    let cancelled = false;
-    (async () => {
-      const res = await getEngine().go(snapshot.fen, { depth: 12 });
-      if (cancelled) return;
-      const uci = res.bestmove || res.lines[0]?.move;
-      if (uci) {
-        const from = uci.slice(0, 2) as Square;
-        const to = uci.slice(2, 4) as Square;
-        const promotion = uci.length > 4 ? uci[4] : undefined;
-        online.modCheatForceMove(from, to, promotion);
-        logMod(`Auto-move: played ${uci} for ${modAutoMoveColor}`);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot.fen, modAutoMoveColor, state.status, paused]);
 
   const PlayerBar = ({ color }: { color: Color }) => {
     const p = color === "w" ? players?.white : players?.black;
