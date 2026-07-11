@@ -14,6 +14,11 @@ export default function DotsAndBoxesBotPage() {
       gameKey="dots-and-boxes"
       engine={dotsBoxesEngine}
       botFn={pickDotsBoxesMove}
+      difficulties={[
+        { label: "Easy", depth: 1 },
+        { label: "Medium", depth: 2 },
+        { label: "Hard", depth: 3 },
+      ]}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <DotsBoxesBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

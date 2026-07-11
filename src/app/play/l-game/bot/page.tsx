@@ -4,6 +4,7 @@ import { LocalBoardGamePage } from "@/components/boardgames/LocalBoardGamePage";
 import { LGameBoard, type LGameState, type LGameMove } from "@/components/boardgames/LGameBoard";
 import { lGameEngine } from "@/lib/boardgames/engines/lgame";
 import { pickLGameMove } from "@/lib/boardgames/bots/lgameBot";
+import { L_GAME_RULES } from "@/lib/boardgames/rules";
 
 export default function LGameBotPage() {
   return (
@@ -13,7 +14,13 @@ export default function LGameBotPage() {
       mode="bot"
       gameKey="l-game"
       engine={lGameEngine}
-      botFn={(state, player) => pickLGameMove(state, player)}
+      botFn={pickLGameMove}
+      difficulties={[
+        { label: "Easy", depth: 1 },
+        { label: "Medium", depth: 2 },
+        { label: "Hard", depth: 3 },
+      ]}
+      rules={L_GAME_RULES}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <LGameBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

@@ -14,6 +14,11 @@ export default function CheckersBotPage() {
       gameKey="checkers"
       engine={checkersEngine}
       botFn={pickCheckersMove}
+      difficulties={[
+        { label: "Easy", depth: 2 },
+        { label: "Medium", depth: 4 },
+        { label: "Hard", depth: 6 },
+      ]}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <CheckersBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

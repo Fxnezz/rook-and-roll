@@ -2,11 +2,19 @@ import http from "node:http";
 import express from "express";
 import cors from "cors";
 import { Server, type Socket } from "socket.io";
-import { GameRoom } from "./GameRoom.js";
+import { GameRoom, isValidFen } from "./GameRoom.js";
 import { cleanChat, containsProfanity } from "./chat.js";
 import { analyzeChat, clearChatHistory } from "./chatDetection.js";
 import { RateLimiter, CorrelationTracker } from "./anticheat.js";
-import { initPersistence, saveFinishedGame, getUserModeration, auditAdminAction, fileAutomatedReport } from "./persistence.js";
+import {
+  initPersistence,
+  saveFinishedGame,
+  getUserModeration,
+  auditAdminAction,
+  fileAutomatedReport,
+  filterVisibleUserIds,
+  notifyFriendsOnline,
+} from "./persistence.js";
 import { getLiveMatchConfig } from "./liveConfig.js";
 import { verifyAdminToken } from "./adminAuth.js";
 import { registerBoardGameHandlers } from "./boardgames/socketHandlers.js";
@@ -73,6 +81,7 @@ interface Challenge {
   timeControl: TimeControlSpec;
   rated: boolean;
   createdAt: number;
+  startFen?: string;
 }
 const challenges = new Map<string, Challenge>();
 
@@ -159,9 +168,9 @@ function tryMatch(
   }
 }
 
-async function createGame(a: QueueEntry, b: QueueEntry, tc: TimeControlSpec, rated: boolean) {
+async function createGame(a: QueueEntry, b: QueueEntry, tc: TimeControlSpec, rated: boolean, startFen?: string) {
   const [aMod, bMod] = await Promise.all([getUserModeration(a.identity.userId), getUserModeration(b.identity.userId)]);
-  const room = new GameRoom(a.identity, b.identity, tc, rated, aMod.isModerator, bMod.isModerator);
+  const room = new GameRoom(a.identity, b.identity, tc, rated, aMod.isModerator, bMod.isModerator, startFen);
   rooms.set(room.id, room);
   userRoom.set(room.white.userId, room.id);
   userRoom.set(room.black.userId, room.id);
@@ -302,6 +311,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
 
   // ---- presence + direct friend challenges ---------------------------------
   socket.on("presence:hello", async ({ identity }) => {
+    const wasOffline = !userSocket.has(identity.userId);
     socket.data.userId = identity.userId;
     socket.data.username = identity.username;
     userSocket.set(identity.userId, socket.id);
@@ -310,13 +320,24 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     const mod = await getUserModeration(identity.userId);
     socket.data.isModerator = mod.isModerator;
     socket.data.isOwner = mod.isOwner;
+    // Fire-and-forget: don't block the hello ack on a Notification write, and
+    // only fire on an actual offline→online transition (not every reconnect).
+    if (wasOffline) void notifyFriendsOnline(identity.userId, identity.username);
   });
 
-  socket.on("presence:query", ({ userIds }) => {
-    socket.emit("presence:status", { online: userIds.filter((id) => userSocket.has(id)) });
+  socket.on("presence:query", async ({ userIds }) => {
+    const online = userIds.filter((id) => userSocket.has(id));
+    const visible = await filterVisibleUserIds(online);
+    const visibleOnline = online.filter((id) => visible.has(id));
+    const playing: Record<string, string> = {};
+    for (const id of visibleOnline) {
+      const roomId = userRoom.get(id);
+      if (roomId) playing[id] = roomId;
+    }
+    socket.emit("presence:status", { online: visibleOnline, playing });
   });
 
-  socket.on("challenge:send", ({ identity, toUserId, timeControl, rated }) => {
+  socket.on("challenge:send", ({ identity, toUserId, timeControl, rated, startFen }) => {
     socket.data.userId = identity.userId;
     socket.data.username = identity.username;
     userSocket.set(identity.userId, socket.id);
@@ -334,6 +355,10 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
       socket.emit("challenge:error", { message: "That player isn't online." });
       return;
     }
+    if (startFen && !isValidFen(startFen)) {
+      socket.emit("challenge:error", { message: "That starting position isn't a valid FEN." });
+      return;
+    }
 
     const isRated = rated && !identity.guest;
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -346,12 +371,14 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
       timeControl,
       rated: isRated,
       createdAt: Date.now(),
+      startFen,
     });
     io.to(toSocketId).emit("challenge:received", {
       id,
       from: { userId: identity.userId, username: identity.username, rating: identity.rating },
       timeControl,
       rated: isRated,
+      startFen,
     });
   });
 
@@ -405,6 +432,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
       { identity, socketId: socket.id, rated: c.rated, joinedAt: Date.now() },
       c.timeControl,
       c.rated,
+      c.startFen,
     );
   });
 

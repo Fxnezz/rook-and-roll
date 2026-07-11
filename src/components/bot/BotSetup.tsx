@@ -24,7 +24,7 @@ export interface BotConfig {
 }
 
 export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
-  const [tierId, setTierId] = useState<BotTierId>("medium");
+  const [tierId, setTierId] = useState<BotTierId>("cass");
   const [colorChoice, setColorChoice] = useState<"w" | "b" | "random">("w");
   const [tcId, setTcId] = useState("untimed");
   const [showEval, setShowEval] = useState(false);
@@ -82,7 +82,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
 
       <section className="panel p-4">
         <span className="label mb-3 block">Choose your opponent</span>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {BOT_TIERS.map((t) => {
             const active = tierId === t.id;
             return (

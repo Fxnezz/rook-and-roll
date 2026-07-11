@@ -1,6 +1,20 @@
 import type { EngineLine } from "./stockfish";
+import type { BotPersonality } from "@/lib/cheats/botManipulation";
 
-export type BotTierId = "beginner" | "easy" | "medium" | "hard" | "expert";
+export type BotTierId =
+  | "pip"
+  | "milo"
+  | "nell"
+  | "beau"
+  | "cass"
+  | "rosa"
+  | "wren"
+  | "dex"
+  | "ilsa"
+  | "vera"
+  | "zephyr"
+  | "titan"
+  | "omen";
 
 export interface BotTier {
   id: BotTierId;
@@ -20,68 +34,171 @@ export interface BotTier {
   temperature: number;
   /** avatar accent colour */
   accent: string;
+  /** Stylistic move bias, layered on top of skill/depth — see choosePersonalityMove. */
+  personality: BotPersonality;
 }
 
 export const BOT_TIERS: BotTier[] = [
   {
-    id: "beginner",
+    id: "pip",
     name: "Pip",
-    elo: 500,
+    elo: 400,
     blurb: "Just learning the ropes. Makes plenty of mistakes.",
+    skill: 0,
+    depth: 3,
+    multipv: 5,
+    temperature: 2.0,
+    accent: "#5bbf7a",
+    personality: "normal",
+  },
+  {
+    id: "milo",
+    name: "Milo",
+    elo: 550,
+    blurb: "Plays fast and loose — endearing chaos, no plan.",
     skill: 1,
     depth: 4,
     multipv: 5,
-    temperature: 1.6,
-    accent: "#5bbf7a",
+    temperature: 1.7,
+    accent: "#4fd18f",
+    personality: "random",
   },
   {
-    id: "easy",
+    id: "nell",
     name: "Nell",
-    elo: 900,
-    blurb: "Knows the basics but misses tactics.",
+    elo: 700,
+    blurb: "Knows the basics but plays it timid and quiet.",
+    skill: 3,
+    depth: 5,
+    multipv: 5,
+    temperature: 1.3,
+    accent: "#5aa8e0",
+    personality: "passive",
+  },
+  {
+    id: "beau",
+    name: "Beau",
+    elo: 850,
+    blurb: "Loves a good scrap — charges into every trade.",
     skill: 5,
     depth: 6,
     multipv: 4,
-    temperature: 0.9,
-    accent: "#5aa8e0",
+    temperature: 1.0,
+    accent: "#4a8fd6",
+    personality: "aggressive",
   },
   {
-    id: "medium",
+    id: "cass",
     name: "Cass",
-    elo: 1300,
+    elo: 1000,
     blurb: "A solid club player. Punishes loose moves.",
+    skill: 7,
+    depth: 7,
+    multipv: 4,
+    temperature: 0.8,
+    accent: "#e9a23b",
+    personality: "normal",
+  },
+  {
+    id: "rosa",
+    name: "Rosa",
+    elo: 1150,
+    blurb: "Sharp and swashbuckling — always hunting for tactics.",
+    skill: 8,
+    depth: 8,
+    multipv: 4,
+    temperature: 0.65,
+    accent: "#e0b23b",
+    personality: "aggressive",
+  },
+  {
+    id: "wren",
+    name: "Wren",
+    elo: 1300,
+    blurb: "Patient and positional. Grinds you down slowly.",
     skill: 9,
     depth: 9,
     multipv: 3,
     temperature: 0.5,
-    accent: "#e9a23b",
+    accent: "#d8943a",
+    personality: "passive",
   },
   {
-    id: "hard",
+    id: "dex",
+    name: "Dex",
+    elo: 1450,
+    blurb: "Balanced and dangerous. Nothing gets past him twice.",
+    skill: 11,
+    depth: 10,
+    multipv: 3,
+    temperature: 0.4,
+    accent: "#e5843a",
+    personality: "normal",
+  },
+  {
+    id: "ilsa",
+    name: "Ilsa",
+    elo: 1600,
+    blurb: "Relentless attacker. Punishes hesitation instantly.",
+    skill: 13,
+    depth: 11,
+    multipv: 3,
+    temperature: 0.32,
+    accent: "#e06a3a",
+    personality: "aggressive",
+  },
+  {
+    id: "vera",
     name: "Vera",
-    elo: 1700,
+    elo: 1750,
     blurb: "Strong and calculating. Hard to fool.",
     skill: 15,
     depth: 13,
     multipv: 2,
     temperature: 0.22,
-    accent: "#e5843a",
+    accent: "#e5604d",
+    personality: "normal",
   },
   {
-    id: "expert",
+    id: "zephyr",
+    name: "Zephyr",
+    elo: 1900,
+    blurb: "Ice-cold and precise. Waits for your one mistake.",
+    skill: 17,
+    depth: 15,
+    multipv: 2,
+    temperature: 0.15,
+    accent: "#d9503f",
+    personality: "passive",
+  },
+  {
+    id: "titan",
     name: "Titan",
-    elo: 2200,
+    elo: 2150,
+    blurb: "Blisteringly sharp. Attacks from move one.",
+    skill: 19,
+    depth: 17,
+    multipv: 2,
+    temperature: 0.08,
+    accent: "#c8443a",
+    personality: "aggressive",
+  },
+  {
+    id: "omen",
+    name: "Omen",
+    elo: 2400,
     blurb: "Full strength, deep search, no mercy.",
     skill: 20,
-    depth: 18,
+    depth: 20,
     multipv: 1,
     temperature: 0,
-    accent: "#e5604d",
+    accent: "#b83a3a",
+    personality: "normal",
   },
 ];
 
 export function getTier(id: BotTierId): BotTier {
-  return BOT_TIERS.find((t) => t.id === id) ?? BOT_TIERS[2];
+  return BOT_TIERS.find((t) => t.id === id) ?? BOT_TIERS[4];
 }
 
 /** Numeric score of a candidate line from the side-to-move's perspective. */

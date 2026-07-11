@@ -70,6 +70,17 @@ model User {
   /** Per-account /admin dashboard access. Independent of isModerator — see src/app/admin/admins/page.tsx for the owner-protected add/remove UI. */
   isAdmin          Boolean    @default(false)
 
+  // Notification & privacy preferences (src/app/account/page.tsx). Server-synced
+  // (not the client-only localStorage settings in useSettings.tsx) because both
+  // are enforced by server-side code — the friend-request API and the realtime
+  // presence server — not just client rendering.
+  /** Whether a Notification row is written when someone sends/accepts a friend request. */
+  notifyFriendRequests Boolean @default(true)
+  /** Whether a Notification row is written when an accepted friend comes online. */
+  notifyFriendOnline   Boolean @default(true)
+  /** When false, this user is excluded from other users' online/presence results (friends list, friend-online notifications). */
+  showOnlineStatus     Boolean @default(true)
+
   accounts        Account[]
   sessions        Session[]
   gamesAsWhite    Game[]          @relation("WhiteGames")
@@ -78,6 +89,7 @@ model User {
   puzzleAttempts  PuzzleAttempt[]
   friendsInit     Friendship[]    @relation("Requester")
   friendsRecv     Friendship[]    @relation("Addressee")
+  friendsBlocked  Friendship[]    @relation("BlockedBy")
   loginEvents     LoginEvent[]
   notifications   Notification[]
   gameRatings     GameRating[]
@@ -341,6 +353,7 @@ enum FriendshipStatus {
   PENDING
   ACCEPTED
   BLOCKED
+  DECLINED
 }
 
 model Friendship {
@@ -348,10 +361,15 @@ model Friendship {
   requesterId String
   addresseeId String
   status      FriendshipStatus @default(PENDING)
+  /** Who initiated a BLOCKED status — not necessarily requesterId, since either side of an existing friendship can block. */
+  blockedById String?
+  /** Set when status becomes DECLINED — used as the start of the re-request cooldown window. */
+  declinedAt  DateTime?
   createdAt   DateTime         @default(now())
 
-  requester User @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
-  addressee User @relation("Addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  requester User  @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User  @relation("Addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  blockedBy User? @relation("BlockedBy", fields: [blockedById], references: [id], onDelete: Cascade)
 
   @@unique([requesterId, addresseeId])
 }

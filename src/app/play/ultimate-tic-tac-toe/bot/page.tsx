@@ -14,6 +14,11 @@ export default function UltimateTicTacToeBotPage() {
       gameKey="ultimate-tic-tac-toe"
       engine={ultimateTicTacToeEngine}
       botFn={pickUltimateTicTacToeMove}
+      difficulties={[
+        { label: "Easy", depth: 1 },
+        { label: "Medium", depth: 2 },
+        { label: "Hard", depth: 3 },
+      ]}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <UtttBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

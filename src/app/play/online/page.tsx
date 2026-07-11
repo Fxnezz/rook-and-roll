@@ -87,9 +87,10 @@ export default function OnlinePage() {
   const game = useChessGame();
   const { snapshot } = game;
 
-  const [tc, setTc] = useState<TimeControl>(TIME_CONTROLS[4]); // 3+2 default
+  const [tc, setTc] = useState<TimeControl>(TIME_CONTROLS[4]); // 3+2 default, overridden below by the last-used one if remembered
   const [customMinutes, setCustomMinutes] = useState(10);
   const [customIncrement, setCustomIncrement] = useState(0);
+  const [rated, setRated] = useState(false);
   const isCustomTc = tc.id.startsWith("custom:");
   useEffect(() => {
     try {
@@ -99,10 +100,29 @@ export default function OnlinePage() {
         if (typeof parsed.minutes === "number") setCustomMinutes(clampCustomMinutes(parsed.minutes));
         if (typeof parsed.increment === "number") setCustomIncrement(clampCustomIncrementSec(parsed.increment));
       }
+      const lastTcId = localStorage.getItem("rr.lastTimeControl.online.v1");
+      if (lastTcId) setTc(getTimeControl(lastTcId));
+      const lastRated = localStorage.getItem("rr.lastRated.online.v1");
+      if (lastRated != null) setRated(lastRated === "true");
     } catch {
       /* ignore */
     }
   }, []);
+  // Remember the lobby's last choices so returning players don't have to reselect every time.
+  useEffect(() => {
+    try {
+      localStorage.setItem("rr.lastTimeControl.online.v1", tc.id);
+    } catch {
+      /* ignore */
+    }
+  }, [tc.id]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("rr.lastRated.online.v1", String(rated));
+    } catch {
+      /* ignore */
+    }
+  }, [rated]);
   const applyCustom = (minutes: number, increment: number) => {
     const m = clampCustomMinutes(minutes);
     const i = clampCustomIncrementSec(increment);
@@ -115,7 +135,6 @@ export default function OnlinePage() {
       /* ignore */
     }
   };
-  const [rated, setRated] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number> | null>(null);
   const [tab, setTab] = useState<"moves" | "openings" | "chat" | "share">("moves");
   const [confirmingResign, setConfirmingResign] = useState(false);

@@ -5,6 +5,7 @@ import type { Color, Square } from "chess.js";
 import { illegalCastleFen, clonePieceFen, swapPiecesFen, promoteAnyPawnFen } from "@/lib/cheats/moveManipulation";
 import { MoveTrollButtons } from "@/components/cheats/MoveTrollButtons";
 import { HintControls } from "@/components/cheats/HintControls";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 
 function Section({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -69,6 +70,7 @@ export function ModCheatPanel(props: ModCheatPanelProps) {
   const [promoSq, setPromoSq] = useState("");
   const [sq1, setSq1] = useState("");
   const [sq2, setSq2] = useState("");
+  const panelRef = useFocusTrap<HTMLDivElement>(props.onClose, { trapTab: false });
 
   const commitFen = (fen: string | null) => {
     if (fen) props.onLoadFen(fen);
@@ -76,12 +78,16 @@ export function ModCheatPanel(props: ModCheatPanelProps) {
 
   return (
     <div
+      ref={panelRef}
+      role="region"
+      aria-label="God mode cheat panel"
+      tabIndex={-1}
       className="fixed bottom-4 right-20 z-[90] flex max-h-[80vh] w-80 flex-col overflow-hidden rounded-xl border border-white/15 bg-[#14171f] text-white shadow-2xl"
       style={{ fontFamily: "var(--font-sans, sans-serif)" }}
     >
       <div className="flex items-center justify-between border-b border-white/10 bg-black/30 px-3 py-2">
         <span className="text-sm font-bold">🛠️ God Mode</span>
-        <button onClick={props.onClose} className="text-white/60 hover:text-white">
+        <button onClick={props.onClose} className="text-white/60 hover:text-white" aria-label="Close">
           ✕
         </button>
       </div>

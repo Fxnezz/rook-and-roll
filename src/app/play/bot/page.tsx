@@ -101,7 +101,9 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
 
   // --- cheat panel state (bot games only — see CheatGate/CheatPanel) ---
   const [paused, setPaused] = useState(false);
-  const [botOverride, setBotOverride] = useState<BotOverride>(DEFAULT_BOT_OVERRIDE);
+  // Defaults to the chosen tier's own personality (Batch C) — a mod/cheat can
+  // still override it from the cheat panel via setBotOverride below.
+  const [botOverride, setBotOverride] = useState<BotOverride>(() => ({ ...DEFAULT_BOT_OVERRIDE, personality: tier.personality }));
   const [showPredictedMove, setShowPredictedMove] = useState(false);
   const [predictedArrow, setPredictedArrow] = useState<Arrow | null>(null);
   const [cheatEffects, setCheatEffects] = useState({

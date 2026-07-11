@@ -6,6 +6,7 @@ import type { BotOverride, BotPersonality } from "@/lib/cheats/botManipulation";
 import { MoveTrollButtons } from "@/components/cheats/MoveTrollButtons";
 import { TROLL_EFFECTS } from "@/lib/moderation/trollEffectCatalog";
 import type { TrollEffectType } from "@/lib/online/protocol";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 
 export interface CheatLogEntry {
   id: number;
@@ -103,15 +104,20 @@ export function CheatPanel(props: CheatPanelProps) {
   const [forceTo, setForceTo] = useState("");
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [trollText, setTrollText] = useState("");
+  const panelRef = useFocusTrap<HTMLDivElement>(props.onClose, { trapTab: false });
 
   return (
     <div
+      ref={panelRef}
+      role="region"
+      aria-label="Cheat panel"
+      tabIndex={-1}
       className="fixed bottom-4 right-4 z-[90] flex max-h-[80vh] w-80 flex-col overflow-hidden rounded-xl border border-white/15 bg-[#14171f] text-white shadow-2xl"
       style={{ fontFamily: "var(--font-sans, sans-serif)" }}
     >
       <div className="flex items-center justify-between border-b border-white/10 bg-black/30 px-3 py-2">
         <span className="text-sm font-bold">🍪 Cheat Panel</span>
-        <button onClick={props.onClose} className="text-white/60 hover:text-white">
+        <button onClick={props.onClose} className="text-white/60 hover:text-white" aria-label="Close">
           ✕
         </button>
       </div>

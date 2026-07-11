@@ -15,6 +15,11 @@ export default function NineMensMorrisBotPage() {
       gameKey="nine-mens-morris"
       engine={nineMensMorrisEngine}
       botFn={pickNineMensMorrisMove}
+      difficulties={[
+        { label: "Easy", depth: 1 },
+        { label: "Medium", depth: 2 },
+        { label: "Hard", depth: 3 },
+      ]}
       rules={NINE_MENS_MORRIS_RULES}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <NineMensMorrisBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />

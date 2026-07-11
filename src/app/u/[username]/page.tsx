@@ -10,6 +10,7 @@ import { auth } from "@/lib/auth/auth";
 import { ACHIEVEMENTS } from "@/lib/achievements/catalog";
 import { fetchUserRank } from "@/lib/leaderboard/query";
 import { ModStatsCard } from "@/components/profile/ModStatsCard";
+import { computeHeadToHead } from "@/lib/db/headToHead";
 
 const HIGHER_IS_BETTER_GAMES = [
   "snake",
@@ -111,7 +112,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
 
   const orFilter = [{ whiteId: user.id }, { blackId: user.id }];
   const viewerId = session?.user?.id;
-  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats, earnedAchievements, streakGames, myRank, headToHeadGames] = await Promise.all([
+  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats, earnedAchievements, streakGames, myRank, headToHead] = await Promise.all([
     prisma.game.count({
       where: {
         OR: [
@@ -158,35 +159,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       select: { result: true, whiteId: true },
     }),
     isOwnProfile ? fetchUserRank({ field: "ratingBlitz", period: "all", userId: user.id }) : Promise.resolve(null),
-    viewerId && !isOwnProfile
-      ? prisma.game.findMany({
-          where: {
-            NOT: { result: "ABORTED" },
-            OR: [
-              { whiteId: viewerId, blackId: user.id },
-              { whiteId: user.id, blackId: viewerId },
-            ],
-          },
-          select: { result: true, whiteId: true },
-        })
-      : Promise.resolve(null),
+    viewerId && !isOwnProfile ? computeHeadToHead(viewerId, user.id) : Promise.resolve(null),
   ]);
-
-  let headToHead: { wins: number; losses: number; draws: number } | null = null;
-  if (headToHeadGames && viewerId) {
-    let w = 0;
-    let l = 0;
-    let d = 0;
-    for (const g of headToHeadGames) {
-      if (g.result === "DRAW") d++;
-      else {
-        const viewerWon = (g.result === "WHITE_WINS") === (g.whiteId === viewerId);
-        if (viewerWon) w++;
-        else l++;
-      }
-    }
-    headToHead = { wins: w, losses: l, draws: d };
-  }
 
   let currentStreak = 0;
   let bestStreak = 0;

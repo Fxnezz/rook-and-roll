@@ -3,6 +3,7 @@
 import { LocalBoardGamePage } from "@/components/boardgames/LocalBoardGamePage";
 import { PentagoBoard, type PentagoState, type PentagoMove } from "@/components/boardgames/PentagoBoard";
 import { pentagoEngine } from "@/lib/boardgames/engines/pentago";
+import { PENTAGO_RULES } from "@/lib/boardgames/rules";
 
 export default function PentagoLocalPage() {
   return (
@@ -12,6 +13,7 @@ export default function PentagoLocalPage() {
       mode="passplay"
       engine={pentagoEngine}
       seatLabel={(s) => (s === "a" ? "Player 1" : "Player 2")}
+      rules={PENTAGO_RULES}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <PentagoBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

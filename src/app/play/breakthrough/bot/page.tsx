@@ -13,7 +13,12 @@ export default function BreakthroughBotPage() {
       mode="bot"
       gameKey="breakthrough"
       engine={breakthroughEngine}
-      botFn={(state, player) => pickBreakthroughMove(state, player)}
+      botFn={pickBreakthroughMove}
+      difficulties={[
+        { label: "Easy", depth: 1 },
+        { label: "Medium", depth: 2 },
+        { label: "Hard", depth: 3 },
+      ]}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <BreakthroughBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

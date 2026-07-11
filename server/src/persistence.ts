@@ -12,8 +12,10 @@ import { OWNER_EMAIL } from "./ownerAccount.js";
 type PrismaLike = {
   user: {
     findUnique: (a: unknown) => Promise<{ [k: string]: unknown } | null>;
+    findMany: (a: unknown) => Promise<{ [k: string]: unknown }[]>;
     update: (a: unknown) => Promise<unknown>;
   };
+  friendship?: { findMany: (a: unknown) => Promise<{ [k: string]: unknown }[]> };
   notification?: { create: (a: unknown) => Promise<unknown> };
   game: {
     create: (a: unknown) => Promise<{ id: string }>;
@@ -90,6 +92,73 @@ export async function getUserModeration(
     return { banned, muted, isModerator: Boolean(u.isModerator), isOwner };
   } catch {
     return { banned: false, muted: false, isModerator: false, isOwner: false };
+  }
+}
+
+/**
+ * Filters a list of real (non-guest) userIds down to those who haven't
+ * hidden their online status. Guests always pass through — they have no
+ * User row / privacy setting to check. Fails open (returns everyone) if
+ * persistence is disabled or the query errors, so presence never silently
+ * breaks when the DB is unavailable.
+ */
+export async function filterVisibleUserIds(userIds: string[]): Promise<Set<string>> {
+  const real = userIds.filter((id) => !id.startsWith("guest:") && !id.startsWith("spectator:"));
+  const guests = userIds.filter((id) => id.startsWith("guest:") || id.startsWith("spectator:"));
+  if (!enabled || !prisma || real.length === 0) return new Set(userIds);
+  try {
+    const rows = (await prisma.user.findMany({
+      where: { id: { in: real } },
+      select: { id: true, showOnlineStatus: true },
+    })) as { id: string; showOnlineStatus?: boolean }[];
+    const visible = rows.filter((r) => r.showOnlineStatus !== false).map((r) => r.id);
+    return new Set([...visible, ...guests]);
+  } catch {
+    return new Set(userIds);
+  }
+}
+
+/** Accepted-friend userIds for a real user, respecting nothing privacy-wise (this is for the OWNER of the friend list, not a third party). Guests have no friends. */
+export async function getAcceptedFriendIds(userId: string): Promise<string[]> {
+  if (!enabled || !prisma || !prisma.friendship || userId.startsWith("guest:") || userId.startsWith("spectator:")) return [];
+  try {
+    const rows = (await prisma.friendship.findMany({
+      where: { status: "ACCEPTED", OR: [{ requesterId: userId }, { addresseeId: userId }] },
+      select: { requesterId: true, addresseeId: true },
+    })) as { requesterId: string; addresseeId: string }[];
+    return rows.map((r) => (r.requesterId === userId ? r.addresseeId : r.requesterId));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Writes a "Friend online" Notification row to each accepted friend who has
+ * opted into it. Best-effort — caller decides when a fresh online transition
+ * happened (this itself doesn't debounce). Skips entirely if the newly-online
+ * user has hidden their own online status.
+ */
+export async function notifyFriendsOnline(userId: string, username: string): Promise<void> {
+  if (!enabled || !prisma || !prisma.friendship || !prisma.notification || userId.startsWith("guest:") || userId.startsWith("spectator:")) return;
+  try {
+    const me = (await prisma.user.findUnique({ where: { id: userId }, select: { showOnlineStatus: true } })) as { showOnlineStatus?: boolean } | null;
+    if (me?.showOnlineStatus === false) return;
+
+    const friendIds = await getAcceptedFriendIds(userId);
+    if (friendIds.length === 0) return;
+
+    const recipients = (await prisma.user.findMany({
+      where: { id: { in: friendIds }, notifyFriendOnline: true },
+      select: { id: true },
+    })) as { id: string }[];
+
+    for (const r of recipients) {
+      await prisma.notification.create({
+        data: { userId: r.id, title: "Friend online", body: `${username} just came online.` },
+      });
+    }
+  } catch (e) {
+    console.error("[persistence] failed to notify friends of online status", (e as Error).message);
   }
 }
 

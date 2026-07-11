@@ -13,7 +13,12 @@ export default function YGameBotPage() {
       mode="bot"
       gameKey="y-game"
       engine={yGameEngine}
-      botFn={(state, player) => pickYGameMove(state, player)}
+      botFn={pickYGameMove}
+      difficulties={[
+        { label: "Easy", depth: 1 },
+        { label: "Medium", depth: 2 },
+        { label: "Hard", depth: 3 },
+      ]}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <YGameBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

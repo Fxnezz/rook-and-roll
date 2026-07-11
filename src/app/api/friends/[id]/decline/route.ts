@@ -19,6 +19,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "This request is no longer pending." }, { status: 409 });
   }
 
-  await prisma.friendship.delete({ where: { id } });
+  await prisma.friendship.update({ where: { id }, data: { status: "DECLINED", declinedAt: new Date() } });
   return NextResponse.json({ ok: true });
 }

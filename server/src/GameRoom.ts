@@ -16,6 +16,16 @@ function newId() {
   return `g_${Date.now().toString(36)}_${counter.toString(36)}`;
 }
 
+/** Whether chess.js can load this string as a starting position (used to validate a friend challenge's custom FEN before a room is created). */
+export function isValidFen(fen: string): boolean {
+  try {
+    new Chess(fen);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export class GameRoom {
   readonly id = newId();
   readonly chess = new Chess();
@@ -57,7 +67,15 @@ export class GameRoom {
   private lastMoveAt = 0;
   disconnectedSince: { w: number | null; b: number | null } = { w: null, b: null };
 
-  constructor(a: Identity, b: Identity, tc: TimeControlSpec, rated: boolean, aIsModerator = false, bIsModerator = false) {
+  constructor(
+    a: Identity,
+    b: Identity,
+    tc: TimeControlSpec,
+    rated: boolean,
+    aIsModerator = false,
+    bIsModerator = false,
+    startFen?: string,
+  ) {
     this.timeControl = tc;
     this.rated = rated;
     // randomize colors
@@ -70,6 +88,16 @@ export class GameRoom {
     this.black = { userId: bId.userId, username: bId.username, rating: bId.rating, color: "b", connected: true, isModerator: bIsMod };
     this.whiteMs = tc.initialMs ?? 0;
     this.blackMs = tc.initialMs ?? 0;
+    // Caller (createGame) is expected to have already validated this with
+    // isValidFen before constructing the room; this try/catch is just a
+    // defensive fallback to the standard start position.
+    if (startFen) {
+      try {
+        this.chess.load(startFen);
+      } catch {
+        /* fall back to the default start position already loaded above */
+      }
+    }
   }
 
   get untimed() {
@@ -99,7 +127,10 @@ export class GameRoom {
     this.started = true;
     this.lastMoveAt = Date.now();
     if (!this.untimed) {
-      this.activeColor = "w";
+      // Normally "w" (a fresh board), but a custom starting FEN can begin
+      // with black to move — read the real side-to-move so the clock ticks
+      // for the right side instead of always assuming White starts.
+      this.activeColor = this.chess.turn();
       this.lastTickTs = Date.now();
       this.running = true;
     }

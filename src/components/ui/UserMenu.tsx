@@ -17,6 +17,13 @@ export function UserMenu() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   if (status === "loading") {
     return <span className="h-8 w-8 animate-pulse rounded-full bg-[var(--bg-elev-2)]" />;
   }
@@ -73,6 +80,13 @@ export function UserMenu() {
             onClick={() => setOpen(false)}
           >
             Friends
+          </Link>
+          <Link
+            href="/account"
+            className="block rounded px-3 py-2 text-sm hover:bg-[var(--bg-elev)]"
+            onClick={() => setOpen(false)}
+          >
+            Account
           </Link>
           <button
             className="block w-full rounded px-3 py-2 text-left text-sm text-[var(--bad)] hover:bg-[var(--bg-elev)]"

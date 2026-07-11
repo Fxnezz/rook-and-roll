@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { Chess } from "chess.js";
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
@@ -12,6 +13,46 @@ import { playSound } from "@/lib/chess/sound";
 
 type PresenceSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
+const FEN_PIECE_GLYPHS: Record<string, string> = {
+  p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚",
+  P: "♙", N: "♘", B: "♗", R: "♖", Q: "♕", K: "♔",
+};
+
+/** Small read-only 8x8 preview of a FEN's board part — for the custom-position challenge composer. */
+function FenBoardPreview({ fen }: { fen: string }) {
+  const ranks = fen.split(" ")[0].split("/");
+  const rows = ranks.map((rank) => {
+    const cells: (string | null)[] = [];
+    for (const ch of rank) {
+      if (/\d/.test(ch)) for (let i = 0; i < Number(ch); i++) cells.push(null);
+      else cells.push(ch);
+    }
+    return cells;
+  });
+  return (
+    <div className="grid w-fit grid-cols-8 overflow-hidden rounded-md border border-[var(--border)]">
+      {rows.map((row, r) =>
+        row.map((piece, f) => {
+          const isLight = (r + f) % 2 === 0;
+          return (
+            <div
+              key={`${r}-${f}`}
+              className="flex h-5 w-5 items-center justify-center text-sm leading-none"
+              style={{ background: isLight ? "#ebecd0" : "#6f8f5a" }}
+            >
+              {piece && (
+                <span style={{ color: piece === piece.toUpperCase() ? "#f6f1e6" : "#1c2029" }}>
+                  {FEN_PIECE_GLYPHS[piece] ?? ""}
+                </span>
+              )}
+            </div>
+          );
+        }),
+      )}
+    </div>
+  );
+}
+
 interface FriendUser {
   id: string;
   username: string | null;
@@ -21,6 +62,7 @@ interface FriendsData {
   friends: { friendshipId: string; user: FriendUser }[];
   incoming: { friendshipId: string; user: FriendUser; createdAt: string }[];
   outgoing: { friendshipId: string; user: FriendUser; createdAt: string }[];
+  blocked: { friendshipId: string; user: FriendUser }[];
 }
 
 function displayName(u: FriendUser) {
@@ -37,9 +79,12 @@ export default function FriendsPage() {
   const [busy, setBusy] = useState<string | null>(null);
 
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+  const [playing, setPlaying] = useState<Record<string, string>>({});
+  const [h2h, setH2h] = useState<Record<string, { wins: number; losses: number; draws: number }>>({});
   const [challengeUserId, setChallengeUserId] = useState<string | null>(null);
   const [challengeTc, setChallengeTc] = useState<TimeControl>(TIME_CONTROLS[4]);
   const [challengeRated, setChallengeRated] = useState(false);
+  const [challengeFen, setChallengeFen] = useState("");
   const [outgoing, setOutgoing] = useState<{ challengeId: string; toUsername: string } | null>(null);
   const [incoming, setIncoming] = useState<ChallengeInfo | null>(null);
   const [challengeErr, setChallengeErr] = useState<string | null>(null);
@@ -79,7 +124,10 @@ export default function FriendsPage() {
     socket.on("connect", sayHello);
     sayHello();
 
-    socket.on("presence:status", ({ online }) => setOnlineIds(new Set(online)));
+    socket.on("presence:status", ({ online, playing: nowPlaying }) => {
+      setOnlineIds(new Set(online));
+      setPlaying(nowPlaying ?? {});
+    });
     socket.on("challenge:received", (info) => {
       setIncoming(info);
       playSound("notify");
@@ -108,6 +156,20 @@ export default function FriendsPage() {
     if (!data || !socketRef.current) return;
     const ids = data.friends.map((f) => f.user.id);
     if (ids.length) socketRef.current.emit("presence:query", { userIds: ids });
+  }, [data]);
+
+  // Fetch head-to-head records for the friend list.
+  useEffect(() => {
+    const ids = data?.friends.map((f) => f.user.id) ?? [];
+    if (!ids.length) return;
+    fetch("/api/friends/head-to-head", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userIds: ids }),
+    })
+      .then((r) => r.json())
+      .then((body) => setH2h(body.records ?? {}))
+      .catch(() => {});
   }, [data]);
 
   if (status === "unauthenticated") redirect("/login");
@@ -167,6 +229,27 @@ export default function FriendsPage() {
     }
   };
 
+  const block = async (friendshipId: string) => {
+    if (!confirm("Block this user? They won't be able to send you friend requests.")) return;
+    setBusy(friendshipId);
+    try {
+      await fetch(`/api/friends/${friendshipId}/block`, { method: "POST" });
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const unblock = async (friendshipId: string) => {
+    setBusy(friendshipId);
+    try {
+      await fetch(`/api/friends/${friendshipId}/block`, { method: "DELETE" });
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const sendChallenge = (toUserId: string, toUsername: string) => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -177,8 +260,10 @@ export default function FriendsPage() {
       incrementMs: challengeTc.incrementMs,
       category: challengeTc.category,
     };
-    socket.emit("challenge:send", { identity: identityRef.current, toUserId, timeControl, rated: challengeRated });
+    const startFen = challengeFen.trim() || undefined;
+    socket.emit("challenge:send", { identity: identityRef.current, toUserId, timeControl, rated: challengeRated, startFen });
     setChallengeUserId(null);
+    setChallengeFen("");
     // Optimistic placeholder id; replaced implicitly once the recipient responds (we only need it to show "waiting").
     setOutgoing({ challengeId: `pending:${toUserId}:${Date.now()}`, toUsername });
   };
@@ -202,6 +287,16 @@ export default function FriendsPage() {
   };
 
   const timedControls = useMemo(() => TIME_CONTROLS.filter((t) => t.category !== "untimed"), []);
+
+  const challengeFenValid = useMemo(() => {
+    if (!challengeFen.trim()) return true; // empty = standard start, not an error
+    try {
+      new Chess(challengeFen.trim());
+      return true;
+    } catch {
+      return false;
+    }
+  }, [challengeFen]);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -286,6 +381,13 @@ export default function FriendsPage() {
                 >
                   <IconClose width={15} height={15} />
                 </button>
+                <button
+                  className="btn btn-ghost !py-1.5 !text-xs !text-[var(--bad)]"
+                  onClick={() => block(r.friendshipId)}
+                  disabled={busy === r.friendshipId}
+                >
+                  Block
+                </button>
               </div>
             ))}
           </div>
@@ -329,6 +431,7 @@ export default function FriendsPage() {
           <div className="panel divide-y divide-[var(--border)] overflow-hidden">
             {data?.friends.map((f) => {
               const isOnline = onlineIds.has(f.user.id);
+              const roomId = playing[f.user.id];
               const pickerOpen = challengeUserId === f.user.id;
               return (
                 <div key={f.friendshipId} className="flex flex-col gap-2 px-4 py-3">
@@ -342,21 +445,40 @@ export default function FriendsPage() {
                         title={isOnline ? "Online" : "Offline"}
                       />
                     </span>
-                    {f.user.username ? (
-                      <Link href={`/u/${f.user.username}`} className="min-w-0 flex-1 truncate text-sm font-semibold hover:text-[var(--accent)]">
-                        {displayName(f.user)}
+                    <div className="min-w-0 flex-1">
+                      {f.user.username ? (
+                        <Link href={`/u/${f.user.username}`} className="block truncate text-sm font-semibold hover:text-[var(--accent)]">
+                          {displayName(f.user)}
+                        </Link>
+                      ) : (
+                        <span className="block truncate text-sm font-semibold">{displayName(f.user)}</span>
+                      )}
+                      {h2h[f.user.id] && h2h[f.user.id].wins + h2h[f.user.id].losses + h2h[f.user.id].draws > 0 && (
+                        <span className="text-xs text-[var(--text-faint)]">
+                          <span style={{ color: "var(--good)" }}>{h2h[f.user.id].wins}W</span>{" "}
+                          <span style={{ color: "var(--bad)" }}>{h2h[f.user.id].losses}L</span>{" "}
+                          <span style={{ color: "var(--text-muted)" }}>{h2h[f.user.id].draws}D</span>
+                        </span>
+                      )}
+                    </div>
+                    {roomId ? (
+                      <Link href={`/watch/${roomId}`} className="btn btn-ghost !py-1.5 !text-xs">
+                        🎮 Watch
                       </Link>
                     ) : (
-                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{displayName(f.user)}</span>
+                      <button
+                        className="btn btn-ghost !py-1.5 !text-xs"
+                        disabled={!isOnline || !!outgoing}
+                        title={isOnline ? "Challenge to a game" : "Only online friends can be challenged right now"}
+                        onClick={() => {
+                          const opening = !pickerOpen;
+                          setChallengeUserId(opening ? f.user.id : null);
+                          if (opening) setChallengeFen("");
+                        }}
+                      >
+                        Challenge
+                      </button>
                     )}
-                    <button
-                      className="btn btn-ghost !py-1.5 !text-xs"
-                      disabled={!isOnline || !!outgoing}
-                      title={isOnline ? "Challenge to a game" : "Only online friends can be challenged right now"}
-                      onClick={() => setChallengeUserId(pickerOpen ? null : f.user.id)}
-                    >
-                      Challenge
-                    </button>
                     <button
                       className="btn btn-ghost !p-2 !text-[var(--bad)]"
                       aria-label="Remove friend"
@@ -364,6 +486,15 @@ export default function FriendsPage() {
                       disabled={busy === f.friendshipId}
                     >
                       <IconClose width={15} height={15} />
+                    </button>
+                    <button
+                      className="btn btn-ghost !p-2 !text-[var(--bad)]"
+                      aria-label="Block"
+                      title="Block"
+                      onClick={() => block(f.friendshipId)}
+                      disabled={busy === f.friendshipId}
+                    >
+                      🚫
                     </button>
                   </div>
                   {pickerOpen && (
@@ -394,9 +525,23 @@ export default function FriendsPage() {
                       <button
                         className="btn btn-primary !py-1 !text-xs"
                         onClick={() => sendChallenge(f.user.id, displayName(f.user))}
+                        disabled={!challengeFenValid}
                       >
                         Send challenge
                       </button>
+                      <div className="flex w-full flex-col gap-1.5">
+                        <label className="text-xs text-[var(--text-muted)]">Custom starting position (FEN, optional)</label>
+                        <input
+                          className="input !py-1 text-xs"
+                          placeholder="Paste a FEN to start from a custom position…"
+                          value={challengeFen}
+                          onChange={(e) => setChallengeFen(e.target.value)}
+                        />
+                        {challengeFen.trim() && !challengeFenValid && (
+                          <p className="text-xs text-[var(--bad)]">That FEN could not be loaded.</p>
+                        )}
+                        {challengeFen.trim() && challengeFenValid && <FenBoardPreview fen={challengeFen.trim()} />}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -405,6 +550,29 @@ export default function FriendsPage() {
           </div>
         )}
       </section>
+
+      {data && data.blocked.length > 0 && (
+        <section className="mt-6">
+          <span className="label mb-2 block">Blocked users</span>
+          <div className="panel divide-y divide-[var(--border)] overflow-hidden">
+            {data.blocked.map((r) => (
+              <div key={r.friendshipId} className="flex items-center gap-3 px-4 py-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--bg-elev-2)] text-sm font-black">
+                  {displayName(r.user)[0]?.toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm">{displayName(r.user)}</span>
+                <button
+                  className="btn btn-ghost !py-1.5 !text-xs"
+                  onClick={() => unblock(r.friendshipId)}
+                  disabled={busy === r.friendshipId}
+                >
+                  Unblock
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

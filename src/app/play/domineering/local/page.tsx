@@ -3,6 +3,7 @@
 import { LocalBoardGamePage } from "@/components/boardgames/LocalBoardGamePage";
 import { DomineeringBoard, type DomineeringState, type DomineeringMove } from "@/components/boardgames/DomineeringBoard";
 import { domineeringEngine } from "@/lib/boardgames/engines/domineering";
+import { DOMINEERING_RULES } from "@/lib/boardgames/rules";
 
 export default function DomineeringLocalPage() {
   return (
@@ -12,6 +13,7 @@ export default function DomineeringLocalPage() {
       mode="passplay"
       engine={domineeringEngine}
       seatLabel={(s) => (s === "a" ? "Player 1 (vertical)" : "Player 2 (horizontal)")}
+      rules={DOMINEERING_RULES}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <DomineeringBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

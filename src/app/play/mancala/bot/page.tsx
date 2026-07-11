@@ -14,6 +14,11 @@ export default function MancalaBotPage() {
       gameKey="mancala"
       engine={mancalaEngine}
       botFn={pickMancalaMove}
+      difficulties={[
+        { label: "Easy", depth: 3 },
+        { label: "Medium", depth: 5 },
+        { label: "Hard", depth: 8 },
+      ]}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <MancalaBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

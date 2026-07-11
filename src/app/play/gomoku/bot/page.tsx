@@ -14,6 +14,11 @@ export default function GomokuBotPage() {
       gameKey="gomoku"
       engine={gomokuEngine}
       botFn={pickGomokuMove}
+      difficulties={[
+        { label: "Easy", depth: 1 },
+        { label: "Medium", depth: 2 },
+        { label: "Hard", depth: 3 },
+      ]}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <GomokuBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />
       )}

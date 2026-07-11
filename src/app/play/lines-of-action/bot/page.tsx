@@ -14,7 +14,12 @@ export default function LoaBotPage() {
       mode="bot"
       gameKey="lines-of-action"
       engine={loaEngine}
-      botFn={(state, player) => pickLoaMove(state, player)}
+      botFn={pickLoaMove}
+      difficulties={[
+        { label: "Easy", depth: 1 },
+        { label: "Medium", depth: 2 },
+        { label: "Hard", depth: 3 },
+      ]}
       rules={LINES_OF_ACTION_RULES}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <LoaBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />

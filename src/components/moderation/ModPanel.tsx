@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { IconShield, IconVolumeOff, IconVolume } from "@/components/ui/icons";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 import { useLastMuteDuration, useCustomWarnPhrases } from "@/lib/moderation/useModPreferences";
 import { useModStats } from "@/lib/moderation/useModStats";
 import { TROLL_EFFECTS } from "@/lib/moderation/trollEffectCatalog";
@@ -111,6 +112,7 @@ export function ModPanel({
   const { durationMs: muteDurationMs, setDurationMs: setMuteDurationMs } = useLastMuteDuration();
   const { phrases: customPhrases, addPhrase, removePhrase } = useCustomWarnPhrases();
   const { increment: incrementModStat } = useModStats();
+  const panelRef = useFocusTrap<HTMLDivElement>(onClose, { trapTab: false });
 
   const withUndo = (label: string, undo: () => void) => {
     setLastAction({ label, undo });
@@ -207,6 +209,10 @@ export function ModPanel({
 
   return (
     <div
+      ref={panelRef}
+      role="region"
+      aria-label="Moderation panel"
+      tabIndex={-1}
       className="fixed bottom-4 left-4 z-[90] flex max-h-[80vh] w-80 flex-col overflow-hidden rounded-xl border border-white/15 bg-[#14171f] text-white shadow-2xl"
       style={{ fontFamily: "var(--font-sans, sans-serif)" }}
     >
@@ -214,7 +220,7 @@ export function ModPanel({
         <span className="flex items-center gap-1.5 text-sm font-bold">
           <IconShield width={15} height={15} /> Moderation
         </span>
-        <button onClick={onClose} className="text-white/60 hover:text-white">
+        <button onClick={onClose} className="text-white/60 hover:text-white" aria-label="Close">
           ✕
         </button>
       </div>
@@ -450,6 +456,7 @@ export function ModPanel({
                     className="pr-1.5 text-white/50 opacity-0 group-hover:opacity-100 hover:text-white"
                     onClick={() => removePhrase(p)}
                     title="Remove saved phrase"
+                    aria-label={`Remove saved phrase: ${p}`}
                   >
                     ✕
                   </button>

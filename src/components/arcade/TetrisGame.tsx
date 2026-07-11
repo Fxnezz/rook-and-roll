@@ -388,19 +388,19 @@ export function TetrisGame() {
           <div className="label">Lines</div>
         </div>
         <div className="mt-2 grid grid-cols-3 gap-1 sm:hidden">
-          <button className="btn !p-2" onClick={() => shift(-1)}>
+          <button className="btn !p-2" onClick={() => shift(-1)} aria-label="Move left">
             ←
           </button>
-          <button className="btn !p-2" onClick={() => rotate(1)}>
+          <button className="btn !p-2" onClick={() => rotate(1)} aria-label="Rotate">
             ⟳
           </button>
-          <button className="btn !p-2" onClick={() => shift(1)}>
+          <button className="btn !p-2" onClick={() => shift(1)} aria-label="Move right">
             →
           </button>
-          <button className="btn !p-2" onClick={softDrop}>
+          <button className="btn !p-2" onClick={softDrop} aria-label="Soft drop">
             ↓
           </button>
-          <button className="btn !p-2" onClick={hardDrop}>
+          <button className="btn !p-2" onClick={hardDrop} aria-label="Hard drop">
             ⤓
           </button>
           <button className="btn !p-2" onClick={hold}>

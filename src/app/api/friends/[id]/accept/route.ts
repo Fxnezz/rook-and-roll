@@ -20,9 +20,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   }
 
   const updated = await prisma.friendship.update({ where: { id }, data: { status: "ACCEPTED" } });
-  await prisma.notification.create({
-    data: { userId: friendship.requesterId, title: "Friend request accepted", body: `${session.user.username ?? "Someone"} accepted your friend request.` },
-  });
+  const requester = await prisma.user.findUnique({ where: { id: friendship.requesterId }, select: { notifyFriendRequests: true } });
+  if (requester?.notifyFriendRequests) {
+    await prisma.notification.create({
+      data: { userId: friendship.requesterId, title: "Friend request accepted", body: `${session.user.username ?? "Someone"} accepted your friend request.` },
+    });
+  }
 
   return NextResponse.json({ ok: true, friendship: updated });
 }

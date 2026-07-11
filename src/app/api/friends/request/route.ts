@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth/auth";
 
 export const runtime = "nodejs";
 
+const DECLINE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 export async function POST(req: Request) {
   if (!isDbConfigured) return NextResponse.json({ error: "No database configured." }, { status: 503 });
   const session = await auth();
@@ -19,7 +21,10 @@ export async function POST(req: Request) {
   if (!username) return NextResponse.json({ error: "Username required." }, { status: 400 });
 
   const me = session.user.id;
-  const target = await prisma.user.findUnique({ where: { username }, select: { id: true, username: true } });
+  const target = await prisma.user.findUnique({
+    where: { username },
+    select: { id: true, username: true, notifyFriendRequests: true },
+  });
   if (!target) return NextResponse.json({ error: "No user with that username." }, { status: 404 });
   if (target.id === me) return NextResponse.json({ error: "You can't friend yourself." }, { status: 400 });
 
@@ -39,12 +44,32 @@ export async function POST(req: Request) {
     if (existing.status === "BLOCKED") {
       return NextResponse.json({ error: "Can't send a request to this user." }, { status: 403 });
     }
+    if (existing.status === "DECLINED") {
+      const elapsed = Date.now() - (existing.declinedAt?.getTime() ?? 0);
+      if (elapsed < DECLINE_COOLDOWN_MS) {
+        const hoursLeft = Math.ceil((DECLINE_COOLDOWN_MS - elapsed) / (60 * 60 * 1000));
+        return NextResponse.json({ error: `This request was recently declined. Try again in ${hoursLeft}h.` }, { status: 429 });
+      }
+      // Cooldown elapsed — reuse the row as a fresh request from me.
+      const friendship = await prisma.friendship.update({
+        where: { id: existing.id },
+        data: { status: "PENDING", requesterId: me, addresseeId: target.id, declinedAt: null, createdAt: new Date() },
+      });
+      if (target.notifyFriendRequests) {
+        await prisma.notification.create({
+          data: { userId: target.id, title: "New friend request", body: `${session.user.username ?? "Someone"} wants to be friends.` },
+        });
+      }
+      return NextResponse.json({ ok: true, friendship }, { status: 201 });
+    }
     // They already requested us — accept it instead of creating a duplicate.
     if (existing.requesterId === target.id) {
       const accepted = await prisma.friendship.update({ where: { id: existing.id }, data: { status: "ACCEPTED" } });
-      await prisma.notification.create({
-        data: { userId: target.id, title: "Friend request accepted", body: `${session.user.username ?? "Someone"} accepted your friend request.` },
-      });
+      if (target.notifyFriendRequests) {
+        await prisma.notification.create({
+          data: { userId: target.id, title: "Friend request accepted", body: `${session.user.username ?? "Someone"} accepted your friend request.` },
+        });
+      }
       return NextResponse.json({ ok: true, friendship: accepted });
     }
     return NextResponse.json({ error: "Request already sent." }, { status: 409 });
@@ -53,9 +78,11 @@ export async function POST(req: Request) {
   const friendship = await prisma.friendship.create({
     data: { requesterId: me, addresseeId: target.id, status: "PENDING" },
   });
-  await prisma.notification.create({
-    data: { userId: target.id, title: "New friend request", body: `${session.user.username ?? "Someone"} wants to be friends.` },
-  });
+  if (target.notifyFriendRequests) {
+    await prisma.notification.create({
+      data: { userId: target.id, title: "New friend request", body: `${session.user.username ?? "Someone"} wants to be friends.` },
+    });
+  }
 
   return NextResponse.json({ ok: true, friendship }, { status: 201 });
 }

@@ -14,7 +14,12 @@ export default function QuoridorBotPage() {
       mode="bot"
       gameKey="quoridor"
       engine={quoridorEngine}
-      botFn={(state, player) => pickQuoridorMove(state, player)}
+      botFn={pickQuoridorMove}
+      difficulties={[
+        { label: "Easy", depth: 1 },
+        { label: "Medium", depth: 2 },
+        { label: "Hard", depth: 3 },
+      ]}
       rules={QUORIDOR_RULES}
       renderBoard={({ state, mySeat, interactive, onMove, lastMove }) => (
         <QuoridorBoard state={state} mySeat={mySeat} interactive={interactive} onMove={onMove} lastMove={lastMove} />

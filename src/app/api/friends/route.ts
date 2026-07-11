@@ -22,6 +22,7 @@ export async function GET() {
   const friends: { friendshipId: string; user: { id: string; username: string | null; name: string | null } }[] = [];
   const incoming: { friendshipId: string; user: { id: string; username: string | null; name: string | null }; createdAt: Date }[] = [];
   const outgoing: { friendshipId: string; user: { id: string; username: string | null; name: string | null }; createdAt: Date }[] = [];
+  const blocked: { friendshipId: string; user: { id: string; username: string | null; name: string | null } }[] = [];
 
   for (const row of rows) {
     const other = row.requesterId === me ? row.addressee : row.requester;
@@ -30,8 +31,10 @@ export async function GET() {
     } else if (row.status === "PENDING") {
       if (row.addresseeId === me) incoming.push({ friendshipId: row.id, user: other, createdAt: row.createdAt });
       else outgoing.push({ friendshipId: row.id, user: other, createdAt: row.createdAt });
+    } else if (row.status === "BLOCKED" && row.blockedById === me) {
+      blocked.push({ friendshipId: row.id, user: other });
     }
   }
 
-  return NextResponse.json({ friends, incoming, outgoing });
+  return NextResponse.json({ friends, incoming, outgoing, blocked });
 }

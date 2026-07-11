@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Color } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { MoveList } from "@/components/game/MoveList";
 import { GameControls } from "@/components/game/GameControls";
 import { SharePanel } from "@/components/game/SharePanel";
+import { AnalysisPanel } from "@/components/bot/AnalysisPanel";
+import { analyzeGame, type GameAnalysis } from "@/lib/engine/analysis";
+import { getEngine } from "@/lib/engine/stockfish";
 import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
 
-type Tab = "moves" | "share";
+type Tab = "moves" | "analysis" | "share";
 
 export function ReplayViewer({
   pgn,
@@ -27,12 +30,35 @@ export function ReplayViewer({
   const theme = getTheme(settings.boardTheme);
   const [orientation, setOrientation] = useState<Color>("w");
   const [tab, setTab] = useState<Tab>("moves");
+  const [analysis, setAnalysis] = useState<GameAnalysis | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
     game.loadPgn(pgn);
     game.goStart();
+    setAnalysis(null);
+    setAnalysisProgress(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pgn]);
+
+  const runAnalysis = useCallback(async () => {
+    setTab("analysis");
+    setAnalysis(null);
+    const moves = snapshot.moves;
+    if (moves.length === 0) return;
+    const positions = moves.map((m) => m.before).concat(moves[moves.length - 1].after);
+    const input = {
+      positions,
+      moves: moves.map((m) => ({ san: m.san, uci: m.from + m.to + (m.promotion ?? ""), color: m.color })),
+    };
+    setAnalysisProgress({ done: 0, total: positions.length });
+    const result = await analyzeGame(getEngine(), input, {
+      depth: 12,
+      onProgress: (done, total) => setAnalysisProgress({ done, total }),
+    });
+    setAnalysis(result);
+    setAnalysisProgress(null);
+  }, [snapshot.moves]);
 
   const canBack = snapshot.viewPly > 0;
   const canForward = snapshot.viewPly < snapshot.moves.length;
@@ -89,6 +115,12 @@ export function ReplayViewer({
             Moves
           </button>
           <button
+            className={`px-4 py-3 ${tab === "analysis" ? "border-b-2 border-[var(--accent)] text-[var(--accent)]" : "text-[var(--text-faint)]"}`}
+            onClick={() => setTab("analysis")}
+          >
+            Analysis
+          </button>
+          <button
             className={`px-4 py-3 ${tab === "share" ? "border-b-2 border-[var(--accent)] text-[var(--accent)]" : "text-[var(--text-faint)]"}`}
             onClick={() => setTab("share")}
           >
@@ -98,6 +130,19 @@ export function ReplayViewer({
         <div className="flex-1 overflow-hidden">
           {tab === "moves" ? (
             <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+          ) : tab === "analysis" ? (
+            <div className="flex h-full flex-col">
+              <div className="flex-1 overflow-hidden">
+                <AnalysisPanel analysis={analysis} progress={analysisProgress} onGoToPly={game.goToPly} viewPly={snapshot.viewPly} />
+              </div>
+              {!analysis && !analysisProgress && (
+                <div className="shrink-0 border-t border-[var(--border)] p-3">
+                  <button className="btn w-full" onClick={runAnalysis} disabled={snapshot.moves.length === 0}>
+                    Analyze game
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="h-full overflow-y-auto">
               <SharePanel fen={snapshot.fen} pgn={pgn} theme={theme} orientation={orientation} showImport={false} />

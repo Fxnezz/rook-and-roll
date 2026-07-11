@@ -5,6 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { RaceScene, type RaceCallbacks } from "@/components/racing/RaceScene";
 import { useCarInput } from "@/lib/racing/useCarInput";
 import { useHighScore } from "@/lib/arcade/useHighScore";
+import { playArcadeSound } from "@/lib/arcade/sound";
 import { TRACK_DEFS, getTrack, type Track } from "@/lib/racing/track";
 import { CAR_TYPES, MODIFIERS, getCarType, getModifier } from "@/lib/racing/cars";
 
@@ -175,23 +176,28 @@ export default function RacingPage() {
   const [finishTime, setFinishTime] = useState<number | null>(null);
   const [carPos, setCarPos] = useState({ x: 0, y: 0 });
   const miniMap = useMemo(() => (track ? buildMiniMap(track) : null), [track]);
+  const wasOffTrackRef = useRef(false);
 
   const callbacksRef = useRef<RaceCallbacks>({
     onLap: (lapMs, completedLap) => {
       setLastLapTime(lapMs);
       setLap(completedLap + 1);
       setBestLapThisRace((prev) => (prev === null || lapMs < prev ? lapMs : prev));
+      playArcadeSound("correct");
       submit(lapMs);
     },
     onFinish: (totalMs) => {
       setFinishTime(totalMs);
       setPhase("done");
+      playArcadeSound("win");
     },
     onProgress: ({ elapsedMs, offTrack: off, x, z, speed: s, driftFactor: df }) => {
       setElapsed(elapsedMs);
       setOffTrack(off);
       setSpeed(s);
       setDriftFactor(df);
+      if (off && !wasOffTrackRef.current) playArcadeSound("wrong");
+      wasOffTrackRef.current = off;
       if (miniMap) {
         const { x: mx, y: my } = miniMap.toXY(x, z);
         setCarPos({ x: mx, y: my });
@@ -206,6 +212,7 @@ export default function RacingPage() {
     setLastLapTime(null);
     setBestLapThisRace(null);
     setFinishTime(null);
+    wasOffTrackRef.current = false;
     let c = 3;
     setCount(c);
     const iv = setInterval(() => {
