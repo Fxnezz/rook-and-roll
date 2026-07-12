@@ -53,6 +53,21 @@
   --text-faint: #98a5ba;
 }
 
+/* Accessibility: dyslexia-friendly font swap (toggled via useSettings). */
+:root[data-dyslexia-font="true"] body {
+  font-family: "Comic Sans MS", "Comic Sans", "OpenDyslexic", var(--font-sans);
+  letter-spacing: 0.02em;
+  word-spacing: 0.08em;
+}
+
+/* Accessibility: UI text-size scaling, independent of board zoom (toggled via useSettings). */
+:root[data-text-scale="small"] {
+  font-size: 14px;
+}
+:root[data-text-scale="large"] {
+  font-size: 18px;
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-bg-elev: var(--bg-elev);
@@ -239,6 +254,12 @@ body {
 .dot-blink > span { animation: blink 1.2s infinite both; }
 .dot-blink > span:nth-child(2) { animation-delay: 0.2s; }
 .dot-blink > span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes rr-sound-flash {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  100% { opacity: 0; }
+}
 
 @keyframes shake {
   10%, 90% { transform: translateX(-1px); }

@@ -8,7 +8,9 @@ export type BoardThemeId =
   | "coral"
   | "midnight"
   | "sand"
-  | "mint";
+  | "mint"
+  | "deuteranopia"
+  | "tritanopia";
 
 export interface BoardTheme {
   id: BoardThemeId;
@@ -148,6 +150,30 @@ export const BOARD_THEMES: BoardTheme[] = [
     selected: "rgba(240, 200, 90, 0.62)",
     hint: "rgba(20, 50, 38, 0.3)",
     check: "rgba(214, 60, 48, 0.9)",
+  },
+  {
+    id: "deuteranopia",
+    name: "Deuteranopia-safe",
+    light: "#dbe9f5",
+    dark: "#b56a1f",
+    labelOnLight: "#8a5213",
+    labelOnDark: "#f7e6d0",
+    lastMove: "rgba(255, 214, 89, 0.5)",
+    selected: "rgba(255, 214, 89, 0.62)",
+    hint: "rgba(20, 40, 70, 0.34)",
+    check: "rgba(37, 99, 235, 0.92)",
+  },
+  {
+    id: "tritanopia",
+    name: "Tritanopia-safe",
+    light: "#eceff1",
+    dark: "#7c5295",
+    labelOnLight: "#5c3a75",
+    labelOnDark: "#f0e6f5",
+    lastMove: "rgba(216, 70, 120, 0.45)",
+    selected: "rgba(216, 70, 120, 0.55)",
+    hint: "rgba(40, 25, 50, 0.32)",
+    check: "rgba(200, 40, 40, 0.9)",
   },
 ];
 

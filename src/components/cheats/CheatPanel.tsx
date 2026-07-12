@@ -83,7 +83,7 @@ function Btn({ children, onClick, active }: { children: React.ReactNode; onClick
   return (
     <button
       onClick={onClick}
-      className="rounded px-2 py-1.5 text-left text-xs font-semibold transition-colors"
+      className="rounded px-2 py-2.5 text-left text-xs font-semibold transition-colors sm:py-1.5"
       style={{
         background: active ? "var(--accent)" : "rgba(255,255,255,0.08)",
         color: active ? "var(--accent-contrast)" : "white",
@@ -112,12 +112,12 @@ export function CheatPanel(props: CheatPanelProps) {
       role="region"
       aria-label="Cheat panel"
       tabIndex={-1}
-      className="fixed bottom-4 right-4 z-[90] flex max-h-[80vh] w-80 flex-col overflow-hidden rounded-xl border border-white/15 bg-[#14171f] text-white shadow-2xl"
+      className="fixed inset-x-3 bottom-3 z-[90] flex max-h-[80vh] w-auto flex-col overflow-hidden rounded-xl border border-white/15 bg-[#14171f] text-white shadow-2xl sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-80"
       style={{ fontFamily: "var(--font-sans, sans-serif)" }}
     >
       <div className="flex items-center justify-between border-b border-white/10 bg-black/30 px-3 py-2">
         <span className="text-sm font-bold">🍪 Cheat Panel</span>
-        <button onClick={props.onClose} className="text-white/60 hover:text-white" aria-label="Close">
+        <button onClick={props.onClose} className="-m-1.5 rounded p-1.5 text-white/60 hover:text-white" aria-label="Close">
           ✕
         </button>
       </div>
@@ -248,7 +248,7 @@ export function CheatPanel(props: CheatPanelProps) {
             <Btn onClick={props.onExtendBothClocks}>+60s both</Btn>
             <Btn onClick={props.onResetClocks}>Reset clocks</Btn>
           </div>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
             <Btn onClick={() => props.onInstantResult("win")}>Instant win</Btn>
             <Btn onClick={() => props.onInstantResult("loss")}>Instant loss</Btn>
             <Btn onClick={() => props.onInstantResult("draw")}>Instant draw</Btn>

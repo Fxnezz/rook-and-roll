@@ -32,6 +32,7 @@ export async function POST(req: Request) {
       title: "Weekly moderation summary",
       body: `You took ${count} moderation action${count === 1 ? "" : "s"} (mutes, warnings, pauses, flags) in the past week. Thanks for helping keep games friendly.`,
       fromAdmin: false,
+      type: "SYSTEM",
     },
   });
   return NextResponse.json({ ok: true, sent: true });

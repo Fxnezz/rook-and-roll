@@ -12,6 +12,7 @@ export function Clock({
   low,
   tickSound = false,
   reversed = false,
+  lowTimeThresholdSec = 10,
 }: {
   ms: number;
   active: boolean;
@@ -20,8 +21,10 @@ export function Clock({
   tickSound?: boolean;
   /** Cosmetic moderator troll — displays the formatted time string reversed. The real `ms` countdown is untouched. */
   reversed?: boolean;
+  /** Seconds remaining at which this clock switches into its critical (red/flash/sound) state — Settings > Gameplay. */
+  lowTimeThresholdSec?: number;
 }) {
-  const urgency = low === true ? "critical" : low === false ? "normal" : getClockUrgency(ms);
+  const urgency = low === true ? "critical" : low === false ? "normal" : getClockUrgency(ms, lowTimeThresholdSec * 1000);
   const isLow = urgency !== "normal";
   const lastTickSecond = useRef<number>(-1);
 
@@ -66,12 +69,14 @@ export function LiveClock({
   gameOver,
   tickSound = false,
   reversed = false,
+  lowTimeThresholdSec = 10,
 }: {
   clock: ClockState;
   color: Color;
   gameOver: boolean;
   tickSound?: boolean;
   reversed?: boolean;
+  lowTimeThresholdSec?: number;
 }) {
   const active = clock.activeColor === color && clock.running && !gameOver;
   const [now, setNow] = useState(() => Date.now());
@@ -86,5 +91,5 @@ export function LiveClock({
   const elapsed = active ? Math.max(0, now - clock.updatedAt) : 0;
   const ms = color === "w" ? Math.max(0, clock.whiteMs - elapsed) : Math.max(0, clock.blackMs - elapsed);
 
-  return <Clock ms={ms} active={active} tickSound={tickSound} reversed={reversed} />;
+  return <Clock ms={ms} active={active} tickSound={tickSound} reversed={reversed} lowTimeThresholdSec={lowTimeThresholdSec} />;
 }

@@ -80,6 +80,16 @@ model User {
   notifyFriendOnline   Boolean @default(true)
   /** When false, this user is excluded from other users' online/presence results (friends list, friend-online notifications). */
   showOnlineStatus     Boolean @default(true)
+  /** Whether a Notification row is written when the user earns a new achievement. */
+  notifyAchievements   Boolean @default(true)
+  /** Whether a Notification row is written when a rated game the user played finishes. */
+  notifyGameResults    Boolean @default(true)
+  /** Bumped by "sign out of all other devices" — embedded in the JWT at login and checked on every session read (src/lib/auth/auth.ts); a mismatch invalidates that token. */
+  sessionVersion       Int     @default(0)
+  /** Free-text profile bio shown on the public profile page. */
+  bio                  String? @db.VarChar(280)
+  /** Achievement id (see UserAchievement) the user has chosen to feature prominently on their profile. */
+  pinnedAchievementId  String?
 
   accounts        Account[]
   sessions        Session[]
@@ -222,19 +232,34 @@ model LoginEvent {
   @@index([userId, createdAt])
 }
 
-// Admin -> user direct message, surfaced in the user's in-app inbox.
+// A user's in-app inbox entry — admin direct messages plus system-generated
+// events (friend requests, achievements, game results, ...).
 model Notification {
-  id        String    @id @default(cuid())
+  id        String           @id @default(cuid())
   userId    String
   title     String
   body      String
-  fromAdmin Boolean   @default(false)
+  /** What this notification is about — drives grouping/collapsing in the bell UI. */
+  type      NotificationType @default(SYSTEM)
+  /** Optional deep-link target clicking the row navigates to, e.g. "/friends", "/u/username". */
+  href      String?
+  fromAdmin Boolean          @default(false)
   readAt    DateTime?
-  createdAt DateTime  @default(now())
+  createdAt DateTime         @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+enum NotificationType {
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
+  FRIEND_ONLINE
+  ACHIEVEMENT
+  GAME_RESULT
+  SYSTEM
+  ADMIN
 }
 
 model Account {
@@ -304,6 +329,8 @@ model Game {
   pgn          String       @db.Text
   finalFen     String
   ply          Int          @default(0)
+  /** Player-side bookmark on their own finished game — toggled from the game history list. */
+  favorited    Boolean      @default(false)
 
   whiteRatingBefore Int?
   blackRatingBefore Int?

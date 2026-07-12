@@ -35,7 +35,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       await Promise.all([
         prisma.warning.create({ data: { userId: id, reason } }),
         prisma.notification.create({
-          data: { userId: id, title: "Formal warning", body: reason, fromAdmin: true },
+          data: { userId: id, title: "Formal warning", body: reason, fromAdmin: true, type: "ADMIN" },
         }),
       ]);
       await audit({

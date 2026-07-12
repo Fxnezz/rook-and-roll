@@ -142,6 +142,19 @@ export async function POST(req: Request) {
       });
       await prisma.userAchievement.createMany({ data: [{ userId, achievementId: "arcade_first_score" }], skipDuplicates: true });
       achievements = ["arcade_first_score"];
+
+      const rec = await prisma.user.findUnique({ where: { id: userId }, select: { username: true, notifyAchievements: true } });
+      if (rec?.notifyAchievements) {
+        await prisma.notification.create({
+          data: {
+            userId,
+            title: "Achievement unlocked",
+            body: `${def.icon} ${def.name} — ${def.description}`,
+            type: "ACHIEVEMENT",
+            href: rec.username ? `/u/${rec.username}` : "/account",
+          },
+        });
+      }
     }
   }
 

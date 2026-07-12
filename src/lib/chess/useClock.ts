@@ -86,10 +86,13 @@ export function categoryForMs(initialMs: number | null, incMs: number): TimeCate
 
 export type ClockUrgency = "normal" | "low" | "critical";
 
-/** Derived (not stored) urgency tier for low-time visual/audio feedback. */
-export function getClockUrgency(ms: number): ClockUrgency {
-  if (ms < 10_000) return "critical";
-  if (ms < 30_000) return "low";
+/** Derived (not stored) urgency tier for low-time visual/audio feedback.
+ * `criticalThresholdMs` is the user-configurable threshold (Settings >
+ * Gameplay > "Low-time warning threshold", default 10s); the "low" tier
+ * kicks in at 3x that so the two tiers scale together. */
+export function getClockUrgency(ms: number, criticalThresholdMs = 10_000): ClockUrgency {
+  if (ms < criticalThresholdMs) return "critical";
+  if (ms < criticalThresholdMs * 3) return "low";
   return "normal";
 }
 

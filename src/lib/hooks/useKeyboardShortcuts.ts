@@ -15,6 +15,8 @@ export interface ShortcutHandlers {
   onFocusChat?: () => void;
   /** In-game moderator only: toggle the ModPanel. */
   onOpenModeration?: () => void;
+  /** Read the current board position aloud on demand (screen-reader accessibility). */
+  onAnnouncePosition?: () => void;
 }
 
 /** Global chess-page keyboard shortcuts. Ignored while typing in an input/textarea. */
@@ -62,6 +64,10 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
         case "m":
         case "M":
           h.onOpenModeration?.();
+          break;
+        case "p":
+        case "P":
+          h.onAnnouncePosition?.();
           break;
         default:
           return;

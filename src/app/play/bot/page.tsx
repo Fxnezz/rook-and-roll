@@ -18,10 +18,12 @@ import { useChessGame, type GameStatus } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { useClock, getTimeControl } from "@/lib/chess/useClock";
 import { getTheme } from "@/lib/chess/themes";
-import { playSound, primeAudio } from "@/lib/chess/sound";
+import { playSound, primeAudio, vibrateForMove } from "@/lib/chess/sound";
+import { announcePosition } from "@/lib/chess/announce";
 import { getEngine } from "@/lib/engine/stockfish";
 import { getTier, chooseMove } from "@/lib/engine/bots";
 import { analyzeGame, type GameAnalysis } from "@/lib/engine/analysis";
+import { NAG_SYMBOLS, parseAnnotation, formatAnnotation, type NagSymbol } from "@/lib/chess/nag";
 import { IconFlag, IconPlus, IconSparkles } from "@/components/ui/icons";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
@@ -40,8 +42,9 @@ import type { TrollEffectMsg, TrollEffectType } from "@/lib/online/protocol";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function playMoveSound(san: string, flags: string, promotion?: string, over?: boolean, overrideSound?: SoundName | null) {
+function playMoveSound(san: string, flags: string, promotion?: string, over?: boolean, overrideSound?: SoundName | null, haptic?: boolean) {
   if (over) return; // gameEnd handled separately
+  if (haptic) vibrateForMove(san);
   if (overrideSound) {
     playSound(overrideSound);
     return;
@@ -89,9 +92,11 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
   const [evalScore, setEvalScore] = useState<{ cp: number | null; mate: number | null }>({ cp: 0, mate: null });
   const [override, setOverride] = useState<GameStatus | null>(null);
   const [showResult, setShowResult] = useState(false);
-  const [tab, setTab] = useState<"moves" | "analysis" | "share">("moves");
+  const [tab, setTab] = useState<"moves" | "analysis" | "share">(settings.defaultGameTab);
+  const [savedGameId, setSavedGameId] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<GameAnalysis | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<{ done: number; total: number } | null>(null);
+  const autoAnalyzedRef = useRef(false);
 
   const { data: session } = useSession();
   const botFenRef = useRef<string | null>(null);
@@ -180,7 +185,8 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
         body: JSON.stringify(body),
       })
         .then((r) => r.json())
-        .then((d: { achievements?: string[] }) => {
+        .then((d: { id?: string; achievements?: string[] }) => {
+          if (d.id) setSavedGameId(d.id);
           for (const id of d.achievements ?? []) {
             const a = ACHIEVEMENT_BY_ID[id];
             if (a) pushToast(`${a.icon} Achievement unlocked: ${a.name}`);
@@ -241,7 +247,7 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
         playSound("illegal");
         return null;
       }
-      playMoveSound(move.san, move.flags, move.promotion, false, moveSoundOverride);
+      playMoveSound(move.san, move.flags, move.promotion, false, moveSoundOverride, settings.hapticFeedback);
       clock.moved(move.color);
 
       const isCapture = move.flags.includes("e") || move.flags.includes("c");
@@ -426,12 +432,21 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
     resign();
   };
 
+  // Takeback cap for bot games (#209) — no real opponent to be unfair to, so
+  // this is just a per-player Settings preference rather than something
+  // server-enforced (contrast with the online game's room-level cap).
+  const TAKEBACK_CAP = 3;
+  const takebacksUsedRef = useRef(0);
+  const takebacksRemaining = settings.unlimitedTakebacks ? Infinity : TAKEBACK_CAP - takebacksUsedRef.current;
+
   /** Undo takes back a full round trip (bot's reply + our move) so it's our turn again. */
   const undoLastRound = useCallback(() => {
     if (status.over || snapshot.moves.length === 0) return;
+    if (!settings.unlimitedTakebacks && takebacksUsedRef.current >= TAKEBACK_CAP) return;
+    takebacksUsedRef.current += 1;
     game.undo();
     if (snapshot.moves.length > 1) game.undo();
-  }, [game, status.over, snapshot.moves.length]);
+  }, [game, status.over, snapshot.moves.length, settings.unlimitedTakebacks]);
 
   // --- cheat panel action handlers (bot games only) ---
   const cheatIllegalCastle = useCallback(
@@ -627,6 +642,31 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
   const canBack = snapshot.viewPly > 0;
   const canForward = snapshot.viewPly < snapshot.moves.length;
 
+  // Player-authored move comments (own annotations, not PGN-imported ones) —
+  // same NAG + free-text pattern as Pass & Play (src/app/play/local/page.tsx).
+  const annotated = parseAnnotation(snapshot.commentsByPly[snapshot.viewPly]);
+  const [annotationText, setAnnotationText] = useState(annotated.text);
+  useEffect(() => {
+    setAnnotationText(parseAnnotation(snapshot.commentsByPly[snapshot.viewPly]).text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.viewPly]);
+  const setNag = (nag: NagSymbol | null) => {
+    if (snapshot.viewPly <= 0) return;
+    game.setCommentAtPly(snapshot.viewPly, formatAnnotation(nag, annotationText));
+  };
+  const commitAnnotationText = () => {
+    if (snapshot.viewPly <= 0) return;
+    game.setCommentAtPly(snapshot.viewPly, formatAnnotation(annotated.nag, annotationText));
+  };
+
+  // Auto-analyze on game end (Settings > Gameplay > "Request analysis").
+  useEffect(() => {
+    if (!status.over || !settings.autoAnalyze || autoAnalyzedRef.current) return;
+    autoAnalyzedRef.current = true;
+    runAnalysis();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.over, settings.autoAnalyze]);
+
   useKeyboardShortcuts({
     onFlip: () => setManualFlip((v) => !v),
     onStepBack: game.stepBack,
@@ -634,6 +674,7 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
     onGoStart: game.goStart,
     onGoLive: game.goLive,
     onToggleHelp: () => setShowShortcuts((v) => !v),
+    onAnnouncePosition: () => announcePosition(snapshot),
   });
 
   const statusText = useMemo(() => {
@@ -669,7 +710,9 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
               {isBot ? tier.name : "You"}
               {isBot && <span className="ml-1.5 text-xs font-normal text-[var(--text-faint)]">{tier.elo}</span>}
             </div>
-            <CapturedTray pieces={captured} color={isWhite ? "b" : "w"} set={settings.pieceSet} advantage={adv} />
+            {settings.showCapturedTray && (
+              <CapturedTray pieces={captured} color={isWhite ? "b" : "w"} set={settings.pieceSet} advantage={adv} />
+            )}
           </div>
         </div>
         {!tc.category.includes("untimed") && !clock.untimed && (
@@ -678,6 +721,7 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
             active={clock.active === side && !status.over}
             tickSound={side === humanColor}
             reversed={clockDigitsReversed && side === humanColor}
+            lowTimeThresholdSec={settings.lowTimeThresholdSec}
           />
         )}
       </div>
@@ -688,6 +732,12 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
     <CheatGate>
       {(cheatPanelOpen, setCheatPanelOpen) => (
         <div className="mx-auto max-w-6xl px-4 py-5">
+      <a href="#board-anchor" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-[var(--accent)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--accent-contrast)]">
+        Skip to board
+      </a>
+      <a href="#move-list-anchor" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-14 focus:z-[100] focus:rounded-md focus:bg-[var(--accent)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--accent-contrast)]">
+        Skip to move list
+      </a>
       {cheatPanelOpen && (
         <CheatPanel
           onClose={() => setCheatPanelOpen(false)}
@@ -779,7 +829,7 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
           )}
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <PlayerBar side={botColor} />
-            <div ref={boardWrapperRef} className="relative">
+            <div ref={boardWrapperRef} id="board-anchor" tabIndex={-1} className="relative outline-none">
               <Board
                 snapshot={snapshot}
                 orientation={orientation}
@@ -789,6 +839,7 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
                 onMove={onHumanMove}
                 movableColor={humanColor}
                 showCoordinates={settings.showCoordinates}
+                coordinateStyle={settings.coordinateStyle}
                 showLegalMoves={settings.showLegalMoves}
                 highlightLastMove={settings.highlightLastMove}
                 animate={settings.animate}
@@ -808,6 +859,8 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
                 premove={premove}
                 onSetPremove={(from, to) => setPremove({ from, to })}
                 onCancelPremove={() => setPremove(null)}
+                onSwipeBack={game.stepBack}
+                onSwipeForward={game.stepForward}
               />
               <CheatEffects
                 captureSeq={captureSeq}
@@ -833,15 +886,16 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
                 onLast={game.goLive}
                 onFlip={() => setManualFlip((v) => !v)}
                 onUndo={undoLastRound}
+                onAnnouncePosition={() => announcePosition(snapshot)}
                 canBack={canBack}
                 canForward={canForward}
-                canUndo={!status.over && snapshot.moves.length > 0 && snapshot.turn === humanColor}
+                canUndo={!status.over && snapshot.moves.length > 0 && snapshot.turn === humanColor && takebacksRemaining > 0}
               />
             </div>
           </div>
         </div>
 
-        <div className="panel flex w-full flex-col lg:h-[min(72vh,640px)] lg:w-[340px]">
+        <div id="move-list-anchor" tabIndex={-1} className="panel flex w-full flex-col outline-none lg:h-[min(72vh,640px)] lg:w-[340px]">
           <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
             <p className="text-sm font-semibold">{statusText}</p>
             {thinking && (
@@ -867,9 +921,44 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
               </button>
             ))}
           </div>
-          <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0">
+          <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0 lg:flex lg:flex-col">
             {tab === "moves" ? (
-              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+              <>
+                <div className="flex-1 overflow-hidden">
+                  <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+                </div>
+                {snapshot.viewPly > 0 && (
+                  <div className="shrink-0 border-t border-[var(--border)] p-2">
+                    <span className="label mb-1.5 block">
+                      Annotate {snapshot.moves[snapshot.viewPly - 1]?.san}
+                    </span>
+                    <div className="mb-1.5 flex flex-wrap gap-1">
+                      {NAG_SYMBOLS.map((s) => (
+                        <button
+                          key={s}
+                          className="hover-lift rounded-md border px-2 py-0.5 font-mono text-xs transition-colors"
+                          style={{
+                            borderColor: annotated.nag === s ? "var(--accent)" : "var(--border)",
+                            background: annotated.nag === s ? "var(--bg-elev-2)" : "transparent",
+                            color: annotated.nag === s ? "var(--accent)" : "var(--text-muted)",
+                          }}
+                          onClick={() => setNag(annotated.nag === s ? null : s)}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      className="input !py-1 text-xs"
+                      placeholder="Add a note…"
+                      value={annotationText}
+                      onChange={(e) => setAnnotationText(e.target.value)}
+                      onBlur={commitAnnotationText}
+                      onKeyDown={(e) => e.key === "Enter" && commitAnnotationText()}
+                    />
+                  </div>
+                )}
+              </>
             ) : tab === "analysis" ? (
               <AnalysisPanel
                 analysis={analysis}
@@ -879,6 +968,19 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
               />
             ) : (
               <div className="h-full overflow-y-auto">
+                {status.over && savedGameId && (
+                  <div className="border-b border-[var(--border)] p-3">
+                    <button
+                      className="btn w-full !text-xs"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/games/${savedGameId}`).catch(() => {});
+                        pushToast("Spectator link copied");
+                      }}
+                    >
+                      Copy spectator link
+                    </button>
+                  </div>
+                )}
                 <SharePanel
                   fen={snapshot.fen}
                   pgn={game.getPgn()}

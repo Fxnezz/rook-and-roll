@@ -23,7 +23,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const requester = await prisma.user.findUnique({ where: { id: friendship.requesterId }, select: { notifyFriendRequests: true } });
   if (requester?.notifyFriendRequests) {
     await prisma.notification.create({
-      data: { userId: friendship.requesterId, title: "Friend request accepted", body: `${session.user.username ?? "Someone"} accepted your friend request.` },
+      data: {
+        userId: friendship.requesterId,
+        title: "Friend request accepted",
+        body: `${session.user.username ?? "Someone"} accepted your friend request.`,
+        type: "FRIEND_ACCEPTED",
+        href: session.user.username ? `/u/${session.user.username}` : "/friends",
+      },
     });
   }
 

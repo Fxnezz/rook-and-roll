@@ -154,11 +154,44 @@ export async function notifyFriendsOnline(userId: string, username: string): Pro
 
     for (const r of recipients) {
       await prisma.notification.create({
-        data: { userId: r.id, title: "Friend online", body: `${username} just came online.` },
+        data: { userId: r.id, title: "Friend online", body: `${username} just came online.`, type: "FRIEND_ONLINE", href: "/friends" },
       });
     }
   } catch (e) {
     console.error("[persistence] failed to notify friends of online status", (e as Error).message);
+  }
+}
+
+/**
+ * Writes a "Game result" Notification row to a real (non-guest) player,
+ * gated by their notifyGameResults preference. Best-effort — never throws.
+ */
+async function notifyGameResult(params: {
+  userId: string;
+  gameId: string;
+  outcome: "won" | "lost" | "drew";
+  category: string;
+  opponentName: string;
+  termination: string;
+}): Promise<void> {
+  if (!enabled || !prisma || !prisma.notification || params.userId.startsWith("guest:")) return;
+  try {
+    const user = (await prisma.user.findUnique({ where: { id: params.userId }, select: { notifyGameResults: true } })) as {
+      notifyGameResults?: boolean;
+    } | null;
+    if (!user?.notifyGameResults) return;
+    const title = params.outcome === "won" ? "Victory!" : params.outcome === "lost" ? "Defeat" : "Draw";
+    await prisma.notification.create({
+      data: {
+        userId: params.userId,
+        title,
+        body: `You ${params.outcome} your rated ${params.category} game against ${params.opponentName} (${params.termination}).`,
+        type: "GAME_RESULT",
+        href: `/games/${params.gameId}`,
+      },
+    });
+  } catch (e) {
+    console.error("[persistence] failed to write game-result notification", (e as Error).message);
   }
 }
 
@@ -200,6 +233,22 @@ const RESULT_ENUM: Record<string, string> = {
   "1-0": "WHITE_WINS",
   "0-1": "BLACK_WINS",
   "1/2-1/2": "DRAW",
+};
+
+/** Name/description/icon for the achievement ids awardable from this file. Mirrors src/lib/achievements/catalog.ts (not imported — this package's tsconfig rootDir is scoped to server/src). */
+const ACHIEVEMENT_CATALOG: Record<string, { name: string; description: string; icon: string }> = {
+  first_game: { name: "First Steps", description: "Play your first game", icon: "🎬" },
+  first_win: { name: "First Blood", description: "Win your first game", icon: "🏆" },
+  ten_games: { name: "Regular", description: "Play 10 games", icon: "📈" },
+  fifty_games: { name: "Veteran", description: "Play 50 games", icon: "🎖️" },
+  win_streak_3: { name: "On a Roll", description: "Win 3 games in a row", icon: "🔥" },
+  win_streak_5: { name: "Unstoppable", description: "Win 5 games in a row", icon: "⚡" },
+  checkmate_win: { name: "Checkmate!", description: "Win a game by checkmate", icon: "♚" },
+  first_draw: { name: "Stalemate Sage", description: "Draw a game", icon: "🤝" },
+  bullet_win: { name: "Speed Demon", description: "Win a rated bullet game", icon: "🚀" },
+  blitz_win: { name: "Blitz Master", description: "Win a rated blitz game", icon: "💨" },
+  rapid_win: { name: "Rapid Fire", description: "Win a rated rapid game", icon: "🎯" },
+  classical_win: { name: "Grandmaster's Patience", description: "Win a rated classical game", icon: "🏛️" },
 };
 
 /** Checks the just-saved game against the achievement rules and awards any newly-earned ones (idempotent). Mirrors src/lib/achievements/award.ts on the Next.js side. */
@@ -265,6 +314,28 @@ async function checkAndAwardAchievements(params: {
     data: newOnes.map((achievementId) => ({ userId, achievementId })),
     skipDuplicates: true,
   });
+
+  if (prisma.notification) {
+    const rec = (await prisma.user.findUnique({ where: { id: userId }, select: { username: true, notifyAchievements: true } })) as {
+      username?: string | null;
+      notifyAchievements?: boolean;
+    } | null;
+    if (rec?.notifyAchievements) {
+      for (const id of newOnes) {
+        const def = ACHIEVEMENT_CATALOG[id];
+        await prisma.notification.create({
+          data: {
+            userId,
+            title: "Achievement unlocked",
+            body: def ? `${def.icon} ${def.name} — ${def.description}` : "You earned a new achievement.",
+            type: "ACHIEVEMENT",
+            href: rec.username ? `/u/${rec.username}` : "/account",
+          },
+        });
+      }
+    }
+  }
+
   return newOnes;
 }
 
@@ -368,6 +439,29 @@ export async function saveFinishedGame(
         ? checkAndAwardAchievements({ userId: room.black.userId, color: "b", result: RESULT_ENUM[result], category: cat, rated: recordedAsRated, termination: room.status.reason })
         : Promise.resolve([]),
     ]);
+
+    if (recordedAsRated) {
+      const wOutcome = result === "1/2-1/2" ? "drew" : result === "1-0" ? "won" : "lost";
+      const bOutcome = result === "1/2-1/2" ? "drew" : result === "0-1" ? "won" : "lost";
+      await Promise.all([
+        notifyGameResult({
+          userId: room.white.userId,
+          gameId: game.id,
+          outcome: wOutcome,
+          category: cat,
+          opponentName: room.black.username,
+          termination: room.status.reason,
+        }),
+        notifyGameResult({
+          userId: room.black.userId,
+          gameId: game.id,
+          outcome: bOutcome,
+          category: cat,
+          opponentName: room.white.username,
+          termination: room.status.reason,
+        }),
+      ]);
+    }
 
     return { ratingDelta: deltas, achievements: { white: whiteAch, black: blackAch } };
   } catch (e) {

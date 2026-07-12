@@ -12,9 +12,11 @@ import { ChatPanel } from "@/components/game/ChatPanel";
 import { CapturedTray } from "@/components/game/CapturedTray";
 import { OpeningExplorer } from "@/components/game/OpeningExplorer";
 import { SharePanel } from "@/components/game/SharePanel";
+import { AnalysisPanel } from "@/components/bot/AnalysisPanel";
 import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
+import { analyzeGame, type GameAnalysis } from "@/lib/engine/analysis";
 import {
   TIME_CONTROLS,
   getTimeControl,
@@ -23,10 +25,11 @@ import {
   customTimeControlId,
   type TimeControl,
 } from "@/lib/chess/useClock";
-import { playSound, primeAudio, type SoundName } from "@/lib/chess/sound";
+import { playSound, primeAudio, vibrateForMove, type SoundName } from "@/lib/chess/sound";
+import { announcePosition } from "@/lib/chess/announce";
 import { useOnlineGame } from "@/lib/online/useOnlineGame";
 import type { Identity } from "@/lib/online/protocol";
-import { IconFlag, IconHandshake, IconUsers, IconUndo, IconShield } from "@/components/ui/icons";
+import { IconFlag, IconHandshake, IconUsers, IconUndo, IconShield, IconVolume } from "@/components/ui/icons";
 import { ModPanel } from "@/components/moderation/ModPanel";
 import { ModCheatGate } from "@/components/moderation/ModCheatGate";
 import { ModCheatPanel } from "@/components/moderation/ModCheatPanel";
@@ -46,7 +49,8 @@ import { useTrollEffects } from "@/lib/moderation/useTrollEffects";
 import { TrollEffectOverlay } from "@/components/moderation/TrollEffectOverlay";
 import type { TrollEffectType } from "@/lib/online/protocol";
 
-function soundFor(san: string, overrideSound?: SoundName | null) {
+function soundFor(san: string, overrideSound?: SoundName | null, haptic?: boolean) {
+  if (haptic) vibrateForMove(san);
   if (san.includes("#")) return; // handled by game over
   if (overrideSound) {
     playSound(overrideSound);
@@ -136,7 +140,14 @@ export default function OnlinePage() {
     }
   };
   const [ratings, setRatings] = useState<Record<string, number> | null>(null);
-  const [tab, setTab] = useState<"moves" | "openings" | "chat" | "share">("moves");
+  // "analysis" only makes sense once a game has finished, so a saved
+  // preference of "analysis" falls back to "moves" for the lobby/live game.
+  const [tab, setTab] = useState<"moves" | "openings" | "chat" | "share" | "analysis">(
+    settings.defaultGameTab === "analysis" ? "moves" : settings.defaultGameTab,
+  );
+  const [analysis, setAnalysis] = useState<GameAnalysis | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState<{ done: number; total: number } | null>(null);
+  const autoAnalyzedRef = useRef(false);
   const [confirmingResign, setConfirmingResign] = useState(false);
   const [drawCoolingDown, setDrawCoolingDown] = useState(false);
   const [lastSeenChatCount, setLastSeenChatCount] = useState(0);
@@ -383,6 +394,14 @@ export default function OnlinePage() {
     setModLog([]);
   }, [state.roomId]);
 
+  // Reset analysis (and the auto-analyze one-shot) for each fresh game —
+  // this component persists across a rematch rather than remounting.
+  useEffect(() => {
+    autoAnalyzedRef.current = false;
+    setAnalysis(null);
+    setAnalysisProgress(null);
+  }, [state.roomId]);
+
   useKeyboardShortcuts({
     onFlip: () => setManualFlip((v) => !v),
     onStepBack: game.stepBack,
@@ -403,6 +422,7 @@ export default function OnlinePage() {
     onOpenModeration: () => {
       if (showModUI && state.phase === "playing") setModPanelOpen((v) => !v);
     },
+    onAnnouncePosition: () => announcePosition(snapshot),
   });
 
   useEffect(() => {
@@ -439,6 +459,36 @@ export default function OnlinePage() {
     },
     [snapshot.fen, onMove],
   );
+
+  // Post-game analysis (Batch D #204) — only meaningful once the game is
+  // over, same Stockfish analyzeGame flow the bot page uses.
+  const runAnalysis = useCallback(async () => {
+    if (!state.status) return;
+    setTab("analysis");
+    setAnalysis(null);
+    const moves = snapshot.moves;
+    if (moves.length === 0) return;
+    const positions = moves.map((m) => m.before).concat(moves[moves.length - 1].after);
+    const input = {
+      positions,
+      moves: moves.map((m) => ({ san: m.san, uci: m.from + m.to + (m.promotion ?? ""), color: m.color })),
+    };
+    setAnalysisProgress({ done: 0, total: positions.length });
+    const result = await analyzeGame(getEngine(), input, {
+      depth: 12,
+      onProgress: (done, total) => setAnalysisProgress({ done, total }),
+    });
+    setAnalysis(result);
+    setAnalysisProgress(null);
+  }, [state.status, snapshot.moves]);
+
+  // Auto-analyze on game end (Settings > Gameplay > "Request analysis").
+  useEffect(() => {
+    if (!state.status || !settings.autoAnalyze || autoAnalyzedRef.current) return;
+    autoAnalyzedRef.current = true;
+    runAnalysis();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.status, settings.autoAnalyze]);
 
   // Derived values and the hint/auto-move effects below must stay above the
   // idle/searching early returns — React requires the same hooks to run in
@@ -629,6 +679,11 @@ export default function OnlinePage() {
         >
           Find a game
         </button>
+        {loggedIn && (
+          <Link href="/friends" className="mt-3 block text-center text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:underline">
+            Prefer to play someone you know? Challenge a friend →
+          </Link>
+        )}
         <p className="mt-3 text-center text-xs text-[var(--text-faint)]">
           Playing as <span className="font-semibold">{identity.username}</span>
         </p>
@@ -662,6 +717,9 @@ export default function OnlinePage() {
   const myTurn = state.myColor === snapshot.turn && !state.status;
   const topColor: Color = orientation === "w" ? "b" : "w";
   const bottomColor: Color = orientation;
+  const myTakebacksRemaining = state.myColor
+    ? Math.max(0, state.takebackLimit - state.takebacksUsed[state.myColor])
+    : state.takebackLimit;
 
   const opponentMuted = Boolean(opponentColor && state.fullState?.roomMuted?.[opponentColor]);
   const flaggedMessages = state.chat
@@ -792,7 +850,9 @@ export default function OnlinePage() {
             <IconShield width={12} height={12} className="text-[var(--accent)]" aria-label="In-game moderator" />
           )}
           {p && <span className="text-xs text-[var(--text-faint)]">{p.rating}</span>}
-          <CapturedTray pieces={captured} color={isWhite ? "b" : "w"} set={settings.pieceSet} advantage={adv} />
+          {settings.showCapturedTray && (
+            <CapturedTray pieces={captured} color={isWhite ? "b" : "w"} set={settings.pieceSet} advantage={adv} />
+          )}
         </div>
         {state.timeControl?.initialMs != null && (
           <LiveClock
@@ -801,6 +861,7 @@ export default function OnlinePage() {
             gameOver={Boolean(state.status)}
             tickSound={color === state.myColor}
             reversed={clockDigitsReversed && color === state.myColor}
+            lowTimeThresholdSec={settings.lowTimeThresholdSec}
           />
         )}
       </div>
@@ -809,10 +870,24 @@ export default function OnlinePage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-5">
+      <a href="#board-anchor" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-[var(--accent)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--accent-contrast)]">
+        Skip to board
+      </a>
+      <a href="#move-list-anchor" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-14 focus:z-[100] focus:rounded-md focus:bg-[var(--accent)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--accent-contrast)]">
+        Skip to move list
+      </a>
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <button className="btn btn-ghost" onClick={online.leave}>
             ← Leave
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => announcePosition(snapshot)}
+            title="Announce position (screen reader)"
+            aria-label="Announce position"
+          >
+            <IconVolume width={16} height={16} />
           </button>
           {(showModUI || isOwnerAccount) && (
             <ModShieldMenu
@@ -845,9 +920,13 @@ export default function OnlinePage() {
               <button
                 className="btn"
                 onClick={online.offerTakeback}
-                disabled={state.takebackOfferFrom === state.myColor}
+                disabled={state.takebackOfferFrom === state.myColor || myTakebacksRemaining <= 0}
+                title={myTakebacksRemaining <= 0 ? "No takebacks remaining this game" : `${myTakebacksRemaining} takeback${myTakebacksRemaining === 1 ? "" : "s"} left`}
               >
                 <IconUndo width={16} height={16} /> Takeback
+                {myTakebacksRemaining < state.takebackLimit && (
+                  <span className="text-xs opacity-70">({myTakebacksRemaining})</span>
+                )}
               </button>
             )}
             <button
@@ -945,7 +1024,7 @@ export default function OnlinePage() {
       )}
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-        <div ref={boardContainerRef} className="relative flex w-full flex-col gap-2 lg:max-w-[min(72vh,640px)]">
+        <div ref={boardContainerRef} id="board-anchor" tabIndex={-1} className="relative flex w-full flex-col gap-2 outline-none lg:max-w-[min(72vh,640px)]">
           <TrollEffectOverlay
             effect={overlayEffect}
             watchedBanner={watchedBanner}
@@ -963,6 +1042,7 @@ export default function OnlinePage() {
             movableColor={state.myColor ?? "w"}
             interactive={state.phase === "playing" && !!state.myColor}
             showCoordinates={settings.showCoordinates}
+            coordinateStyle={settings.coordinateStyle}
             showLegalMoves={settings.showLegalMoves}
             highlightLastMove={settings.highlightLastMove}
             animate={settings.animate}
@@ -981,6 +1061,8 @@ export default function OnlinePage() {
             premove={premove}
             onSetPremove={(from, to) => setPremove({ from, to })}
             onCancelPremove={() => setPremove(null)}
+            onSwipeBack={game.stepBack}
+            onSwipeForward={game.stepForward}
             extraArrows={[
               ...(snapshot.lastMove && settings.highlightLastMove
                 ? [{ from: snapshot.lastMove.from, to: snapshot.lastMove.to, color: "rgba(255,255,255,0.4)" }]
@@ -992,7 +1074,7 @@ export default function OnlinePage() {
           <PlayerBar color={bottomColor} />
         </div>
 
-        <div className="panel flex w-full flex-col lg:h-[min(72vh,640px)] lg:w-[340px]">
+        <div id="move-list-anchor" tabIndex={-1} className="panel flex w-full flex-col outline-none lg:h-[min(72vh,640px)] lg:w-[340px]">
           <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3 text-sm font-semibold">
             <span>
               {state.status
@@ -1010,7 +1092,7 @@ export default function OnlinePage() {
             )}
           </div>
           <div className="flex border-b border-[var(--border)]">
-            {(["moves", "openings", "chat", "share"] as const).map((t) => (
+            {(state.status ? (["moves", "openings", "analysis", "chat", "share"] as const) : (["moves", "openings", "chat", "share"] as const)).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -1032,6 +1114,19 @@ export default function OnlinePage() {
               <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
+            ) : tab === "analysis" && state.status ? (
+              <div className="flex h-full flex-col">
+                <div className="flex-1 overflow-hidden">
+                  <AnalysisPanel analysis={analysis} progress={analysisProgress} onGoToPly={game.goToPly} viewPly={snapshot.viewPly} />
+                </div>
+                {!analysis && !analysisProgress && (
+                  <div className="shrink-0 border-t border-[var(--border)] p-3">
+                    <button className="btn w-full" onClick={runAnalysis} disabled={snapshot.moves.length === 0}>
+                      Analyze game
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : tab === "chat" ? (
               <ChatPanel
                 messages={fakeChatMessages.length ? [...state.chat, ...fakeChatMessages].sort((a, b) => a.ts - b.ts) : state.chat}

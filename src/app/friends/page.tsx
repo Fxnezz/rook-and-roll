@@ -64,6 +64,12 @@ interface FriendsData {
   outgoing: { friendshipId: string; user: FriendUser; createdAt: string }[];
   blocked: { friendshipId: string; user: FriendUser }[];
 }
+interface SuggestedUser {
+  id: string;
+  username: string | null;
+  name: string | null;
+  ratingBlitz: number;
+}
 
 function displayName(u: FriendUser) {
   return u.username ?? u.name ?? "Unknown";
@@ -89,6 +95,10 @@ export default function FriendsPage() {
   const [incoming, setIncoming] = useState<ChallengeInfo | null>(null);
   const [challengeErr, setChallengeErr] = useState<string | null>(null);
 
+  const [suggestions, setSuggestions] = useState<SuggestedUser[] | null>(null);
+  const [sentTo, setSentTo] = useState<Set<string>>(new Set());
+  const [suggestBusy, setSuggestBusy] = useState<string | null>(null);
+
   const socketRef = useRef<PresenceSocket | null>(null);
   const identityRef = useRef<Identity>({ userId: "", username: "", rating: 1200, guest: false });
 
@@ -100,6 +110,14 @@ export default function FriendsPage() {
   useEffect(() => {
     if (status === "authenticated") load();
   }, [status, load]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    fetch("/api/friends/suggestions")
+      .then((r) => r.json())
+      .then((d) => setSuggestions(d.suggestions ?? []))
+      .catch(() => setSuggestions([]));
+  }, [status]);
 
   // Presence + challenge socket — connected whenever the friends page is open.
   useEffect(() => {
@@ -196,6 +214,21 @@ export default function FriendsPage() {
       }
     } finally {
       setBusy(null);
+    }
+  };
+
+  const sendRequestToSuggestion = async (user: SuggestedUser) => {
+    if (!user.username) return;
+    setSuggestBusy(user.id);
+    try {
+      const res = await fetch("/api/friends/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username }),
+      });
+      if (res.ok) setSentTo((s) => new Set(s).add(user.id));
+    } finally {
+      setSuggestBusy(null);
     }
   };
 
@@ -550,6 +583,38 @@ export default function FriendsPage() {
           </div>
         )}
       </section>
+
+      {suggestions && suggestions.length > 0 && (
+        <section className="mt-6">
+          <span className="label mb-2 block">People you might know</span>
+          <div className="panel divide-y divide-[var(--border)] overflow-hidden">
+            {suggestions.map((u) => (
+              <div key={u.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--bg-elev-2)] text-sm font-black">
+                  {(u.username ?? u.name ?? "?")[0]?.toUpperCase()}
+                </span>
+                <div className="min-w-0 flex-1">
+                  {u.username ? (
+                    <Link href={`/u/${u.username}`} className="block truncate text-sm font-semibold hover:text-[var(--accent)]">
+                      {u.username}
+                    </Link>
+                  ) : (
+                    <span className="block truncate text-sm font-semibold">{u.name ?? "Unknown"}</span>
+                  )}
+                  <span className="text-xs text-[var(--text-faint)]">{u.ratingBlitz} blitz</span>
+                </div>
+                <button
+                  className="btn btn-ghost !py-1.5 !text-xs shrink-0"
+                  onClick={() => sendRequestToSuggestion(u)}
+                  disabled={suggestBusy === u.id || sentTo.has(u.id)}
+                >
+                  {sentTo.has(u.id) ? "Sent" : "Send request"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {data && data.blocked.length > 0 && (
         <section className="mt-6">

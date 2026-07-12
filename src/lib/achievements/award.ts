@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import type { AchievementId } from "./catalog";
+import { ACHIEVEMENT_BY_ID, type AchievementId } from "./catalog";
 
 export interface AwardContext {
   userId: string;
@@ -69,6 +69,22 @@ export async function checkAndAwardAchievements(ctx: AwardContext): Promise<Achi
     data: newOnes.map((achievementId) => ({ userId, achievementId })),
     skipDuplicates: true,
   });
+
+  const rec = await prisma.user.findUnique({ where: { id: userId }, select: { username: true, notifyAchievements: true } });
+  if (rec?.notifyAchievements) {
+    await prisma.notification.createMany({
+      data: newOnes.map((id) => {
+        const def = ACHIEVEMENT_BY_ID[id];
+        return {
+          userId,
+          title: "Achievement unlocked",
+          body: `${def.icon} ${def.name} — ${def.description}`,
+          type: "ACHIEVEMENT" as const,
+          href: rec.username ? `/u/${rec.username}` : "/account",
+        };
+      }),
+    });
+  }
 
   return newOnes;
 }

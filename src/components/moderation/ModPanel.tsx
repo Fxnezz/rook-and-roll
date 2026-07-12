@@ -213,14 +213,14 @@ export function ModPanel({
       role="region"
       aria-label="Moderation panel"
       tabIndex={-1}
-      className="fixed bottom-4 left-4 z-[90] flex max-h-[80vh] w-80 flex-col overflow-hidden rounded-xl border border-white/15 bg-[#14171f] text-white shadow-2xl"
+      className="fixed inset-x-3 bottom-3 z-[90] flex max-h-[80vh] w-auto flex-col overflow-hidden rounded-xl border border-white/15 bg-[#14171f] text-white shadow-2xl sm:inset-x-auto sm:bottom-4 sm:left-4 sm:w-80"
       style={{ fontFamily: "var(--font-sans, sans-serif)" }}
     >
       <div className="flex items-center justify-between border-b border-white/10 bg-black/30 px-3 py-2">
         <span className="flex items-center gap-1.5 text-sm font-bold">
           <IconShield width={15} height={15} /> Moderation
         </span>
-        <button onClick={onClose} className="text-white/60 hover:text-white" aria-label="Close">
+        <button onClick={onClose} className="-m-1.5 rounded p-1.5 text-white/60 hover:text-white" aria-label="Close">
           ✕
         </button>
       </div>
@@ -248,7 +248,7 @@ export function ModPanel({
             {MUTE_DURATIONS.map((opt) => (
               <button
                 key={opt.label}
-                className="rounded px-1.5 py-0.5 font-semibold"
+                className="rounded px-1.5 py-1.5 font-semibold sm:py-0.5"
                 style={
                   muteDurationMs === opt.ms
                     ? { background: "var(--accent)", color: "var(--accent-contrast)" }
@@ -263,7 +263,7 @@ export function ModPanel({
         )}
         <button
           onClick={clickMute}
-          className="mb-3 flex w-full items-center justify-center gap-1.5 rounded px-2 py-1.5 text-xs font-semibold transition-colors"
+          className="mb-3 flex w-full items-center justify-center gap-1.5 rounded px-2 py-2.5 text-xs font-semibold transition-colors sm:py-1.5"
           style={{
             background: opponentMuted ? "var(--accent)" : "rgba(255,255,255,0.08)",
             color: opponentMuted ? "var(--accent-contrast)" : "white",
@@ -315,7 +315,7 @@ export function ModPanel({
           <div className="mb-3 flex gap-1.5">
             <button
               onClick={armPause}
-              className="flex-1 rounded px-2 py-1.5 text-xs font-semibold transition-colors"
+              className="flex-1 rounded px-2 py-2.5 text-xs font-semibold transition-colors sm:py-1.5"
               style={{
                 background: paused ? "var(--accent)" : confirmingPause ? "rgba(239,68,68,0.25)" : "rgba(255,255,255,0.08)",
                 color: paused ? "var(--accent-contrast)" : "white",
@@ -329,7 +329,7 @@ export function ModPanel({
                 onToggleFlagReview();
                 withUndo(wasFlagged ? "Removed review flag" : "Flagged for review", onToggleFlagReview);
               }}
-              className="flex-1 rounded px-2 py-1.5 text-xs font-semibold transition-colors"
+              className="flex-1 rounded px-2 py-2.5 text-xs font-semibold transition-colors sm:py-1.5"
               style={{
                 background: reviewFlagged ? "var(--accent)" : "rgba(255,255,255,0.08)",
                 color: reviewFlagged ? "var(--accent-contrast)" : "white",
@@ -352,7 +352,7 @@ export function ModPanel({
         <button
           onClick={flagCheating}
           disabled={cheatFlagSent}
-          className="mb-3 w-full rounded px-2 py-1.5 text-xs font-semibold text-white/70 transition-colors hover:bg-white/10 disabled:opacity-50"
+          className="mb-3 w-full rounded px-2 py-2.5 text-xs font-semibold text-white/70 transition-colors hover:bg-white/10 disabled:opacity-50 sm:py-1.5"
           style={{ background: "rgba(255,255,255,0.05)" }}
         >
           {cheatFlagSent ? "Flagged as possible cheating" : "Flag as possible cheating"}
@@ -388,7 +388,7 @@ export function ModPanel({
                 {FREEZE_DURATIONS.map((opt) => (
                   <button
                     key={opt.label}
-                    className="rounded px-1.5 py-0.5 font-semibold"
+                    className="rounded px-1.5 py-1.5 font-semibold sm:py-0.5"
                     style={
                       freezeDurationMs === opt.ms
                         ? { background: "var(--accent)", color: "var(--accent-contrast)" }
@@ -403,7 +403,7 @@ export function ModPanel({
             )}
             <button
               onClick={() => onTrollFreeze(!opponentFrozen, { durationMs: freezeDurationMs })}
-              className="w-full rounded px-2 py-1.5 text-xs font-semibold transition-colors"
+              className="w-full rounded px-2 py-2.5 text-xs font-semibold transition-colors sm:py-1.5"
               style={{
                 background: opponentFrozen ? "var(--accent)" : "rgba(255,255,255,0.08)",
                 color: opponentFrozen ? "var(--accent-contrast)" : "white",
@@ -418,7 +418,7 @@ export function ModPanel({
               {[{ label: "Off", ms: 0 }, ...SLOWMODE_INTERVALS].map((opt) => (
                 <button
                   key={opt.label}
-                  className="rounded px-1.5 py-0.5 font-semibold"
+                  className="rounded px-1.5 py-1.5 font-semibold sm:py-0.5"
                   style={
                     slowmodeMs === opt.ms
                       ? { background: "var(--accent)", color: "var(--accent-contrast)" }

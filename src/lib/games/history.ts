@@ -10,6 +10,8 @@ export interface GameHistoryQuery {
   limit?: number;
   result?: ResultFilter;
   category?: CategoryFilter;
+  /** Only rows the user has starred via the games-history "favorite" toggle. */
+  favoritesOnly?: boolean;
 }
 
 function resultWhere(userId: string, result: ResultFilter | undefined): Prisma.GameWhereInput {
@@ -25,11 +27,12 @@ function resultWhere(userId: string, result: ResultFilter | undefined): Prisma.G
   }
 }
 
-export async function fetchGameHistory({ userId, cursor, limit = 20, result, category }: GameHistoryQuery) {
+export async function fetchGameHistory({ userId, cursor, limit = 20, result, category, favoritesOnly }: GameHistoryQuery) {
   const take = Math.min(Math.max(limit, 1), 50);
   const where: Prisma.GameWhereInput = {
     ...resultWhere(userId, result),
     ...(category && category !== "all" ? { category } : {}),
+    ...(favoritesOnly ? { favorited: true } : {}),
   };
 
   const games = await prisma.game.findMany({

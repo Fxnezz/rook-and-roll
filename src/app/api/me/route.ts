@@ -24,11 +24,18 @@ export async function GET() {
       notifyFriendRequests: true,
       notifyFriendOnline: true,
       showOnlineStatus: true,
+      notifyAchievements: true,
+      notifyGameResults: true,
+      bio: true,
+      pinnedAchievementId: true,
     },
   });
   if (!user) return NextResponse.json({ user: null });
+  const earned = await prisma.userAchievement.findMany({ where: { userId: user.id }, select: { achievementId: true } });
   const { passwordHash, ...rest } = user;
-  return NextResponse.json({ user: { ...rest, hasPassword: Boolean(passwordHash) } });
+  return NextResponse.json({
+    user: { ...rest, hasPassword: Boolean(passwordHash), earnedAchievementIds: earned.map((e) => e.achievementId) },
+  });
 }
 
 /**
@@ -54,6 +61,10 @@ export async function PATCH(req: Request) {
     notifyFriendRequests?: boolean;
     notifyFriendOnline?: boolean;
     showOnlineStatus?: boolean;
+    notifyAchievements?: boolean;
+    notifyGameResults?: boolean;
+    bio?: string;
+    pinnedAchievementId?: string | null;
   };
   try {
     body = await req.json();
@@ -72,6 +83,32 @@ export async function PATCH(req: Request) {
         ...(typeof body.notifyFriendRequests === "boolean" && { notifyFriendRequests: body.notifyFriendRequests }),
         ...(typeof body.notifyFriendOnline === "boolean" && { notifyFriendOnline: body.notifyFriendOnline }),
         ...(typeof body.showOnlineStatus === "boolean" && { showOnlineStatus: body.showOnlineStatus }),
+        ...(typeof body.notifyAchievements === "boolean" && { notifyAchievements: body.notifyAchievements }),
+        ...(typeof body.notifyGameResults === "boolean" && { notifyGameResults: body.notifyGameResults }),
+      },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  // Bio/pinned-achievement aren't security-sensitive either — no password check.
+  if (body.action === "profile") {
+    let pinnedAchievementId: string | null | undefined = undefined;
+    if (body.pinnedAchievementId !== undefined) {
+      if (body.pinnedAchievementId === null) {
+        pinnedAchievementId = null;
+      } else {
+        const owns = await prisma.userAchievement.findFirst({
+          where: { userId: user.id, achievementId: body.pinnedAchievementId },
+        });
+        if (!owns) return NextResponse.json({ error: "You haven't earned that achievement." }, { status: 400 });
+        pinnedAchievementId = body.pinnedAchievementId;
+      }
+    }
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        ...(typeof body.bio === "string" && { bio: body.bio.slice(0, 280) }),
+        ...(pinnedAchievementId !== undefined && { pinnedAchievementId }),
       },
     });
     return NextResponse.json({ ok: true });
@@ -105,5 +142,43 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  // Invalidates every JWT issued before this moment (including this request's
+  // own) — see the sessionVersion check in src/lib/auth/auth.ts's session callback.
+  if (body.action === "signOutAllDevices") {
+    await prisma.user.update({ where: { id: user.id }, data: { sessionVersion: { increment: 1 } } });
+    return NextResponse.json({ ok: true });
+  }
+
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });
+}
+
+/** Permanently deletes the signed-in account. Requires the current password for credentials-based accounts. */
+export async function DELETE(req: Request) {
+  if (!isDbConfigured) return NextResponse.json({ error: "Accounts are not available." }, { status: 503 });
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+
+  let body: { currentPassword?: string } = {};
+  try {
+    body = await req.json();
+  } catch {
+    /* an empty body is fine for Google-only accounts */
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  if (!user) return NextResponse.json({ error: "Account not found." }, { status: 404 });
+
+  if (user.passwordHash) {
+    const currentPassword = String(body.currentPassword ?? "");
+    if (!currentPassword) return NextResponse.json({ error: "Enter your current password." }, { status: 400 });
+    const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!ok) return NextResponse.json({ error: "Current password is incorrect." }, { status: 400 });
+  }
+
+  // Games/ratings/achievements are kept for the historical record (Game.whiteId/blackId
+  // are onDelete: SetNull, matching how a guest's games already have no linked account) —
+  // only this user's own account and directly-personal rows (sessions, friendships,
+  // notifications, etc, which cascade via onDelete: Cascade in the schema) are removed.
+  await prisma.user.delete({ where: { id: user.id } });
+  return NextResponse.json({ ok: true });
 }

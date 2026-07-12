@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Color } from "chess.js";
 import { BOT_TIERS, type BotTierId } from "@/lib/engine/bots";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/lib/chess/useClock";
 import { Piece } from "@/lib/pieces";
 import { IconRobot } from "@/components/ui/icons";
+import { ChessRulesModal } from "@/components/ui/ChessRulesModal";
 
 const CUSTOM_TC_STORAGE_KEY = "rr.customTimeControl.v1";
 
@@ -30,6 +31,35 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
   const [showEval, setShowEval] = useState(false);
   const [customMinutes, setCustomMinutes] = useState(10);
   const [customIncrement, setCustomIncrement] = useState(0);
+  const [showRules, setShowRules] = useState(false);
+  const [myRating, setMyRating] = useState<number | null>(null);
+
+  // Recommended-bot guidance: fetch the signed-in player's blitz rating and
+  // highlight the tier closest to it. Silently skipped when signed out.
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d?.user?.ratingBlitz === "number") setMyRating(d.user.ratingBlitz);
+      })
+      .catch(() => {
+        /* ignore — no recommendation shown */
+      });
+  }, []);
+
+  const recommendedTierId = useMemo(() => {
+    if (myRating == null) return null;
+    let closest: BotTierId = BOT_TIERS[0].id;
+    let bestDiff = Infinity;
+    for (const t of BOT_TIERS) {
+      const diff = Math.abs(t.elo - myRating);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        closest = t.id;
+      }
+    }
+    return closest;
+  }, [myRating]);
 
   // Remember the last-used custom time control across visits.
   useEffect(() => {
@@ -74,10 +104,18 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elev-2)] text-[var(--accent)]">
           <IconRobot width={22} height={22} />
         </span>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold leading-tight">Play a bot</h1>
           <p className="text-sm text-[var(--text-muted)]">Powered by Stockfish, tuned per level</p>
         </div>
+        <button
+          onClick={() => setShowRules(true)}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--border)] text-xs font-bold text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          aria-label="How to play chess"
+          title="How to play chess"
+        >
+          ?
+        </button>
       </div>
 
       <section className="panel p-4">
@@ -85,16 +123,26 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {BOT_TIERS.map((t) => {
             const active = tierId === t.id;
+            const recommended = recommendedTierId === t.id;
             return (
               <button
                 key={t.id}
                 onClick={() => setTierId(t.id)}
-                className="flex items-center gap-3 rounded-lg border p-3 text-left transition-colors"
+                className="relative flex items-center gap-3 rounded-lg border p-3 text-left transition-colors"
                 style={{
-                  borderColor: active ? "var(--accent)" : "var(--border)",
+                  borderColor: active ? "var(--accent)" : recommended ? "var(--accent)" : "var(--border)",
                   background: active ? "var(--bg-elev-2)" : "transparent",
+                  boxShadow: recommended && !active ? "0 0 0 1px var(--accent)" : undefined,
                 }}
               >
+                {recommended && (
+                  <span
+                    className="absolute -top-2 right-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                    style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}
+                  >
+                    Recommended
+                  </span>
+                )}
                 <span
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg font-black"
                   style={{ background: `${t.accent}22`, color: t.accent }}
@@ -231,6 +279,8 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
       <button className="btn btn-primary mt-5 w-full !py-3 text-base" onClick={start}>
         Start game
       </button>
+
+      {showRules && <ChessRulesModal onClose={() => setShowRules(false)} />}
     </div>
   );
 }

@@ -87,5 +87,21 @@ export async function POST(req: Request) {
     skipDuplicates: true,
   });
 
+  const rec = await prisma.user.findUnique({ where: { id: userId }, select: { username: true, notifyAchievements: true } });
+  if (rec?.notifyAchievements) {
+    await prisma.notification.createMany({
+      data: newOnes.map((id) => {
+        const def = ACHIEVEMENT_BY_ID[id];
+        return {
+          userId,
+          title: "Achievement unlocked",
+          body: `${def.icon} ${def.name} — ${def.description}`,
+          type: "ACHIEVEMENT" as const,
+          href: rec.username ? `/u/${rec.username}` : "/account",
+        };
+      }),
+    });
+  }
+
   return NextResponse.json({ achievements: newOnes });
 }

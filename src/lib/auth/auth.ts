@@ -98,6 +98,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.username = (user as { username?: string | null }).username ?? null;
         token.isModerator = (user as { isModerator?: boolean }).isModerator ?? false;
         token.isAdmin = (user as { isAdmin?: boolean }).isAdmin ?? false;
+        // Snapshot the DB's sessionVersion into the token at sign-in — "sign
+        // out of all other devices" bumps the DB value, so any token minted
+        // before that bump (on this or any other device) will mismatch below.
+        const dbUser = await prisma.user.findUnique({ where: { id: (user as { id: string }).id }, select: { sessionVersion: true } });
+        token.sessionVersion = dbUser?.sessionVersion ?? 0;
       }
       return token;
     },
@@ -108,6 +113,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.imp = Boolean(token.imp);
         session.user.isModerator = Boolean(token.isModerator);
         session.user.isAdmin = Boolean(token.isAdmin);
+
+        if (session.user.id) {
+          const dbUser = await prisma.user.findUnique({ where: { id: session.user.id }, select: { sessionVersion: true } });
+          const currentVersion = dbUser?.sessionVersion ?? 0;
+          if (dbUser && currentVersion !== (token.sessionVersion as number | undefined)) {
+            // Stale token — this device was signed out remotely via "sign out of all other devices".
+            session.user.id = "";
+          }
+        }
       }
       return session;
     },

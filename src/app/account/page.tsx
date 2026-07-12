@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { redirect } from "next/navigation";
+import { ACHIEVEMENTS } from "@/lib/achievements/catalog";
 
 interface Me {
   username: string | null;
@@ -10,6 +11,11 @@ interface Me {
   notifyFriendRequests: boolean;
   notifyFriendOnline: boolean;
   showOnlineStatus: boolean;
+  notifyAchievements: boolean;
+  notifyGameResults: boolean;
+  bio: string | null;
+  pinnedAchievementId: string | null;
+  earnedAchievementIds: string[];
 }
 
 export default function AccountPage() {
@@ -45,8 +51,133 @@ export default function AccountPage() {
               </p>
             </div>
           )}
+          <ProfileEditForm initial={me} />
           <PreferencesForm initial={me} />
+          <DataAndSessionsForm />
+          <DangerZone requiresPassword={me.hasPassword} />
         </div>
+      )}
+    </div>
+  );
+}
+
+function DataAndSessionsForm() {
+  const [signingOut, setSigningOut] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const signOutEverywhere = async () => {
+    setErr(null);
+    setSigningOut(true);
+    try {
+      const res = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "signOutAllDevices" }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setErr(data.error ?? "Something went wrong.");
+        return;
+      }
+      await afterChange();
+    } catch {
+      setErr("Something went wrong. Please try again.");
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
+  return (
+    <div className="panel flex flex-col gap-3 p-5">
+      <h2 className="font-bold">Data &amp; sessions</h2>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm">Download my data</p>
+          <p className="text-xs text-[var(--text-muted)]">A JSON export of your profile, games, ratings, and achievements.</p>
+        </div>
+        <a href="/api/me/export" download className="btn hover-lift !py-1.5 !text-sm">
+          Download
+        </a>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm">Sign out of all other devices</p>
+          <p className="text-xs text-[var(--text-muted)]">Ends every other signed-in session, including this one.</p>
+        </div>
+        <button className="btn hover-lift !py-1.5 !text-sm" onClick={signOutEverywhere} disabled={signingOut}>
+          {signingOut ? "Signing out…" : "Sign out everywhere"}
+        </button>
+      </div>
+      {err && <p className="text-sm text-[var(--bad)]">{err}</p>}
+    </div>
+  );
+}
+
+function DangerZone({ requiresPassword }: { requiresPassword: boolean }) {
+  const [confirming, setConfirming] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const deleteAccount = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/me", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Could not delete account.");
+        return;
+      }
+      await signOut({ callbackUrl: "/" });
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="panel flex flex-col gap-3 border-[var(--bad)]/40 p-5">
+      <h2 className="font-bold text-[var(--bad)]">Delete account</h2>
+      {!confirming ? (
+        <>
+          <p className="text-sm text-[var(--text-muted)]">
+            Permanently deletes your account, profile, and settings. Your past games stay in the historical record but are no
+            longer linked to you.
+          </p>
+          <button className="btn hover-lift !py-2 !text-[var(--bad)]" onClick={() => setConfirming(true)}>
+            Delete my account
+          </button>
+        </>
+      ) : (
+        <>
+          {requiresPassword && (
+            <div>
+              <label className="label mb-1 block">Current password</label>
+              <input
+                className="input !font-sans"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            </div>
+          )}
+          {error && <p className="text-sm text-[var(--bad)]">{error}</p>}
+          <div className="flex gap-2">
+            <button className="btn hover-lift !py-2 !border-[var(--bad)] !text-[var(--bad)]" onClick={deleteAccount} disabled={loading}>
+              {loading ? "Deleting…" : "Confirm permanent deletion"}
+            </button>
+            <button className="btn hover-lift !py-2" onClick={() => setConfirming(false)} disabled={loading}>
+              Cancel
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
@@ -198,17 +329,80 @@ function PasswordForm() {
   );
 }
 
-function PreferencesForm({
-  initial,
-}: {
-  initial: Pick<Me, "notifyFriendRequests" | "notifyFriendOnline" | "showOnlineStatus">;
-}) {
+function ProfileEditForm({ initial }: { initial: Pick<Me, "bio" | "pinnedAchievementId" | "earnedAchievementIds"> }) {
+  const [bio, setBio] = useState(initial.bio ?? "");
+  const [pinnedAchievementId, setPinnedAchievementId] = useState(initial.pinnedAchievementId ?? "");
+  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const earned = ACHIEVEMENTS.filter((a) => initial.earnedAchievementIds.includes(a.id));
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaved(false);
+    setLoading(true);
+    try {
+      await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "profile", bio, pinnedAchievementId: pinnedAchievementId || null }),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={save} className="panel flex flex-col gap-3 p-5">
+      <div className="flex items-center justify-between">
+        <h2 className="font-bold">Profile</h2>
+        {saved && <span className="text-xs text-[var(--good)]">Saved</span>}
+      </div>
+      <div>
+        <label className="label mb-1 block">Bio</label>
+        <textarea
+          className="input !font-sans"
+          rows={3}
+          maxLength={280}
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          placeholder="A short line about you…"
+        />
+        <p className="mt-1 text-right text-xs text-[var(--text-faint)]">{bio.length}/280</p>
+      </div>
+      {earned.length > 0 && (
+        <div>
+          <label className="label mb-1 block">Featured achievement</label>
+          <select className="input !font-sans" value={pinnedAchievementId} onChange={(e) => setPinnedAchievementId(e.target.value)}>
+            <option value="">None</option>
+            {earned.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.icon} {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <button className="btn btn-primary !py-2" disabled={loading}>
+        {loading ? "Saving…" : "Save profile"}
+      </button>
+    </form>
+  );
+}
+
+type PrefKey = "notifyFriendRequests" | "notifyFriendOnline" | "showOnlineStatus" | "notifyAchievements" | "notifyGameResults";
+
+function PreferencesForm({ initial }: { initial: Pick<Me, PrefKey> }) {
   const [notifyFriendRequests, setNotifyFriendRequests] = useState(initial.notifyFriendRequests);
   const [notifyFriendOnline, setNotifyFriendOnline] = useState(initial.notifyFriendOnline);
   const [showOnlineStatus, setShowOnlineStatus] = useState(initial.showOnlineStatus);
+  const [notifyAchievements, setNotifyAchievements] = useState(initial.notifyAchievements);
+  const [notifyGameResults, setNotifyGameResults] = useState(initial.notifyGameResults);
   const [saved, setSaved] = useState(false);
 
-  const save = async (patch: Partial<Record<"notifyFriendRequests" | "notifyFriendOnline" | "showOnlineStatus", boolean>>) => {
+  const save = async (patch: Partial<Record<PrefKey, boolean>>) => {
     setSaved(false);
     try {
       await fetch("/api/me", {
@@ -262,6 +456,30 @@ function PreferencesForm({
           onChange={(e) => {
             setShowOnlineStatus(e.target.checked);
             save({ showOnlineStatus: e.target.checked });
+          }}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Notify me when I earn an achievement</span>
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-[var(--accent)]"
+          checked={notifyAchievements}
+          onChange={(e) => {
+            setNotifyAchievements(e.target.checked);
+            save({ notifyAchievements: e.target.checked });
+          }}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Notify me when a rated game finishes</span>
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-[var(--accent)]"
+          checked={notifyGameResults}
+          onChange={(e) => {
+            setNotifyGameResults(e.target.checked);
+            save({ notifyGameResults: e.target.checked });
           }}
         />
       </label>

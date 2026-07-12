@@ -13,7 +13,8 @@ import { OpeningExplorer } from "@/components/game/OpeningExplorer";
 import { useChessGame, type GameStatus } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
-import { playSound, primeAudio } from "@/lib/chess/sound";
+import { playSound, primeAudio, vibrateForMove } from "@/lib/chess/sound";
+import { announcePosition } from "@/lib/chess/announce";
 import { getEngine } from "@/lib/engine/stockfish";
 import { classify, toCpWhite, analyzeGame, type MoveQuality, type GameAnalysis } from "@/lib/engine/analysis";
 import { AnalysisPanel } from "@/components/bot/AnalysisPanel";
@@ -63,7 +64,7 @@ export default function LocalGamePage() {
   const savedRef = useRef(false);
 
   const [manualOrientation, setManualOrientation] = useState<Color>("w");
-  const [tab, setTab] = useState<Tab>("moves");
+  const [tab, setTab] = useState<Tab>(settings.defaultGameTab);
   const [showResult, setShowResult] = useState(true);
   const [lastQuality, setLastQuality] = useState<{ ply: number; san: string; quality: MoveQuality } | null>(null);
   const [analyzingPly, setAnalyzingPly] = useState<number | null>(null);
@@ -194,6 +195,7 @@ export default function LocalGamePage() {
         return;
       }
       clock.moved(move.color);
+      if (settings.hapticFeedback) vibrateForMove(move.san);
       if (move.san.includes("#")) {
         // handled by the game-over effect
       } else if (move.san.includes("+")) {
@@ -250,6 +252,7 @@ export default function LocalGamePage() {
     savedRef.current = false;
     setAnalysis(null);
     setAnalysisProgress(null);
+    takebacksUsedRef.current = 0;
     clock.reset();
     if (!clock.untimed) clock.start("w");
     primeAudio();
@@ -259,6 +262,18 @@ export default function LocalGamePage() {
 
   const flip = () => setManualOrientation((o) => (o === "w" ? "b" : "w"));
 
+  // Takeback cap (#209) — pass & play has no real opponent to be unfair to,
+  // so this is just a per-player Settings preference, unlike the online
+  // game's server-enforced room-level cap.
+  const TAKEBACK_CAP = 3;
+  const takebacksUsedRef = useRef(0);
+  const takebacksRemaining = settings.unlimitedTakebacks ? Infinity : TAKEBACK_CAP - takebacksUsedRef.current;
+  const undoMove = useCallback(() => {
+    if (!settings.unlimitedTakebacks && takebacksUsedRef.current >= TAKEBACK_CAP) return;
+    takebacksUsedRef.current += 1;
+    game.undo();
+  }, [game, settings.unlimitedTakebacks]);
+
   const [showShortcuts, setShowShortcuts] = useState(false);
   useKeyboardShortcuts({
     onFlip: flip,
@@ -267,6 +282,7 @@ export default function LocalGamePage() {
     onGoStart: game.goStart,
     onGoLive: game.goLive,
     onToggleHelp: () => setShowShortcuts((v) => !v),
+    onAnnouncePosition: () => announcePosition(snapshot),
   });
 
   /** Play a SAN move from the opening explorer at the current view position. */
@@ -362,9 +378,16 @@ export default function LocalGamePage() {
           <span className="text-sm font-semibold">{isWhite ? "White" : "Black"}</span>
         </div>
         <div className="flex items-center gap-2">
-          <CapturedTray pieces={captured} color={displayColor} set={settings.pieceSet} advantage={adv} />
+          {settings.showCapturedTray && (
+            <CapturedTray pieces={captured} color={displayColor} set={settings.pieceSet} advantage={adv} />
+          )}
           {!clock.untimed && (
-            <Clock ms={isWhite ? clock.whiteMs : clock.blackMs} active={clock.active === playerColor && !status.over} tickSound />
+            <Clock
+              ms={isWhite ? clock.whiteMs : clock.blackMs}
+              active={clock.active === playerColor && !status.over}
+              tickSound
+              lowTimeThresholdSec={settings.lowTimeThresholdSec}
+            />
           )}
         </div>
       </div>
@@ -444,6 +467,7 @@ export default function LocalGamePage() {
             legalMovesFrom={game.legalMovesFrom}
             onMove={onMove}
             showCoordinates={settings.showCoordinates}
+            coordinateStyle={settings.coordinateStyle}
             showLegalMoves={settings.showLegalMoves}
             highlightLastMove={settings.highlightLastMove}
             animate={settings.animate}
@@ -455,6 +479,8 @@ export default function LocalGamePage() {
             arrowColor={settings.arrowColor}
             boardFrame={settings.boardFrame}
             zoomPercent={settings.boardZoom}
+            onSwipeBack={game.stepBack}
+            onSwipeForward={game.stepForward}
           />
           <Tray playerColor={orientation} />
           <div className="panel mt-1 p-2">
@@ -464,10 +490,11 @@ export default function LocalGamePage() {
               onNext={game.stepForward}
               onLast={game.goLive}
               onFlip={flip}
-              onUndo={game.undo}
+              onUndo={undoMove}
+              onAnnouncePosition={() => announcePosition(snapshot)}
               canBack={canBack}
               canForward={canForward}
-              canUndo={snapshot.moves.length > 0}
+              canUndo={snapshot.moves.length > 0 && takebacksRemaining > 0}
             />
           </div>
         </div>

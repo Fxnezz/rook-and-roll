@@ -1,8 +1,22 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Move } from "chess.js";
 import { parseAnnotation } from "@/lib/chess/nag";
+import { IconCopy } from "@/components/ui/icons";
+
+/** Plain-text move list, e.g. "1. e4 e5 2. Nf3 Nc6 ..." — used by the copy button and shareable elsewhere. */
+export function movesToText(moves: Move[]): string {
+  const parts: string[] = [];
+  for (let i = 0; i < moves.length; i += 2) {
+    const num = i / 2 + 1;
+    const white = moves[i]?.san;
+    const black = moves[i + 1]?.san;
+    if (white) parts.push(`${num}. ${white}`);
+    if (black) parts.push(black);
+  }
+  return parts.join(" ");
+}
 
 const FIGURINE_GLYPHS: Record<string, { w: string; b: string }> = {
   N: { w: "♘", b: "♞" },
@@ -40,6 +54,16 @@ export function MoveList({
 }) {
   const activeRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
+  const copyMoves = async () => {
+    try {
+      await navigator.clipboard.writeText(movesToText(moves));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* ignore */
+    }
+  };
   useEffect(() => {
     const el = activeRef.current;
     const container = scrollRef.current;
@@ -97,17 +121,28 @@ export function MoveList({
   };
 
   return (
-    <div ref={scrollRef} className="h-full overflow-y-auto py-1">
-      {rows.map((r) => (
-        <div
-          key={r.num}
-          className="grid grid-cols-[2.2rem_1fr_1fr] items-center gap-1 px-2 odd:bg-[var(--bg-elev)]/40"
+    <div className="flex h-full flex-col">
+      <div className="flex shrink-0 items-center justify-end border-b border-[var(--border)] px-2 py-1">
+        <button
+          className="hover-lift flex items-center gap-1 rounded-md px-2 py-1 text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
+          onClick={copyMoves}
+          title="Copy the move list as plain text"
         >
-          <span className={`text-right text-[var(--text-faint)] tabular-nums ${compact ? "text-[0.65rem]" : "text-xs"}`}>{r.num}.</span>
-          <Cell move={r.white} ply={r.whitePly} />
-          <Cell move={r.black} ply={r.blackPly} />
-        </div>
-      ))}
+          <IconCopy width={12} height={12} /> {copied ? "Copied" : "Copy moves"}
+        </button>
+      </div>
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto py-1">
+        {rows.map((r) => (
+          <div
+            key={r.num}
+            className="grid grid-cols-[2.2rem_1fr_1fr] items-center gap-1 px-2 odd:bg-[var(--bg-elev)]/40"
+          >
+            <span className={`text-right text-[var(--text-faint)] tabular-nums ${compact ? "text-[0.65rem]" : "text-xs"}`}>{r.num}.</span>
+            <Cell move={r.white} ply={r.whitePly} />
+            <Cell move={r.black} ply={r.blackPly} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

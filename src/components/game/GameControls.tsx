@@ -1,6 +1,6 @@
 "use client";
 
-import { IconFirst, IconPrev, IconNext, IconLast, IconFlip, IconUndo } from "@/components/ui/icons";
+import { IconFirst, IconPrev, IconNext, IconLast, IconFlip, IconUndo, IconVolume } from "@/components/ui/icons";
 
 export function GameControls({
   onFirst,
@@ -9,6 +9,7 @@ export function GameControls({
   onLast,
   onFlip,
   onUndo,
+  onAnnouncePosition,
   canBack,
   canForward,
   canUndo,
@@ -19,15 +20,29 @@ export function GameControls({
   onLast: () => void;
   onFlip: () => void;
   onUndo?: () => void;
+  /** Reads the current position aloud (screen-reader accessibility); optional so callers without it can omit the button. */
+  onAnnouncePosition?: () => void;
   canBack: boolean;
   canForward: boolean;
   canUndo?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between gap-1">
-      <button className="btn btn-ghost" onClick={onFlip} title="Flip board" aria-label="Flip board">
-        <IconFlip />
-      </button>
+      <div className="flex items-center gap-1">
+        <button className="btn btn-ghost" onClick={onFlip} title="Flip board" aria-label="Flip board">
+          <IconFlip />
+        </button>
+        {onAnnouncePosition && (
+          <button
+            className="btn btn-ghost"
+            onClick={onAnnouncePosition}
+            title="Announce position (screen reader)"
+            aria-label="Announce position"
+          >
+            <IconVolume />
+          </button>
+        )}
+      </div>
       <div className="flex items-center gap-1">
         <button className="btn btn-ghost" onClick={onFirst} disabled={!canBack} title="First move">
           <IconFirst />

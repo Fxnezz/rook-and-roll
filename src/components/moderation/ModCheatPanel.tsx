@@ -27,7 +27,7 @@ function Btn({ children, onClick, active }: { children: React.ReactNode; onClick
   return (
     <button
       onClick={onClick}
-      className="rounded px-2 py-1.5 text-left text-xs font-semibold transition-colors"
+      className="rounded px-2 py-2.5 text-left text-xs font-semibold transition-colors sm:py-1.5"
       style={{
         background: active ? "var(--accent)" : "rgba(255,255,255,0.08)",
         color: active ? "var(--accent-contrast)" : "white",
@@ -82,12 +82,12 @@ export function ModCheatPanel(props: ModCheatPanelProps) {
       role="region"
       aria-label="God mode cheat panel"
       tabIndex={-1}
-      className="fixed bottom-4 right-20 z-[90] flex max-h-[80vh] w-80 flex-col overflow-hidden rounded-xl border border-white/15 bg-[#14171f] text-white shadow-2xl"
+      className="fixed inset-x-3 bottom-3 z-[90] flex max-h-[80vh] w-auto flex-col overflow-hidden rounded-xl border border-white/15 bg-[#14171f] text-white shadow-2xl sm:inset-x-auto sm:bottom-4 sm:right-20 sm:w-80"
       style={{ fontFamily: "var(--font-sans, sans-serif)" }}
     >
       <div className="flex items-center justify-between border-b border-white/10 bg-black/30 px-3 py-2">
         <span className="text-sm font-bold">🛠️ God Mode</span>
-        <button onClick={props.onClose} className="text-white/60 hover:text-white" aria-label="Close">
+        <button onClick={props.onClose} className="-m-1.5 rounded p-1.5 text-white/60 hover:text-white" aria-label="Close">
           ✕
         </button>
       </div>
@@ -124,12 +124,12 @@ export function ModCheatPanel(props: ModCheatPanelProps) {
               Force move
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
             <Btn onClick={() => props.onForceResult("1-0")}>White wins</Btn>
             <Btn onClick={() => props.onForceResult("1/2-1/2")}>Draw</Btn>
             <Btn onClick={() => props.onForceResult("0-1")}>Black wins</Btn>
           </div>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
             <Btn onClick={() => props.onFreeze("w", true)}>Freeze W</Btn>
             <Btn onClick={() => props.onFreeze("b", true)}>Freeze B</Btn>
             <Btn onClick={() => props.onFreeze("both", false)}>Unfreeze all</Btn>

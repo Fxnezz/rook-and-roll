@@ -56,6 +56,9 @@ export interface GameStateMsg {
   spectators: number;
   drawOfferFrom?: Color | null;
   takebackOfferFrom?: Color | null;
+  /** Server-authoritative takeback cap (#209) — same limit for both sides. */
+  takebackLimit?: number;
+  takebacksUsed?: { w: number; b: number };
   rated: boolean;
   frozen?: { w: boolean; b: boolean };
   paused?: boolean;

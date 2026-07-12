@@ -18,6 +18,7 @@ export function ShortcutsHelpModal({
     ["F", "Flip board"],
     ["← / →", "Step through move history"],
     ["Home / End", "Jump to start / latest move"],
+    ["P", "Announce position (screen reader)"],
     ...(showDraw ? ([["D", "Offer draw"], ["A", "Accept a pending draw offer"]] as [string, string][]) : []),
     ...(showChat ? ([["/", "Focus the chat input"]] as [string, string][]) : []),
     ["?", "Toggle this help"],

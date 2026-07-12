@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
@@ -42,6 +42,16 @@ export const metadata: Metadata = {
     title: "Rook & Roll — Play Chess",
     description: "Play online, battle Stockfish bots, and solve puzzles. Chess, without the clutter.",
   },
+  appleWebApp: {
+    capable: true,
+    title: "Rook & Roll",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0e1117",
+  colorScheme: "dark",
 };
 
 export default async function RootLayout({

@@ -3,11 +3,14 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { DEFAULT_THEME, type BoardThemeId } from "./themes";
 import type { PieceSetId } from "@/lib/pieces";
-import { setSoundEnabled, setSoundVolume, setSoundPack, type SoundPack } from "./sound";
+import { setSoundEnabled, setSoundVolume, setUiVolume, setSoundPack, type SoundPack } from "./sound";
 
 export type MoveInputMode = "drag" | "click" | "both";
 export type AnimationSpeed = "instant" | "fast" | "normal" | "slow";
 export type BoardFrame = "none" | "wood" | "minimal" | "shadow";
+export type CoordinateStyle = "inside" | "outside";
+export type UiTextScale = "small" | "normal" | "large";
+export type DefaultGameTab = "moves" | "analysis" | "share";
 
 export interface Settings {
   boardTheme: BoardThemeId;
@@ -56,6 +59,28 @@ export interface Settings {
   modFlaggedSound: boolean;
   /** Moderator-only: hide all in-game moderation UI (badge, shield icon, ModPanel) and act like a normal player. */
   modHideUI: boolean;
+  /** Where file/rank labels render: inside the edge squares, or in a margin outside the 8x8 grid. */
+  coordinateStyle: CoordinateStyle;
+  /** Show the captured-pieces tray above/below the board. */
+  showCapturedTray: boolean;
+  /** Volume for UI/notification sounds (chat, notify), independent of move-sound volume. */
+  uiVolume: number;
+  /** Vibrate briefly on move/capture/check (devices that support the Vibration API). */
+  hapticFeedback: boolean;
+  /** Swap body text to a dyslexia-friendly typeface. */
+  dyslexiaFont: boolean;
+  /** Scales UI text size (move list, chat, menus) independent of board zoom. */
+  uiTextScale: UiTextScale;
+  /** Which tab (Moves/Analysis/Share) opens by default on bot/online game pages. */
+  defaultGameTab: DefaultGameTab;
+  /** Automatically run engine analysis when a game ends, instead of requiring a manual "Analyze game" click. */
+  autoAnalyze: boolean;
+  /** Seconds remaining at which a clock switches to its low-time (critical) warning visual/sound. */
+  lowTimeThresholdSec: number;
+  /** Bot/Pass-and-play only: skip the (default 3-per-side) takeback cap since there's no opponent to be unfair to. Online games always enforce the server-side cap regardless of this. */
+  unlimitedTakebacks: boolean;
+  /** Briefly flash the screen edge on move/capture/check/illegal sounds — a visual pairing for deaf/hard-of-hearing players. */
+  flashOnSound: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -89,6 +114,17 @@ const DEFAULTS: Settings = {
   chatSound: true,
   modFlaggedSound: true,
   modHideUI: false,
+  coordinateStyle: "inside",
+  showCapturedTray: true,
+  uiVolume: 0.6,
+  hapticFeedback: false,
+  dyslexiaFont: false,
+  uiTextScale: "normal",
+  defaultGameTab: "moves",
+  autoAnalyze: false,
+  lowTimeThresholdSec: 10,
+  unlimitedTakebacks: false,
+  flashOnSound: false,
 };
 
 const STORAGE_KEY = "rr.settings.v1";
@@ -138,6 +174,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
     setSoundEnabled(settings.soundEnabled);
     setSoundVolume(settings.volume);
+    setUiVolume(settings.uiVolume);
     setSoundPack(settings.soundPack);
   }, [settings, ready]);
 
@@ -155,6 +192,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.colorblind = settings.colorblindMode ? "true" : "false";
     document.documentElement.style.setProperty("--anim-speed-scale", ANIM_SPEED_SCALE[settings.animationSpeed].toString());
   }, [settings.highContrast, settings.colorblindMode, settings.animationSpeed]);
+
+  // Dyslexia-friendly font + UI text scale — same data-attribute pattern.
+  useEffect(() => {
+    document.documentElement.dataset.dyslexiaFont = settings.dyslexiaFont ? "true" : "false";
+    document.documentElement.dataset.textScale = settings.uiTextScale;
+  }, [settings.dyslexiaFont, settings.uiTextScale]);
 
   const update = useCallback((patch: Partial<Settings>) => {
     setSettings((s) => ({ ...s, ...patch }));

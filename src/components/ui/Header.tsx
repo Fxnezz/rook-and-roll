@@ -9,6 +9,7 @@ import { IconSettings, IconChess, IconRobot, IconUsers, IconGrid, IconPuzzle, Ic
 import { SlideOver } from "./SlideOver";
 import { UserMenu } from "./UserMenu";
 import { NotificationBell } from "./NotificationBell";
+import { ActiveGameIndicator } from "./ActiveGameIndicator";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 
 const NAV = [
@@ -99,6 +100,7 @@ export function Header() {
               <IconShield width={16} height={16} />
             </Link>
           )}
+          <ActiveGameIndicator />
           <NotificationBell />
           <button
             className="group btn btn-ghost !p-2"

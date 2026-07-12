@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Piece } from "@/lib/pieces";
 import { IconUsers, IconRobot } from "@/components/ui/icons";
+import { HowToPlayChessLink } from "@/components/home/HowToPlayChessLink";
 
 const FEATURES = [
   { title: "Play online", body: "Get matched with a live opponent, with clocks, chat, and rated ladders." },
@@ -61,6 +62,7 @@ export default function Home() {
             <Link href="/play/bot" className="btn text-base !px-5 !py-3">
               <IconRobot width={18} height={18} /> Play a bot
             </Link>
+            <HowToPlayChessLink />
           </div>
         </div>
         <div className="flex justify-center md:justify-end">

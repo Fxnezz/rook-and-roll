@@ -24,10 +24,14 @@ export type SoundName =
 
 export type SoundPack = "classic" | "retro" | "soft" | "wood";
 
+/** Sounds that count as "UI/notification" for the independent UI-volume slider — everything else is a "move" sound. */
+const UI_SOUNDS: ReadonlySet<SoundName> = new Set(["notify", "chatMessage", "flagged"]);
+
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let enabled = true;
-let volume = 0.6;
+let moveVolume = 0.6;
+let uiVolume = 0.6;
 let activePack: SoundPack = "classic";
 
 function ac(): AudioContext | null {
@@ -37,7 +41,7 @@ function ac(): AudioContext | null {
     if (!AC) return null;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = volume;
+    master.gain.value = moveVolume;
     master.connect(ctx.destination);
   }
   if (ctx.state === "suspended") void ctx.resume();
@@ -266,10 +270,18 @@ const PACKS: Record<SoundPack, Record<SoundName, () => void>> = {
   wood: WOOD_RECIPES,
 };
 
+/** Sounds a screen-flash accessibility pairing is worth showing for — the "something just happened on the board" set. */
+const FLASH_SOUNDS: ReadonlySet<SoundName> = new Set(["move", "capture", "check", "castle", "promote", "illegal", "gameEnd"]);
+
 export function playSound(name: SoundName) {
   if (!enabled) return;
   try {
+    ac(); // ensure master exists before we touch its gain
+    if (master) master.gain.value = UI_SOUNDS.has(name) ? uiVolume : moveVolume;
     PACKS[activePack][name]?.();
+    if (FLASH_SOUNDS.has(name) && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("rr:sound-flash", { detail: name }));
+    }
   } catch {
     /* audio best-effort */
   }
@@ -283,12 +295,30 @@ export function setSoundEnabled(v: boolean) {
   enabled = v;
 }
 
+/** Volume for move/game sounds (move, capture, check, clock, etc). */
 export function setSoundVolume(v: number) {
-  volume = Math.max(0, Math.min(1, v));
-  if (master) master.gain.value = volume;
+  moveVolume = Math.max(0, Math.min(1, v));
+}
+
+/** Volume for UI/notification sounds (chat, notify), independent of move-sound volume. */
+export function setUiVolume(v: number) {
+  uiVolume = Math.max(0, Math.min(1, v));
 }
 
 /** Call from a click handler once to unlock audio on iOS/Safari. */
 export function primeAudio() {
   ac();
+}
+
+/** Brief vibration for a move/capture/check, on devices that support the Vibration API. Best-effort, silently no-ops otherwise. */
+export function vibrateForMove(san: string) {
+  if (typeof navigator === "undefined" || !navigator.vibrate) return;
+  try {
+    if (san.includes("#")) navigator.vibrate([30, 40, 30, 40, 60]);
+    else if (san.includes("+")) navigator.vibrate([20, 30, 20]);
+    else if (san.includes("x") || san.includes("=")) navigator.vibrate(25);
+    else navigator.vibrate(10);
+  } catch {
+    /* best-effort */
+  }
 }

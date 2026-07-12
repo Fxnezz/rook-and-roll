@@ -585,6 +585,10 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
     if (!room || !userId || room.status) return;
     const color = room.playerColor(userId);
     if (!color) return;
+    if (room.takebacksRemaining(color) <= 0) {
+      socket.emit("error:msg", { message: `No takebacks remaining (limit ${room.takebackLimit} per game).` });
+      return;
+    }
     room.takebackOfferFrom = color;
     socket.to(roomId).emit("takeback:offered", { from: color });
   });

@@ -57,7 +57,13 @@ export async function POST(req: Request) {
       });
       if (target.notifyFriendRequests) {
         await prisma.notification.create({
-          data: { userId: target.id, title: "New friend request", body: `${session.user.username ?? "Someone"} wants to be friends.` },
+          data: {
+            userId: target.id,
+            title: "New friend request",
+            body: `${session.user.username ?? "Someone"} wants to be friends.`,
+            type: "FRIEND_REQUEST",
+            href: "/friends",
+          },
         });
       }
       return NextResponse.json({ ok: true, friendship }, { status: 201 });
@@ -67,7 +73,13 @@ export async function POST(req: Request) {
       const accepted = await prisma.friendship.update({ where: { id: existing.id }, data: { status: "ACCEPTED" } });
       if (target.notifyFriendRequests) {
         await prisma.notification.create({
-          data: { userId: target.id, title: "Friend request accepted", body: `${session.user.username ?? "Someone"} accepted your friend request.` },
+          data: {
+            userId: target.id,
+            title: "Friend request accepted",
+            body: `${session.user.username ?? "Someone"} accepted your friend request.`,
+            type: "FRIEND_ACCEPTED",
+            href: session.user.username ? `/u/${session.user.username}` : "/friends",
+          },
         });
       }
       return NextResponse.json({ ok: true, friendship: accepted });
@@ -80,7 +92,13 @@ export async function POST(req: Request) {
   });
   if (target.notifyFriendRequests) {
     await prisma.notification.create({
-      data: { userId: target.id, title: "New friend request", body: `${session.user.username ?? "Someone"} wants to be friends.` },
+      data: {
+        userId: target.id,
+        title: "New friend request",
+        body: `${session.user.username ?? "Someone"} wants to be friends.`,
+        type: "FRIEND_REQUEST",
+        href: "/friends",
+      },
     });
   }
 

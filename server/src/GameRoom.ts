@@ -45,6 +45,13 @@ export class GameRoom {
   status: GameOverMsg | null = null;
   drawOfferFrom: Color | null = null;
   takebackOfferFrom: Color | null = null;
+  /**
+   * Server-authoritative takeback cap (#209) — 3 per side per game. A client
+   * Settings toggle can't fairly enforce this against a real opponent, so
+   * it's tracked here instead and checked before a new offer is allowed.
+   */
+  readonly takebackLimit = 3;
+  takebacksUsed: { w: number; b: number } = { w: 0, b: 0 };
   spectators = new Set<string>();
   /** socketId -> identity, for admin visibility into who's watching */
   spectatorIdentities = new Map<string, { userId: string; username: string }>();
@@ -247,6 +254,11 @@ export class GameRoom {
     this.finish("1/2-1/2", null, "Draw by agreement");
   }
 
+  /** Whether `color` still has takebacks left to offer under the per-game cap. */
+  takebacksRemaining(color: Color): number {
+    return Math.max(0, this.takebackLimit - this.takebacksUsed[color]);
+  }
+
   /**
    * Undo back to the requester's last decision point: if it's currently
    * their turn (the opponent just replied), pop both plies so they're back
@@ -255,12 +267,14 @@ export class GameRoom {
    */
   takeback(requester: Color): boolean {
     if (this.status) return false;
+    if (this.takebacksRemaining(requester) <= 0) return false;
     const plies = this.chess.turn() === requester ? 2 : 1;
     if (this.chess.history().length < plies) return false;
     for (let i = 0; i < plies; i++) this.chess.undo();
     this.moveTimesMs.splice(-plies, plies);
     this.drawOfferFrom = null;
     this.takebackOfferFrom = null;
+    this.takebacksUsed[requester] += 1;
     if (!this.untimed && this.started) {
       this.activeColor = this.chess.turn();
       this.lastTickTs = Date.now();
@@ -471,6 +485,8 @@ export class GameRoom {
       spectators: this.spectators.size,
       drawOfferFrom: this.drawOfferFrom,
       takebackOfferFrom: this.takebackOfferFrom,
+      takebackLimit: this.takebackLimit,
+      takebacksUsed: { ...this.takebacksUsed },
       rated: this.rated,
       frozen: { ...this.frozen },
       paused: this.paused,

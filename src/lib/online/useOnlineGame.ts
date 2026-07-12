@@ -35,6 +35,9 @@ export interface OnlineState {
   status: GameOverMsg | null;
   drawOfferFrom: Color | null;
   takebackOfferFrom: Color | null;
+  /** Server-authoritative takeback cap (#209) — same limit for both sides, tracked per color. */
+  takebackLimit: number;
+  takebacksUsed: { w: number; b: number };
   rematchOfferFrom: Color | null;
   opponentConnected: boolean;
   chat: ChatMsg[];
@@ -66,6 +69,8 @@ const INITIAL: OnlineState = {
   status: null,
   drawOfferFrom: null,
   takebackOfferFrom: null,
+  takebackLimit: 3,
+  takebacksUsed: { w: 0, b: 0 },
   rematchOfferFrom: null,
   opponentConnected: true,
   chat: [],
@@ -127,6 +132,8 @@ export function useOnlineGame(identity: Identity) {
         status: gs.status,
         drawOfferFrom: gs.drawOfferFrom ?? null,
         takebackOfferFrom: gs.takebackOfferFrom ?? null,
+        takebackLimit: gs.takebackLimit ?? s.takebackLimit,
+        takebacksUsed: gs.takebacksUsed ?? s.takebacksUsed,
         rated: gs.rated,
         clock: gs.clock,
         stateSeq: s.stateSeq + 1,

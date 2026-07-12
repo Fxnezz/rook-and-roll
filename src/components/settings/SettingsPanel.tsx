@@ -1,11 +1,19 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useSettings, type AnimationSpeed, type BoardFrame, type MoveInputMode } from "@/lib/chess/useSettings";
+import {
+  useSettings,
+  type AnimationSpeed,
+  type BoardFrame,
+  type MoveInputMode,
+  type CoordinateStyle,
+  type UiTextScale,
+  type DefaultGameTab,
+} from "@/lib/chess/useSettings";
 import { playSound, setSoundPack, type SoundName, type SoundPack } from "@/lib/chess/sound";
 import { BOARD_THEMES } from "@/lib/chess/themes";
 import { PIECE_SETS, Piece } from "@/lib/pieces";
-import { IconPalette, IconVolume, IconVolumeOff, IconSparkles, IconMotion, IconRefresh, IconCheck, IconShield } from "../ui/icons";
+import { IconPalette, IconVolume, IconVolumeOff, IconSparkles, IconMotion, IconRefresh, IconCheck, IconShield, IconDownload } from "../ui/icons";
 
 const SOUND_PACKS: { id: SoundPack; label: string }[] = [
   { id: "classic", label: "Classic" },
@@ -51,6 +59,23 @@ const MOVE_INPUT_MODES: { id: MoveInputMode; label: string }[] = [
 ];
 
 const ARROW_SWATCHES = ["#f2b544", "#e5604d", "#5aa8e0", "#5bbf7a", "#c98bd8"];
+
+const COORDINATE_STYLES: { id: CoordinateStyle; label: string }[] = [
+  { id: "inside", label: "Inside" },
+  { id: "outside", label: "Outside" },
+];
+
+const UI_TEXT_SCALES: { id: UiTextScale; label: string }[] = [
+  { id: "small", label: "Small" },
+  { id: "normal", label: "Normal" },
+  { id: "large", label: "Large" },
+];
+
+const DEFAULT_GAME_TABS: { id: DefaultGameTab; label: string }[] = [
+  { id: "moves", label: "Moves" },
+  { id: "analysis", label: "Analysis" },
+  { id: "share", label: "Share" },
+];
 
 function Segmented<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
@@ -145,6 +170,32 @@ function Section({ icon, title, i, children }: { icon: ReactNode; title: string;
 export function SettingsPanel({ canModerate = false }: { canModerate?: boolean } = {}) {
   const { settings, update, reset } = useSettings();
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [importErr, setImportErr] = useState<string | null>(null);
+
+  const exportSettings = () => {
+    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "rook-and-roll-settings.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importSettings = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImportErr(null);
+    file
+      .text()
+      .then((text) => {
+        const parsed = JSON.parse(text);
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("bad");
+        update(parsed);
+      })
+      .catch(() => setImportErr("That file isn't a valid settings export."));
+  };
 
   const handleReset = () => {
     if (!confirmingReset) {
@@ -235,6 +286,9 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
         <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Board frame</span>
         <Segmented options={BOARD_FRAMES} value={settings.boardFrame} onChange={(v) => update({ boardFrame: v })} />
 
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Coordinate placement</span>
+        <Segmented options={COORDINATE_STYLES} value={settings.coordinateStyle} onChange={(v) => update({ coordinateStyle: v })} />
+
         <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Arrow color</span>
         <div className="flex items-center gap-2">
           {ARROW_SWATCHES.map((c) => (
@@ -295,8 +349,9 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
         <Toggle label="Sound effects" checked={settings.soundEnabled} onChange={(v) => update({ soundEnabled: v })} />
         <div
           className="overflow-hidden transition-all duration-200"
-          style={{ maxHeight: settings.soundEnabled ? 40 : 0, opacity: settings.soundEnabled ? 1 : 0 }}
+          style={{ maxHeight: settings.soundEnabled ? 90 : 0, opacity: settings.soundEnabled ? 1 : 0 }}
         >
+          <span className="mb-1 mt-2 block text-xs text-[var(--text-faint)]">Move volume</span>
           <input
             type="range"
             min={0}
@@ -304,6 +359,16 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
             step={0.05}
             value={settings.volume}
             onChange={(e) => update({ volume: Number(e.target.value) })}
+            className="w-full accent-[var(--accent)]"
+          />
+          <span className="mb-1 mt-2 block text-xs text-[var(--text-faint)]">UI / chat volume</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={settings.uiVolume}
+            onChange={(e) => update({ uiVolume: Number(e.target.value) })}
             className="w-full accent-[var(--accent)]"
           />
         </div>
@@ -383,12 +448,53 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
           checked={settings.compactMoveList}
           onChange={(v) => update({ compactMoveList: v })}
         />
+        <Toggle
+          label="Captured pieces tray"
+          description="Show the pieces each side has captured"
+          checked={settings.showCapturedTray}
+          onChange={(v) => update({ showCapturedTray: v })}
+        />
+        <Toggle
+          label="Haptic feedback"
+          description="Brief vibration on move/capture/check (supported devices only)"
+          checked={settings.hapticFeedback}
+          onChange={(v) => update({ hapticFeedback: v })}
+        />
+        <Toggle
+          label="Request analysis automatically"
+          description="Automatically analyze the game when it ends, instead of requiring a manual click"
+          checked={settings.autoAnalyze}
+          onChange={(v) => update({ autoAnalyze: v })}
+        />
+        <Toggle
+          label="Unlimited takebacks (bot / pass & play)"
+          description="Skip the takeback cap in games with no real opponent to be unfair to. Online games always enforce the server-side limit."
+          checked={settings.unlimitedTakebacks}
+          onChange={(v) => update({ unlimitedTakebacks: v })}
+        />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Low-time warning threshold</span>
+        <Slider
+          value={settings.lowTimeThresholdSec}
+          min={5}
+          max={60}
+          step={1}
+          suffix="s"
+          onChange={(v) => update({ lowTimeThresholdSec: v })}
+        />
 
         <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Move input</span>
         <Segmented
           options={MOVE_INPUT_MODES}
           value={settings.moveInputMode}
           onChange={(v) => update({ moveInputMode: v })}
+        />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Default tab on game pages</span>
+        <Segmented
+          options={DEFAULT_GAME_TABS}
+          value={settings.defaultGameTab}
+          onChange={(v) => update({ defaultGameTab: v })}
         />
       </Section>
 
@@ -425,6 +531,22 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
           checked={settings.figurineNotation}
           onChange={(v) => update({ figurineNotation: v })}
         />
+        <Toggle
+          label="Dyslexia-friendly font"
+          description="Swap body text to a more accessible typeface"
+          checked={settings.dyslexiaFont}
+          onChange={(v) => update({ dyslexiaFont: v })}
+        />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">UI text size</span>
+        <Segmented options={UI_TEXT_SCALES} value={settings.uiTextScale} onChange={(v) => update({ uiTextScale: v })} />
+
+        <Toggle
+          label="Flash on sound"
+          description="Briefly flash the screen edge on move/capture/check — a visual pairing for sound cues"
+          checked={settings.flashOnSound}
+          onChange={(v) => update({ flashOnSound: v })}
+        />
       </Section>
 
       {canModerate && (
@@ -446,6 +568,21 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
           </Section>
         </>
       )}
+
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <button className="btn hover-lift flex-1 !justify-start gap-2 !text-sm" onClick={exportSettings}>
+            <IconDownload width={15} height={15} />
+            Export settings
+          </button>
+          <label className="btn hover-lift flex-1 !justify-start gap-2 !text-sm cursor-pointer">
+            <IconDownload width={15} height={15} style={{ transform: "rotate(180deg)" }} />
+            Import settings
+            <input type="file" accept="application/json" className="hidden" onChange={importSettings} />
+          </label>
+        </div>
+        {importErr && <p className="text-xs text-[var(--bad)]">{importErr}</p>}
+      </div>
 
       <button
         className={`btn hover-lift !justify-start gap-2 !text-sm ${confirmingReset ? "!border-[var(--bad)] !text-[var(--bad)]" : ""}`}

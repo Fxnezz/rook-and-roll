@@ -7,58 +7,15 @@ import { ReportButton } from "@/components/profile/ReportButton";
 import { FriendButton } from "@/components/profile/FriendButton";
 import { DbNotice } from "@/components/ui/DbNotice";
 import { auth } from "@/lib/auth/auth";
-import { ACHIEVEMENTS } from "@/lib/achievements/catalog";
+import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
 import { fetchUserRank } from "@/lib/leaderboard/query";
 import { ModStatsCard } from "@/components/profile/ModStatsCard";
 import { computeHeadToHead } from "@/lib/db/headToHead";
-
-const HIGHER_IS_BETTER_GAMES = [
-  "snake",
-  "tetris",
-  "2048",
-  "simon",
-  "breakout",
-  "whackamole",
-  "blackjack",
-  "yahtzee",
-  "hangman",
-  "flappyrook",
-  "videopoker",
-  "pong",
-  "spaceinvaders",
-  "blockpuzzle",
-  "match3",
-  "asteroids",
-  "frogger",
-  "roulette",
-  "baccarat",
-  "craps",
-  "slots",
-  "rps",
-  "farkle",
-];
-const LOWER_IS_BETTER_GAMES = [
-  "racing",
-  "platformer",
-  "minesweeper",
-  "memorymatch",
-  "15puzzle",
-  "sudoku",
-  "solitaire",
-  "freecell",
-  "klotski",
-  "pegsolitaire",
-  "lightsout",
-  "hanoi",
-  "mastermind",
-  "battleship",
-  "war",
-  "pyramidsolitaire",
-  "sokoban",
-  "floodit",
-  "spidersolitaire",
-  "wordsearch",
-];
+import { computeProfileExtras } from "@/lib/db/profileStats";
+import { ProfileBreakdowns } from "@/components/profile/ProfileBreakdowns";
+import { RecentGamesList } from "@/components/profile/RecentGamesList";
+import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
+import { HIGHER_IS_BETTER_GAMES, LOWER_IS_BETTER_GAMES } from "@/lib/games/scoreDirection";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +37,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       ratingRapid: true,
       ratingClassical: true,
       puzzleRating: true,
+      bio: true,
+      pinnedAchievementId: true,
     },
   });
   if (!user) notFound();
@@ -112,7 +71,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
 
   const orFilter = [{ whiteId: user.id }, { blackId: user.id }];
   const viewerId = session?.user?.id;
-  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats, earnedAchievements, streakGames, myRank, headToHead] = await Promise.all([
+  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats, earnedAchievements, streakGames, myRank, headToHead, profileExtras] = await Promise.all([
     prisma.game.count({
       where: {
         OR: [
@@ -160,6 +119,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     }),
     isOwnProfile ? fetchUserRank({ field: "ratingBlitz", period: "all", userId: user.id }) : Promise.resolve(null),
     viewerId && !isOwnProfile ? computeHeadToHead(viewerId, user.id) : Promise.resolve(null),
+    computeProfileExtras(user.id),
   ]);
 
   let currentStreak = 0;
@@ -194,11 +154,24 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           {initial}
         </span>
         <div>
-          <h1 className="text-2xl font-bold">{user.username}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">{user.username}</h1>
+            {user.pinnedAchievementId &&
+              earnedAchievements.some((a) => a.achievementId === user.pinnedAchievementId) &&
+              ACHIEVEMENT_BY_ID[user.pinnedAchievementId] && (
+                <span
+                  className="chip !px-2 !py-0.5 text-xs"
+                  title={ACHIEVEMENT_BY_ID[user.pinnedAchievementId].description}
+                >
+                  {ACHIEVEMENT_BY_ID[user.pinnedAchievementId].icon} {ACHIEVEMENT_BY_ID[user.pinnedAchievementId].name}
+                </span>
+              )}
+          </div>
           <p className="text-sm text-[var(--text-muted)]">
             Joined{" "}
             {user.createdAt.toLocaleDateString(undefined, { year: "numeric", month: "long" })}
           </p>
+          {user.bio && <p className="mt-1 max-w-md text-sm text-[var(--text)]">{user.bio}</p>}
         </div>
         <div className="ml-auto flex flex-col items-end gap-2">
           {isOwnProfile && myRank && (
@@ -219,7 +192,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       </div>
 
       {headToHead && headToHead.wins + headToHead.losses + headToHead.draws > 0 && (
-        <div className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elev)] px-3 py-2 text-sm">
+        <div id="head-to-head" className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elev)] px-3 py-2 text-sm">
           <span className="text-[var(--text-muted)]">Your record vs {user.username}:</span>
           <span className="font-semibold">
             <span style={{ color: "var(--good)" }}>{headToHead.wins}W</span>{" "}
@@ -265,6 +238,20 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       />
 
       <UnifiedGameStats gameRatings={gameRatings} highScores={highScores} wordStats={wordStats} />
+
+      {total > 0 && (
+        <>
+          <ProfileBreakdowns
+            colorStats={profileExtras.colorStats}
+            categoryStats={profileExtras.categoryStats}
+            terminationStats={profileExtras.terminationStats}
+            longestGame={profileExtras.longestGame}
+            fastestCheckmate={profileExtras.fastestCheckmate}
+          />
+          <RecentGamesList games={profileExtras.recentGames} username={user.username ?? ""} />
+          <ActivityHeatmap days={profileExtras.activityHeatmap} />
+        </>
+      )}
 
       <ModStatsCard username={user.username ?? ""} />
 

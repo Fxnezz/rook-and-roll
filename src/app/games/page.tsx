@@ -4,6 +4,8 @@ import { prisma, isDbConfigured } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth/auth";
 import { DbNotice } from "@/components/ui/DbNotice";
 import { fetchGameHistory, type CategoryFilter, type ResultFilter } from "@/lib/games/history";
+import { GameFavoriteStar } from "@/components/game/GameFavoriteStar";
+import { IconDownload, IconStar } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Game history" };
@@ -43,13 +45,14 @@ function buildHref(base: Record<string, string | undefined>, overrides: Record<s
 export default async function GamesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ user?: string; result?: string; category?: string; cursor?: string }>;
+  searchParams: Promise<{ user?: string; result?: string; category?: string; cursor?: string; favorites?: string }>;
 }) {
   if (!isDbConfigured) return <DbNotice />;
   const sp = await searchParams;
 
   const result = (RESULT_FILTERS.some((r) => r.id === sp.result) ? sp.result : "all") as ResultFilter;
   const category = (CATEGORY_FILTERS.some((c) => c.id === sp.category) ? sp.category : "all") as CategoryFilter;
+  const favoritesOnly = sp.favorites === "true";
 
   let profileUser: { id: string; username: string } | null = null;
   if (sp.user) {
@@ -70,14 +73,23 @@ export default async function GamesPage({
     limit: 20,
     result,
     category,
+    favoritesOnly,
   });
 
-  const baseParams = { user: sp.user, result: sp.result, category: sp.category };
+  const baseParams = { user: sp.user, result: sp.result, category: sp.category, favorites: sp.favorites };
   const isOwn = !sp.user;
+  const downloadHref = `/api/users/${profileUser.username}/games?format=pgn&result=${result}&category=${category}${favoritesOnly ? "&favorites=true" : ""}`;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="mb-1 text-2xl font-bold">{isOwn ? "My games" : `${profileUser.username}'s games`}</h1>
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">{isOwn ? "My games" : `${profileUser.username}'s games`}</h1>
+        {games.length > 0 && (
+          <a href={downloadHref} className="btn hover-lift !py-1.5 text-xs" download>
+            <IconDownload width={14} height={14} /> Download all as PGN
+          </a>
+        )}
+      </div>
       <Link href={`/u/${profileUser.username}`} className="mb-5 inline-block text-sm text-[var(--text-muted)] hover:text-[var(--text)]">
         ← Back to profile
       </Link>
@@ -115,6 +127,19 @@ export default async function GamesPage({
             </Link>
           ))}
         </div>
+        {isOwn && (
+          <Link
+            href={buildHref(baseParams, { favorites: favoritesOnly ? undefined : "true", cursor: undefined })}
+            className="hover-lift flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors"
+            style={{
+              borderColor: favoritesOnly ? "var(--accent)" : "var(--border)",
+              background: favoritesOnly ? "var(--bg-elev-2)" : "transparent",
+              color: favoritesOnly ? "var(--accent)" : "var(--text-muted)",
+            }}
+          >
+            <IconStar width={12} height={12} fill={favoritesOnly ? "currentColor" : "none"} /> Favorites only
+          </Link>
+        )}
       </div>
 
       {games.length === 0 ? (
@@ -139,34 +164,36 @@ export default async function GamesPage({
             const badge = RESULT_BADGE[outcome];
             const opponent = isWhite ? g.blackName : g.whiteName;
             return (
-              <Link
-                key={g.id}
-                href={`/games/${g.id}`}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--bg-elev)]"
-              >
-                <span
-                  className="w-12 shrink-0 rounded px-2 py-1 text-center text-xs font-bold"
-                  style={{ color: badge.color, background: `${badge.color}18` }}
+              <div key={g.id} className="flex items-center gap-1 pr-2">
+                {isOwn && <GameFavoriteStar gameId={g.id} initialFavorited={g.favorited} />}
+                <Link
+                  href={`/games/${g.id}`}
+                  className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--bg-elev)]"
                 >
-                  {badge.label}
-                </span>
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--bg-elev-2)] text-[10px] font-bold">
-                  {isWhite ? "♔" : "♚"}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold">vs {opponent}</span>
-                  <span className="block truncate text-xs text-[var(--text-faint)]">
-                    {g.termination} · {g.ply} moves
+                  <span
+                    className="w-12 shrink-0 rounded px-2 py-1 text-center text-xs font-bold"
+                    style={{ color: badge.color, background: `${badge.color}18` }}
+                  >
+                    {badge.label}
                   </span>
-                </span>
-                <span className="hidden text-right text-xs text-[var(--text-muted)] sm:block">
-                  <span className="block capitalize">
-                    {g.category} {g.timeControl !== "untimed" && `· ${g.timeControl}`}
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--bg-elev-2)] text-[10px] font-bold">
+                    {isWhite ? "♔" : "♚"}
                   </span>
-                  <span className="block">{g.createdAt.toLocaleDateString()}</span>
-                </span>
-                {g.rated && <span className="chip !px-1.5 !py-0.5 text-[10px]">Rated</span>}
-              </Link>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">vs {opponent}</span>
+                    <span className="block truncate text-xs text-[var(--text-faint)]">
+                      {g.termination} · {g.ply} moves
+                    </span>
+                  </span>
+                  <span className="hidden text-right text-xs text-[var(--text-muted)] sm:block">
+                    <span className="block capitalize">
+                      {g.category} {g.timeControl !== "untimed" && `· ${g.timeControl}`}
+                    </span>
+                    <span className="block">{g.createdAt.toLocaleDateString()}</span>
+                  </span>
+                  {g.rated && <span className="chip !px-1.5 !py-0.5 text-[10px]">Rated</span>}
+                </Link>
+              </div>
             );
           })}
         </div>

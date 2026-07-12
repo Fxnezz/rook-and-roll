@@ -24,7 +24,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   try {
     await prisma.notification.create({
-      data: { userId: id, title, body: bodyText, fromAdmin: true },
+      data: { userId: id, title, body: bodyText, fromAdmin: true, type: "ADMIN" },
     });
     await audit({ action: "user_notify", targetType: "user", targetId: id, ip: clientIp(req), detail: { title } });
     return NextResponse.json({ ok: true });
