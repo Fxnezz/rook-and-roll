@@ -463,3 +463,22 @@ body {
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
+
+/* Player-controlled QOL density and focus modes. */
+.qol-density-surface {
+  gap: var(--qol-space, 1.25rem);
+}
+[data-qol-density="compact"] .qol-density-surface {
+  --qol-space: 0.75rem;
+}
+[data-qol-density="spacious"] .qol-density-surface {
+  --qol-space: 1.5rem;
+}
+[data-focus-mode="true"] .qol-focus-dim {
+  opacity: 0.34;
+  transition: opacity 180ms var(--ease-out);
+}
+[data-focus-mode="true"] .qol-focus-dim:hover,
+[data-focus-mode="true"] .qol-focus-dim:focus-within {
+  opacity: 1;
+}

@@ -8,6 +8,8 @@ import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 import { InstallPrompt } from "@/components/ui/InstallPrompt";
 import { SoundFlashOverlay } from "@/components/ui/SoundFlashOverlay";
 import { useWeeklyRecap } from "@/lib/hooks/useWeeklyRecap";
+import { QolProvider } from "@/lib/qol/useQol";
+import { QolGlobalLayer } from "@/components/qol/QolGlobalLayer";
 
 function WeeklyRecapTrigger() {
   useWeeklyRecap();
@@ -18,12 +20,15 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <SessionProvider>
       <SettingsProvider>
-        <ImpersonationBanner />
-        {children}
-        <AdminGate />
-        <InstallPrompt />
-        <SoundFlashOverlay />
-        <WeeklyRecapTrigger />
+        <QolProvider>
+          <ImpersonationBanner />
+          {children}
+          <AdminGate />
+          <InstallPrompt />
+          <SoundFlashOverlay />
+          <WeeklyRecapTrigger />
+          <QolGlobalLayer />
+        </QolProvider>
       </SettingsProvider>
     </SessionProvider>
   );

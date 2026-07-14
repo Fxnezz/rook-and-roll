@@ -22,6 +22,7 @@ import { SlideOver } from "./SlideOver";
 import { UserMenu } from "./UserMenu";
 import { NotificationBell } from "./NotificationBell";
 import { ActiveGameIndicator } from "./ActiveGameIndicator";
+import { useQol } from "@/lib/qol/useQol";
 
 const SettingsPanel = dynamic(
   () => import("@/components/settings/SettingsPanel").then((mod) => mod.SettingsPanel),
@@ -74,12 +75,23 @@ function HamburgerIcon({ open }: { open: boolean }) {
   );
 }
 
+function SearchIcon() {
+  return (
+    <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4-4" />
+    </svg>
+  );
+}
+
 export function Header() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { state: qol, online, openPalette, openCenter } = useQol();
+  const visibleNav = NAV.filter((item) => !qol.hiddenNav.includes(item.href));
 
   const openSettings = () => {
     setSettingsLoaded(true);
@@ -88,13 +100,23 @@ export function Header() {
 
   return (
     <>
-      <aside aria-label="Site navigation" className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-[var(--border)] bg-[var(--bg)]/95 px-3 pb-3 pt-4 shadow-[var(--shadow-sm)] backdrop-blur md:flex">
+      <aside aria-label="Site navigation" className="qol-focus-dim fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-[var(--border)] bg-[var(--bg)]/95 px-3 pb-3 pt-4 shadow-[var(--shadow-sm)] backdrop-blur md:flex">
         <Link href="/" className="group mb-5 flex px-2 transition-transform duration-200 hover:translate-x-0.5">
           <Wordmark />
         </Link>
 
-        <nav aria-label="Primary navigation" className="flex flex-col gap-1">
-          {NAV.map((item) => {
+        <button
+          type="button"
+          onClick={openPalette}
+          className="mb-3 flex w-full items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel)] px-3 py-2.5 text-left text-xs font-bold text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text)]"
+        >
+          <SearchIcon />
+          <span className="flex-1">Find anything</span>
+          <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[0.58rem] text-[var(--text-faint)]">⌘K</kbd>
+        </button>
+
+        <nav aria-label="Primary navigation" className="min-h-0 flex-1 overflow-y-auto flex flex-col gap-1">
+          {visibleNav.map((item) => {
             const active = isNavActive(pathname, item.href);
             return (
               <Link
@@ -114,6 +136,18 @@ export function Header() {
               </Link>
             );
           })}
+
+          {qol.pins.length > 0 && (
+            <div className="mt-3 border-t border-[var(--border)] pt-3">
+              <p className="mb-1 px-3 text-[0.62rem] font-black uppercase tracking-[0.14em] text-[var(--text-faint)]">Pinned</p>
+              {qol.pins.slice(0, 4).map((item) => (
+                <Link key={item.href} href={item.href} className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-bold text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]">
+                  <span className="grid h-6 w-6 place-items-center rounded-md bg-[var(--bg-elev)] text-xs">{item.emoji ?? "★"}</span>
+                  <span className="truncate">{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          )}
         </nav>
 
         <div className="mt-auto border-t border-[var(--border)] pt-3">
@@ -129,6 +163,16 @@ export function Header() {
               Moderation
             </Link>
           )}
+          <button
+            className="group mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
+            onClick={() => openCenter()}
+          >
+            <span className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-elev)] text-[var(--accent)]">
+              100
+              <span className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full ring-2 ring-[var(--bg)] ${online ? "bg-[var(--good)]" : "bg-[var(--danger)]"}`} />
+            </span>
+            QOL Center
+          </button>
           <button
             className="group mb-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
             onClick={openSettings}
@@ -168,6 +212,9 @@ export function Header() {
             </Link>
           </div>
           <div className="flex items-center gap-0.5">
+            <button className="btn btn-ghost !p-2" onClick={openPalette} aria-label="Find games and pages">
+              <SearchIcon />
+            </button>
             {session?.user?.isModerator && (
               <Link href="/mod/live" className="btn btn-ghost !p-2" aria-label="Live games (moderator)" title="Live games">
                 <IconShield width={16} height={16} />
@@ -199,20 +246,30 @@ export function Header() {
         title="Menu"
         side="left"
         footer={
-          <button
-            className="flex w-full items-center gap-3 px-4 py-3.5 text-sm font-semibold text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
-            onClick={() => {
-              setMenuOpen(false);
-              openSettings();
-            }}
-          >
-            <IconSettings width={17} height={17} />
-            Settings
-          </button>
+          <div className="grid grid-cols-2 divide-x divide-[var(--border)]">
+            <button
+              className="flex items-center justify-center gap-2 px-3 py-3.5 text-sm font-semibold text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
+              onClick={() => {
+                setMenuOpen(false);
+                openCenter();
+              }}
+            >
+              <span className="font-black text-[var(--accent)]">100</span> QOL Center
+            </button>
+            <button
+              className="flex items-center justify-center gap-2 px-3 py-3.5 text-sm font-semibold text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
+              onClick={() => {
+                setMenuOpen(false);
+                openSettings();
+              }}
+            >
+              <IconSettings width={17} height={17} /> Settings
+            </button>
+          </div>
         }
       >
         <nav className="flex flex-col gap-1 p-3">
-          {NAV.map((item, index) => {
+          {visibleNav.map((item, index) => {
             const active = isNavActive(pathname, item.href);
             return (
               <Link
@@ -234,7 +291,7 @@ export function Header() {
           })}
         </nav>
         {session?.user && (
-          <div className="stagger-item-side mx-3 mt-2 flex items-center gap-3 rounded-lg bg-[var(--bg-elev)] px-4 py-3" style={{ "--i": NAV.length } as React.CSSProperties}>
+          <div className="stagger-item-side mx-3 mt-2 flex items-center gap-3 rounded-lg bg-[var(--bg-elev)] px-4 py-3" style={{ "--i": visibleNav.length } as React.CSSProperties}>
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-black text-[var(--accent-contrast)]">
               {(session.user.username ?? session.user.name ?? "?")[0]?.toUpperCase()}
             </span>

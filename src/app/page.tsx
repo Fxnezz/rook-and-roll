@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BotAvatar } from "@/components/bot/BotAvatar";
+import { HomeQolRail } from "@/components/qol/HomeQolRail";
 import {
   IconChevronRight,
   IconGrid,
@@ -190,6 +191,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <HomeQolRail />
 
       <section className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
         <div className="panel overflow-hidden">
