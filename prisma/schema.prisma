@@ -5,6 +5,14 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// The realtime server is installed as a separate package on Render. Generate
+// a dedicated client beside it so runtime resolution never depends on npm
+// hoisting or on the root application's node_modules layout.
+generator realtimeClient {
+  provider = "prisma-client-js"
+  output   = "../server/generated/prisma"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
