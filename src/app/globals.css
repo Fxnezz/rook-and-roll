@@ -140,7 +140,7 @@ body {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .btn {
@@ -157,7 +157,7 @@ body {
   background: var(--bg-elev);
   color: var(--text);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s var(--ease-out), opacity 0.15s, box-shadow 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s var(--ease-out), opacity 0.15s, box-shadow 0.12s var(--ease-out);
   user-select: none;
   white-space: nowrap;
 }
@@ -174,15 +174,64 @@ body {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* chess.com-style "3D" raised primary button: a solid drop edge beneath
+   the button that compresses to zero on press, so the whole thing reads
+   as a physical key you push down rather than a flat rectangle. */
 .btn-primary {
   background: linear-gradient(180deg, var(--accent-strong), var(--accent));
   border-color: var(--accent-dim);
   color: var(--accent-contrast);
+  box-shadow: 0 3px 0 0 var(--accent-dim);
+  transform: translateY(0);
 }
 .btn-primary:hover {
   background: linear-gradient(180deg, var(--accent-strong), var(--accent-strong));
-  box-shadow: 0 4px 16px rgba(233, 162, 59, 0.3);
+  box-shadow: 0 3px 0 0 var(--accent-dim), 0 4px 16px rgba(233, 162, 59, 0.3);
+  transform: translateY(-1px);
 }
+.btn-primary:active {
+  box-shadow: 0 0 0 0 var(--accent-dim);
+  transform: translateY(3px);
+}
+.btn-primary:disabled {
+  box-shadow: none;
+  transform: none;
+}
+
+/* Secondary "raised" variant using the existing --good green — a second
+   emphasis tone for a hero pairing (e.g. Play Online / Play Bots), without
+   introducing any new brand colour. */
+.btn-secondary {
+  background: linear-gradient(180deg, #6dd390, var(--good));
+  border-color: #3f8f5c;
+  color: #0c2415;
+  box-shadow: 0 3px 0 0 #3f8f5c;
+  transform: translateY(0);
+}
+.btn-secondary:hover {
+  background: linear-gradient(180deg, #6dd390, #6dd390);
+  box-shadow: 0 3px 0 0 #3f8f5c, 0 4px 16px rgba(91, 191, 122, 0.3);
+  transform: translateY(-1px);
+}
+.btn-secondary:active {
+  box-shadow: 0 0 0 0 #3f8f5c;
+  transform: translateY(3px);
+}
+.btn-secondary:disabled {
+  box-shadow: none;
+  transform: none;
+}
+
+/* Jumbo sizing modifier — stack with .btn-primary / .btn-secondary for
+   hero CTAs. Keeps the same raised-edge treatment, just bigger. */
+.btn-cta {
+  padding: 0.95rem 1.75rem;
+  font-size: 1.05rem;
+  border-radius: var(--radius);
+  gap: 0.65rem;
+}
+
 .btn-ghost {
   background: transparent;
   border-color: transparent;

@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Color } from "chess.js";
 import { BOT_TIERS, type BotTierId } from "@/lib/engine/bots";
+import { BotAvatar } from "@/components/bot/BotAvatar";
 import {
   TIME_CONTROLS,
   type TimeControl,
+  type DelayMode,
   clampCustomMinutes,
   clampCustomIncrementSec,
   customTimeControlId,
@@ -14,6 +16,7 @@ import {
 import { Piece } from "@/lib/pieces";
 import { IconRobot } from "@/components/ui/icons";
 import { ChessRulesModal } from "@/components/ui/ChessRulesModal";
+import { ODDS_OPTIONS, oddsStartFen, type OddsId } from "@/lib/chess/odds";
 
 const CUSTOM_TC_STORAGE_KEY = "rr.customTimeControl.v1";
 
@@ -22,6 +25,8 @@ export interface BotConfig {
   color: Color; // human's colour
   timeControlId: string;
   showEval: boolean;
+  /** Non-standard starting position — handicap odds (or a deep-linked custom FEN) apply this instead of the normal start. */
+  startFen?: string;
 }
 
 export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
@@ -29,8 +34,10 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
   const [colorChoice, setColorChoice] = useState<"w" | "b" | "random">("w");
   const [tcId, setTcId] = useState("untimed");
   const [showEval, setShowEval] = useState(false);
+  const [oddsId, setOddsId] = useState<OddsId>("none");
   const [customMinutes, setCustomMinutes] = useState(10);
   const [customIncrement, setCustomIncrement] = useState(0);
+  const [delayMode, setDelayMode] = useState<DelayMode>("increment");
   const [showRules, setShowRules] = useState(false);
   const [myRating, setMyRating] = useState<number | null>(null);
 
@@ -66,9 +73,10 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
     try {
       const raw = localStorage.getItem(CUSTOM_TC_STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as { minutes?: number; increment?: number };
+        const parsed = JSON.parse(raw) as { minutes?: number; increment?: number; delayMode?: DelayMode };
         if (typeof parsed.minutes === "number") setCustomMinutes(clampCustomMinutes(parsed.minutes));
         if (typeof parsed.increment === "number") setCustomIncrement(clampCustomIncrementSec(parsed.increment));
+        if (parsed.delayMode === "us" || parsed.delayMode === "bronstein") setDelayMode(parsed.delayMode);
       }
     } catch {
       /* ignore */
@@ -77,14 +85,15 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
 
   const isCustom = tcId.startsWith("custom:");
 
-  const applyCustom = (minutes: number, increment: number) => {
+  const applyCustom = (minutes: number, increment: number, mode: DelayMode = delayMode) => {
     const m = clampCustomMinutes(minutes);
     const i = clampCustomIncrementSec(increment);
     setCustomMinutes(m);
     setCustomIncrement(i);
-    setTcId(customTimeControlId(m, i));
+    setDelayMode(mode);
+    setTcId(customTimeControlId(m, i, mode));
     try {
-      localStorage.setItem(CUSTOM_TC_STORAGE_KEY, JSON.stringify({ minutes: m, increment: i }));
+      localStorage.setItem(CUSTOM_TC_STORAGE_KEY, JSON.stringify({ minutes: m, increment: i, delayMode: mode }));
     } catch {
       /* ignore */
     }
@@ -92,11 +101,22 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
 
   const start = () => {
     const color: Color = colorChoice === "random" ? (Math.random() < 0.5 ? "w" : "b") : colorChoice;
-    onStart({ tierId, color, timeControlId: tcId, showEval });
+    const botColor: Color = color === "w" ? "b" : "w";
+    const startFen = oddsStartFen(botColor, oddsId) ?? undefined;
+    onStart({ tierId, color, timeControlId: tcId, showEval, startFen });
   };
 
   const grouped: Record<string, TimeControl[]> = {};
   for (const tc of TIME_CONTROLS) (grouped[tc.category] ??= []).push(tc);
+
+  const selectedTier = BOT_TIERS.find((t) => t.id === tierId) ?? BOT_TIERS[4];
+
+  const DIFFICULTY_GROUPS: { label: string; ids: BotTierId[] }[] = [
+    { label: "Beginner", ids: ["pip", "milo", "nell"] },
+    { label: "Intermediate", ids: ["beau", "cass", "rosa", "wren"] },
+    { label: "Advanced", ids: ["dex", "ilsa", "vera", "zephyr"] },
+    { label: "Master", ids: ["titan", "omen"] },
+  ];
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -120,46 +140,65 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
 
       <section className="panel p-4">
         <span className="label mb-3 block">Choose your opponent</span>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {BOT_TIERS.map((t) => {
-            const active = tierId === t.id;
-            const recommended = recommendedTierId === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => setTierId(t.id)}
-                className="relative flex items-center gap-3 rounded-lg border p-3 text-left transition-colors"
-                style={{
-                  borderColor: active ? "var(--accent)" : recommended ? "var(--accent)" : "var(--border)",
-                  background: active ? "var(--bg-elev-2)" : "transparent",
-                  boxShadow: recommended && !active ? "0 0 0 1px var(--accent)" : undefined,
-                }}
-              >
-                {recommended && (
-                  <span
-                    className="absolute -top-2 right-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                    style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}
-                  >
-                    Recommended
-                  </span>
-                )}
-                <span
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg font-black"
-                  style={{ background: `${t.accent}22`, color: t.accent }}
-                >
-                  {t.name[0]}
-                </span>
-                <span className="min-w-0">
-                  <span className="flex items-center gap-2">
-                    <span className="font-bold">{t.name}</span>
-                    <span className="chip !px-1.5 !py-0.5 text-[10px]">{t.elo}</span>
-                  </span>
-                  <span className="block truncate text-xs text-[var(--text-muted)]">{t.blurb}</span>
-                </span>
-              </button>
-            );
-          })}
+
+        {/* Spotlight card — the currently selected bot, chess.com-style. */}
+        <div
+          className="mb-4 flex items-center gap-4 rounded-xl p-4"
+          style={{ background: "var(--bg-elev)", border: `1px solid ${selectedTier.accent}44` }}
+        >
+          <BotAvatar tierId={selectedTier.id} size={64} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-lg font-black">
+                {selectedTier.flag} {selectedTier.fullName}
+              </span>
+              <span className="chip !px-1.5 !py-0.5 text-[10px]">{selectedTier.elo}</span>
+              <span className="chip !px-1.5 !py-0.5 text-[10px] capitalize">{selectedTier.personality}</span>
+            </div>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">{selectedTier.blurb}</p>
+          </div>
         </div>
+
+        {DIFFICULTY_GROUPS.map((group) => (
+          <div key={group.label} className="mb-3 last:mb-0">
+            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[var(--text-faint)]">
+              {group.label}
+            </span>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+              {group.ids.map((id) => {
+                const t = BOT_TIERS.find((bt) => bt.id === id);
+                if (!t) return null;
+                const active = tierId === t.id;
+                const recommended = recommendedTierId === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setTierId(t.id)}
+                    className="relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center transition-colors"
+                    style={{
+                      borderColor: active ? "var(--accent)" : recommended ? "var(--accent)" : "var(--border)",
+                      background: active ? "var(--bg-elev-2)" : "transparent",
+                      boxShadow: recommended && !active ? "0 0 0 1px var(--accent)" : undefined,
+                    }}
+                    title={t.blurb}
+                  >
+                    {recommended && (
+                      <span
+                        className="absolute -top-2 right-1 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide"
+                        style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}
+                      >
+                        Rec.
+                      </span>
+                    )}
+                    <BotAvatar tierId={t.id} size={44} />
+                    <span className="truncate text-xs font-bold leading-tight">{t.name}</span>
+                    <span className="text-[10px] text-[var(--text-faint)]">{t.elo}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </section>
 
       <section className="panel mt-4 p-4">
@@ -250,7 +289,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
               />
             </label>
             <label className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-              Increment (sec)
+              Increment/delay (sec)
               <input
                 type="number"
                 min={0}
@@ -261,9 +300,47 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
                 className="input !w-20 !py-1 text-sm"
               />
             </label>
+            <label className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+              Mode
+              <select
+                className="input !w-auto !py-1 text-xs"
+                value={delayMode}
+                onChange={(e) => applyCustom(customMinutes, customIncrement, e.target.value as DelayMode)}
+              >
+                <option value="increment">Fischer increment</option>
+                <option value="us">US delay</option>
+                <option value="bronstein">Bronstein delay</option>
+              </select>
+            </label>
             {isCustom && <span className="chip !px-2 !py-0.5 text-xs">{getTimeControl(tcId).name}</span>}
           </div>
         </div>
+      </section>
+
+      <section className="panel mt-4 p-4">
+        <span className="label mb-3 block">Handicap (odds)</span>
+        <div className="flex flex-wrap gap-2">
+          {ODDS_OPTIONS.map((o) => {
+            const active = oddsId === o.id;
+            return (
+              <button
+                key={o.id}
+                onClick={() => setOddsId(o.id)}
+                className="rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors"
+                style={{
+                  borderColor: active ? "var(--accent)" : "var(--border)",
+                  background: active ? "var(--bg-elev-2)" : "transparent",
+                  color: active ? "var(--text)" : "var(--text-muted)",
+                }}
+              >
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+        {oddsId !== "none" && (
+          <p className="mt-2 text-xs text-[var(--text-muted)]">The bot starts without its {ODDS_OPTIONS.find((o) => o.id === oddsId)?.label.toLowerCase()}.</p>
+        )}
       </section>
 
       <label className="mt-4 flex cursor-pointer items-center justify-between px-1">

@@ -7,12 +7,16 @@ import { useSession } from "next-auth/react";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { MoveList } from "@/components/game/MoveList";
+import { OpeningTicker } from "@/components/game/OpeningTicker";
 import { LiveClock } from "@/components/game/Clock";
 import { ChatPanel } from "@/components/game/ChatPanel";
 import { CapturedTray } from "@/components/game/CapturedTray";
 import { OpeningExplorer } from "@/components/game/OpeningExplorer";
 import { SharePanel } from "@/components/game/SharePanel";
 import { AnalysisPanel } from "@/components/bot/AnalysisPanel";
+import { MaterialTimeline } from "@/components/game/MaterialTimeline";
+import { PieceActivityHeatmap } from "@/components/game/PieceActivityHeatmap";
+import { performanceRating } from "@/lib/ratings/performance";
 import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
@@ -236,10 +240,29 @@ export default function OnlinePage() {
   const baseOrientation: Color = state.myColor ?? "w";
   const orientation: Color = manualFlip ? (baseOrientation === "w" ? "b" : "w") : baseOrientation;
   const lastAppliedRef = useRef<string>("");
-  const [premove, setPremove] = useState<{ from: Square; to: Square } | null>(null);
+  const MAX_PREMOVES = 3;
+  const [premoveQueue, setPremoveQueue] = useState<{ from: Square; to: Square }[]>([]);
+  const premove = premoveQueue[0] ?? null;
+  const setPremove = (p: { from: Square; to: Square } | null) => setPremoveQueue(p ? [p] : []);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [notifyDismissed, setNotifyDismissed] = useState(false);
   const prevOffersRef = useRef({ draw: state.drawOfferFrom, takeback: state.takebackOfferFrom, rematch: state.rematchOfferFrom });
+
+  // Series score across rematches (#35) — this component persists across a
+  // rematch (only state.roomId changes underneath it), so a plain state here
+  // naturally survives the color swap the server already does on rematch.
+  const [series, setSeries] = useState({ wins: 0, losses: 0, draws: 0 });
+  const seriesCountedRoomRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!state.status || !state.myColor || seriesCountedRoomRef.current === state.roomId) return;
+    seriesCountedRoomRef.current = state.roomId;
+    const outcome = state.status.result === "1/2-1/2" ? "draw" : state.status.winner === state.myColor ? "win" : "loss";
+    setSeries((s) => ({
+      wins: s.wins + (outcome === "win" ? 1 : 0),
+      losses: s.losses + (outcome === "loss" ? 1 : 0),
+      draws: s.draws + (outcome === "draw" ? 1 : 0),
+    }));
+  }, [state.status, state.myColor, state.roomId]);
 
   // Full resync from authoritative server state.
   useEffect(() => {
@@ -428,8 +451,11 @@ export default function OnlinePage() {
   useEffect(() => {
     if (!premove || state.myColor !== snapshot.turn || state.status) return;
     const options = game.legalMovesFrom(premove.from).filter((mv) => mv.to === premove.to);
-    setPremove(null);
-    if (options.length === 0) return;
+    if (options.length === 0) {
+      setPremoveQueue([]);
+      return;
+    }
+    setPremoveQueue((q) => q.slice(1));
     onMove(premove.from, premove.to, options.some((mv) => mv.promotion) ? "q" : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot.fen, snapshot.turn, state.myColor, state.status]);
@@ -475,12 +501,12 @@ export default function OnlinePage() {
     };
     setAnalysisProgress({ done: 0, total: positions.length });
     const result = await analyzeGame(getEngine(), input, {
-      depth: 12,
+      depth: settings.analysisDepth,
       onProgress: (done, total) => setAnalysisProgress({ done, total }),
     });
     setAnalysis(result);
     setAnalysisProgress(null);
-  }, [state.status, snapshot.moves]);
+  }, [state.status, snapshot.moves, settings.analysisDepth]);
 
   // Auto-analyze on game end (Settings > Gameplay > "Request analysis").
   useEffect(() => {
@@ -1059,8 +1085,10 @@ export default function OnlinePage() {
             moveInputMode={settings.moveInputMode}
             premovesEnabled={settings.premovesEnabled}
             premove={premove}
-            onSetPremove={(from, to) => setPremove({ from, to })}
-            onCancelPremove={() => setPremove(null)}
+            onSetPremove={(from, to) =>
+              setPremoveQueue((q) => (q.length < MAX_PREMOVES ? [...q, { from, to }] : q))
+            }
+            onCancelPremove={() => setPremoveQueue([])}
             onSwipeBack={game.stepBack}
             onSwipeForward={game.stepForward}
             extraArrows={[
@@ -1085,11 +1113,18 @@ export default function OnlinePage() {
                     ? "Spectating"
                     : "Opponent to move"}
             </span>
-            {snapshot.moves.length > 0 && (
-              <span className="text-xs font-normal tabular-nums text-[var(--text-faint)]">
-                Move {Math.ceil(snapshot.moves.length / 2)}
-              </span>
-            )}
+            <span className="flex items-center gap-2">
+              {premoveQueue.length > 0 && (
+                <span className="chip !bg-[var(--accent)] !text-[var(--accent-contrast)]">
+                  Premove ×{premoveQueue.length}
+                </span>
+              )}
+              {snapshot.moves.length > 0 && (
+                <span className="text-xs font-normal tabular-nums text-[var(--text-faint)]">
+                  Move {Math.ceil(snapshot.moves.length / 2)}
+                </span>
+              )}
+            </span>
           </div>
           <div className="flex border-b border-[var(--border)]">
             {(state.status ? (["moves", "openings", "analysis", "chat", "share"] as const) : (["moves", "openings", "chat", "share"] as const)).map((t) => (
@@ -1111,11 +1146,29 @@ export default function OnlinePage() {
           </div>
           <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0">
             {tab === "moves" ? (
-              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+              <div className="flex h-full flex-col">
+                <OpeningTicker moves={snapshot.moves} />
+                <div className="min-h-0 flex-1">
+                  <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+                </div>
+              </div>
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : tab === "analysis" && state.status ? (
-              <div className="flex h-full flex-col">
+              <div className="flex h-full flex-col overflow-y-auto">
+                {state.myColor && state.players && (
+                  <div className="flex items-center justify-between px-3 pb-2 pt-3">
+                    <span className="label">Performance rating (est.)</span>
+                    <span className="font-mono text-sm font-bold text-[var(--accent)]">
+                      {performanceRating(
+                        state.myColor === "w" ? state.players.black.rating : state.players.white.rating,
+                        state.status.result === "1/2-1/2" ? "draw" : state.status.winner === state.myColor ? "win" : "loss",
+                      )}
+                    </span>
+                  </div>
+                )}
+                <MaterialTimeline moves={snapshot.moves} />
+                <PieceActivityHeatmap moves={snapshot.moves} />
                 <div className="flex-1 overflow-hidden">
                   <AnalysisPanel analysis={analysis} progress={analysisProgress} onGoToPly={game.goToPly} viewPly={snapshot.viewPly} />
                 </div>
@@ -1140,7 +1193,25 @@ export default function OnlinePage() {
               />
             ) : (
               <div className="h-full overflow-y-auto">
-                <SharePanel fen={snapshot.fen} pgn={game.getPgn()} theme={theme} orientation={orientation} showImport={false} />
+                <SharePanel
+                  fen={snapshot.fen}
+                  pgn={game.getPgn()}
+                  theme={theme}
+                  orientation={orientation}
+                  showImport={false}
+                  shareCardMeta={
+                    state.status && state.players
+                      ? {
+                          whiteName: state.players.white.username,
+                          blackName: state.players.black.username,
+                          result:
+                            state.status.result === "1/2-1/2" ? "DRAW" : state.status.winner === "w" ? "WHITE_WINS" : "BLACK_WINS",
+                          accuracyW: analysis?.accuracy.w,
+                          accuracyB: analysis?.accuracy.b,
+                        }
+                      : undefined
+                  }
+                />
               </div>
             )}
           </div>
@@ -1187,6 +1258,11 @@ export default function OnlinePage() {
                   </p>
                 );
               })()}
+            {series.wins + series.losses + series.draws > 1 && (
+              <p className="mt-2 text-xs text-[var(--text-faint)]">
+                Series: {series.wins}W {series.losses}L {series.draws}D
+              </p>
+            )}
             <div className="mt-5 flex gap-2">
               <button className="btn flex-1" onClick={online.leave}>
                 Lobby

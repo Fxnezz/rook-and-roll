@@ -107,6 +107,7 @@ function rebuildAt(startFen: string, moves: Move[], ply: number): Chess {
 }
 
 export interface UseChessGame {
+  makeSanMove: (san: string) => Move | null;
   snapshot: GameSnapshot;
   makeMove: (m: { from: Square; to: Square; promotion?: PieceSymbol }) => Move | null;
   legalMovesFrom: (sq: Square) => Move[];
@@ -174,6 +175,25 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
       }
       try {
         const move = gameRef.current.move({ from, to, promotion });
+        setViewPly(gameRef.current.history().length);
+        bump();
+        return move;
+      } catch {
+        return null;
+      }
+    },
+    [viewPly, bump],
+  );
+
+  const makeSanMove = useCallback<UseChessGame["makeSanMove"]>(
+    (san) => {
+      const game = gameRef.current;
+      const moves = game.history({ verbose: true }) as Move[];
+      if (viewPly < moves.length) {
+        gameRef.current = rebuildAt(startFenRef.current, moves, viewPly);
+      }
+      try {
+        const move = gameRef.current.move(san.trim());
         setViewPly(gameRef.current.history().length);
         bump();
         return move;
@@ -286,6 +306,7 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
   return {
     snapshot,
     makeMove,
+    makeSanMove,
     legalMovesFrom,
     goToPly,
     stepBack,

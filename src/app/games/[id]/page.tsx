@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma, isDbConfigured } from "@/lib/db/prisma";
+import { auth } from "@/lib/auth/auth";
 import { ReplayViewer } from "@/components/game/ReplayViewer";
 import { DbNotice } from "@/components/ui/DbNotice";
+import { getTier } from "@/lib/engine/bots";
+import type { BotTierId } from "@/lib/engine/bots";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +15,16 @@ export default async function GameReplayPage({ params }: { params: Promise<{ id:
 
   const game = await prisma.game.findUnique({ where: { id } });
   if (!game) notFound();
+
+  const session = await auth();
+  const viewerId = session?.user?.id;
+  const yourColor = viewerId === game.whiteId ? "w" : viewerId === game.blackId ? "b" : undefined;
+  const opponentRating =
+    yourColor == null
+      ? undefined
+      : game.opponentType === "BOT"
+        ? getTier((game.botTier ?? "cass") as BotTierId).elo
+        : (yourColor === "w" ? game.blackRatingBefore : game.whiteRatingBefore) ?? undefined;
 
   const resultText =
     game.result === "DRAW"
@@ -38,7 +51,17 @@ export default async function GameReplayPage({ params }: { params: Promise<{ id:
           </div>
         </div>
       </div>
-      <ReplayViewer pgn={game.pgn} whiteName={game.whiteName} blackName={game.blackName} />
+      <ReplayViewer
+        pgn={game.pgn}
+        whiteName={game.whiteName}
+        blackName={game.blackName}
+        moveTimes={Array.isArray(game.moveTimes) ? (game.moveTimes as number[]) : undefined}
+        yourColor={yourColor}
+        opponentRating={opponentRating}
+        result={game.result === "ABORTED" ? undefined : game.result}
+        opening={game.opening ?? undefined}
+        eco={game.eco ?? undefined}
+      />
     </div>
   );
 }

@@ -81,6 +81,12 @@ export interface Settings {
   unlimitedTakebacks: boolean;
   /** Briefly flash the screen edge on move/capture/check/illegal sounds — a visual pairing for deaf/hard-of-hearing players. */
   flashOnSound: boolean;
+  /** Engine search depth used by game review and live eval widgets: 8 = quick, 12 = standard, 16 = deep (slower). */
+  analysisDepth: 8 | 12 | 16;
+  /** Blindfold training: hide all pieces during bot games (moves still work). */
+  blindfoldBot: boolean;
+  /** Hint strength: "best" shows the engine's top move; "second-best" shows its #2 choice — a lighter nudge that still requires you to find the strongest move yourself. */
+  hintMode: "best" | "second-best";
 }
 
 const DEFAULTS: Settings = {
@@ -125,6 +131,9 @@ const DEFAULTS: Settings = {
   lowTimeThresholdSec: 10,
   unlimitedTakebacks: false,
   flashOnSound: false,
+  analysisDepth: 12,
+  blindfoldBot: false,
+  hintMode: "best",
 };
 
 const STORAGE_KEY = "rr.settings.v1";

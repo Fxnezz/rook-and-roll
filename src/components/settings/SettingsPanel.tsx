@@ -466,6 +466,32 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
           checked={settings.autoAnalyze}
           onChange={(v) => update({ autoAnalyze: v })}
         />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Analysis depth</span>
+        <Segmented
+          options={[
+            { id: "8", label: "Quick" },
+            { id: "12", label: "Standard" },
+            { id: "16", label: "Deep" },
+          ]}
+          value={String(settings.analysisDepth) as "8" | "12" | "16"}
+          onChange={(v) => update({ analysisDepth: Number(v) as 8 | 12 | 16 })}
+        />
+        <Toggle
+          label="Blindfold mode (bot games)"
+          description="Hide all pieces while playing bots — classic visualization training. Moves still work normally."
+          checked={settings.blindfoldBot}
+          onChange={(v) => update({ blindfoldBot: v })}
+        />
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Hint strength</span>
+        <Segmented
+          options={[
+            { id: "best", label: "Best move" },
+            { id: "second-best", label: "Lighter nudge" },
+          ]}
+          value={settings.hintMode}
+          onChange={(v) => update({ hintMode: v as "best" | "second-best" })}
+        />
         <Toggle
           label="Unlimited takebacks (bot / pass & play)"
           description="Skip the takeback cap in games with no real opponent to be unfair to. Online games always enforce the server-side limit."

@@ -91,6 +91,12 @@ export default function FriendsPage() {
   const [challengeTc, setChallengeTc] = useState<TimeControl>(TIME_CONTROLS[4]);
   const [challengeRated, setChallengeRated] = useState(false);
   const [challengeFen, setChallengeFen] = useState("");
+
+  // Deep link from the board editor: /friends?fen=... prefills the custom-position box.
+  useEffect(() => {
+    const fen = new URLSearchParams(window.location.search).get("fen");
+    if (fen) setChallengeFen(fen);
+  }, []);
   const [outgoing, setOutgoing] = useState<{ challengeId: string; toUsername: string } | null>(null);
   const [incoming, setIncoming] = useState<ChallengeInfo | null>(null);
   const [challengeErr, setChallengeErr] = useState<string | null>(null);

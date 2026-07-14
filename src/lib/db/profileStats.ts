@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
+import { ensureOpenings } from "@/lib/openings/heal";
+import { getTier, type BotTierId } from "@/lib/engine/bots";
 
 export interface ColorStats {
   wins: number;
@@ -32,6 +34,33 @@ export interface HeatmapDay {
   count: number;
 }
 
+export interface OpeningStat {
+  eco: string;
+  name: string;
+  games: number;
+  wins: number;
+  losses: number;
+  draws: number;
+}
+
+export interface RatedGameHighlight extends GameSummary {
+  opponentRating: number;
+}
+
+export interface PersonalRecords {
+  biggestUpset: RatedGameHighlight | null;
+  longestWinStreak: number;
+  mostGamesInADay: number;
+}
+
+export interface OpponentStat {
+  opponent: string;
+  wins: number;
+  losses: number;
+  draws: number;
+  avgOpponentRating: number | null;
+}
+
 export interface ProfileExtras {
   colorStats: { white: ColorStats; black: ColorStats };
   categoryStats: CategoryStat[];
@@ -40,6 +69,15 @@ export interface ProfileExtras {
   fastestCheckmate: GameSummary | null;
   recentGames: GameSummary[];
   activityHeatmap: HeatmapDay[];
+  /** Most-played book openings with the user's score in each (recent games window). */
+  openingsReport: OpeningStat[];
+  records: PersonalRecords;
+  /** The rated win against the highest-rated opponent (recent games window). */
+  bestWin: RatedGameHighlight | null;
+  /** The rated loss to the lowest-rated opponent — the most surprising defeat (recent games window). */
+  toughestLoss: RatedGameHighlight | null;
+  /** Per-opponent record, most-played first (recent games window). */
+  opponentsTable: OpponentStat[];
 }
 
 const emptyColorStats = (): ColorStats => ({ wins: 0, losses: 0, draws: 0 });
@@ -87,7 +125,7 @@ export async function computeProfileExtras(userId: string): Promise<ProfileExtra
   heatmapStart.setHours(0, 0, 0, 0);
   heatmapStart.setDate(heatmapStart.getDate() - 89);
 
-  const [whiteGroups, blackGroups, terminationGroups, longestGame, fastestCheckmate, recentGames, heatmapGames] =
+  const [whiteGroups, blackGroups, terminationGroups, longestGame, fastestCheckmate, recentGames, heatmapGames, openingGames] =
     await Promise.all([
       prisma.game.groupBy({
         by: ["result", "category"],
@@ -123,6 +161,29 @@ export async function computeProfileExtras(userId: string): Promise<ProfileExtra
       prisma.game.findMany({
         where: { OR: orFilter, createdAt: { gte: heatmapStart } },
         select: { createdAt: true },
+      }),
+      prisma.game.findMany({
+        where: { OR: orFilter, NOT: { result: "ABORTED" } },
+        orderBy: { createdAt: "desc" },
+        take: 300, // bounded window so healing missing opening columns / records queries stay cheap
+        select: {
+          id: true,
+          whiteId: true,
+          blackId: true,
+          whiteName: true,
+          blackName: true,
+          result: true,
+          category: true,
+          ply: true,
+          createdAt: true,
+          opening: true,
+          eco: true,
+          pgn: true,
+          opponentType: true,
+          botTier: true,
+          whiteRatingBefore: true,
+          blackRatingBefore: true,
+        },
       }),
     ]);
 
@@ -173,6 +234,98 @@ export async function computeProfileExtras(userId: string): Promise<ProfileExtra
     cursor.setDate(cursor.getDate() + 1);
   }
 
+  const healedGames = ensureOpenings(openingGames);
+
+  const opponentRatingFor = (g: (typeof healedGames)[number]): number | null => {
+    const isWhite = g.whiteId === userId;
+    if (g.opponentType === "BOT") return getTier((g.botTier ?? "cass") as BotTierId).elo;
+    return (isWhite ? g.blackRatingBefore : g.whiteRatingBefore) ?? null;
+  };
+
+  const toHighlight = (g: (typeof healedGames)[number], opponentRating: number): RatedGameHighlight => ({
+    ...toSummary(userId, g),
+    opponentRating,
+  });
+
+  let biggestUpset: RatedGameHighlight | null = null;
+  let biggestUpsetGap = -Infinity;
+  let bestWin: RatedGameHighlight | null = null;
+  let bestWinRating = -Infinity;
+  let toughestLoss: RatedGameHighlight | null = null;
+  let toughestLossRating = Infinity;
+  const opponentMap = new Map<string, OpponentStat & { ratingSum: number; ratingCount: number }>();
+  const dayCounts = new Map<string, number>();
+
+  for (const g of healedGames) {
+    const isWhite = g.whiteId === userId;
+    const outcome: "win" | "loss" | "draw" = g.result === "DRAW" ? "draw" : (g.result === "WHITE_WINS") === isWhite ? "win" : "loss";
+    const opponentRating = opponentRatingFor(g);
+
+    const opponentName = isWhite ? g.blackName : g.whiteName;
+    const opp = opponentMap.get(opponentName) ?? { opponent: opponentName, wins: 0, losses: 0, draws: 0, avgOpponentRating: null, ratingSum: 0, ratingCount: 0 };
+    if (outcome === "win") opp.wins += 1;
+    else if (outcome === "loss") opp.losses += 1;
+    else opp.draws += 1;
+    if (opponentRating != null) {
+      opp.ratingSum += opponentRating;
+      opp.ratingCount += 1;
+    }
+    opponentMap.set(opponentName, opp);
+
+    const dayKey = g.createdAt.toISOString().slice(0, 10);
+    dayCounts.set(dayKey, (dayCounts.get(dayKey) ?? 0) + 1);
+
+    if (opponentRating == null) continue;
+    if (outcome === "win") {
+      const yourRating = isWhite ? g.whiteRatingBefore : g.blackRatingBefore;
+      const gap = yourRating != null ? opponentRating - yourRating : -Infinity;
+      if (gap > biggestUpsetGap) {
+        biggestUpsetGap = gap;
+        biggestUpset = toHighlight(g, opponentRating);
+      }
+      if (opponentRating > bestWinRating) {
+        bestWinRating = opponentRating;
+        bestWin = toHighlight(g, opponentRating);
+      }
+    } else if (outcome === "loss") {
+      if (opponentRating < toughestLossRating) {
+        toughestLossRating = opponentRating;
+        toughestLoss = toHighlight(g, opponentRating);
+      }
+    }
+  }
+
+  let longestWinStreak = 0;
+  let currentStreak = 0;
+  for (const g of [...healedGames].reverse()) {
+    const isWhite = g.whiteId === userId;
+    const won = g.result !== "DRAW" && (g.result === "WHITE_WINS") === isWhite;
+    currentStreak = won ? currentStreak + 1 : 0;
+    longestWinStreak = Math.max(longestWinStreak, currentStreak);
+  }
+  const mostGamesInADay = Math.max(0, ...dayCounts.values());
+
+  const opponentsTable: OpponentStat[] = Array.from(opponentMap.values())
+    .map(({ ratingSum, ratingCount, ...rest }) => ({ ...rest, avgOpponentRating: ratingCount > 0 ? Math.round(ratingSum / ratingCount) : null }))
+    .sort((a, b) => b.wins + b.losses + b.draws - (a.wins + a.losses + a.draws));
+
+  const records: PersonalRecords = { biggestUpset, longestWinStreak, mostGamesInADay };
+
+  const openingMap = new Map<string, OpeningStat>();
+  for (const g of healedGames) {
+    if (!g.opening || !g.eco) continue;
+    const entry = openingMap.get(g.opening) ?? { eco: g.eco, name: g.opening, games: 0, wins: 0, losses: 0, draws: 0 };
+    entry.games += 1;
+    const isWhite = g.whiteId === userId;
+    if (g.result === "DRAW") entry.draws += 1;
+    else if ((g.result === "WHITE_WINS") === isWhite) entry.wins += 1;
+    else entry.losses += 1;
+    openingMap.set(g.opening, entry);
+  }
+  const openingsReport = Array.from(openingMap.values())
+    .sort((a, b) => b.games - a.games)
+    .slice(0, 6);
+
   return {
     colorStats,
     categoryStats,
@@ -181,5 +334,10 @@ export async function computeProfileExtras(userId: string): Promise<ProfileExtra
     fastestCheckmate: fastestCheckmate ? toSummary(userId, fastestCheckmate) : null,
     recentGames: recentGames.map((g) => toSummary(userId, g)),
     activityHeatmap,
+    openingsReport,
+    records,
+    bestWin,
+    toughestLoss,
+    opponentsTable,
   };
 }

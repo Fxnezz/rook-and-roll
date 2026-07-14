@@ -5,27 +5,13 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Wordmark } from "./Logo";
-import { IconSettings, IconChess, IconRobot, IconUsers, IconGrid, IconPuzzle, IconTrophy, IconShield } from "./icons";
+import { IconSettings, IconShield } from "./icons";
 import { SlideOver } from "./SlideOver";
 import { UserMenu } from "./UserMenu";
 import { NotificationBell } from "./NotificationBell";
 import { ActiveGameIndicator } from "./ActiveGameIndicator";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
-
-const NAV = [
-  { href: "/play/online", label: "Play Chess", icon: IconChess },
-  { href: "/play/bot", label: "Bots", icon: IconRobot },
-  { href: "/play/local", label: "Pass & Play", icon: IconUsers },
-  { href: "/play", label: "Games Hub", icon: IconGrid },
-  { href: "/puzzles", label: "Puzzles", icon: IconPuzzle },
-  { href: "/leaderboard", label: "Leaderboard", icon: IconTrophy },
-];
-
-// The bare hub link ("/play") needs an exact match so it doesn't also light
-// up on every /play/* sub-route (online, bot, local, etc.).
-function isNavActive(pathname: string, href: string): boolean {
-  return href === "/play" ? pathname === "/play" : pathname.startsWith(href);
-}
+import { NAV, isNavActive } from "./nav";
 
 function HamburgerIcon({ open }: { open: boolean }) {
   return (
@@ -74,25 +60,10 @@ export function Header() {
           >
             <HamburgerIcon open={menuOpen} />
           </button>
-          <Link href="/" className="group transition-transform duration-200 hover:scale-[1.03] active:scale-95">
+          {/* Logo is shown here on mobile only — the desktop Sidebar carries its own. */}
+          <Link href="/" className="group transition-transform duration-200 hover:scale-[1.03] active:scale-95 md:hidden">
             <Wordmark />
           </Link>
-          <nav className="hidden items-center gap-0.5 md:flex">
-            {NAV.map((item) => {
-              const active = isNavActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="btn btn-ghost relative !gap-1.5 !px-3 !text-[var(--text-muted)] transition-colors duration-150 hover:!text-[var(--text)]"
-                  style={active ? { color: "var(--accent)", background: "var(--bg-elev)" } : undefined}
-                >
-                  <item.icon width={16} height={16} />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
         </div>
         <div className="flex items-center gap-1">
           {session?.user?.isModerator && (

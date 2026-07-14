@@ -61,6 +61,11 @@ export const IconDownload = (p: SVGProps<SVGSVGElement>) => (
     <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
   </svg>
 );
+export const IconUpload = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M12 21V9M7 14l5-5 5 5M5 3h14" />
+  </svg>
+);
 export const IconPlus = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M12 5v14M5 12h14" />
@@ -180,5 +185,12 @@ export const IconShield = (p: SVGProps<SVGSVGElement>) => (
 export const IconStar = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.3l-5.9 3.2 1.2-6.5-4.8-4.6 6.6-.9L12 2.5z" />
+  </svg>
+);
+export const IconTarget = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5" />
+    <circle cx="12" cy="12" r="1" fill="currentColor" />
   </svg>
 );

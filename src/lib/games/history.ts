@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { ensureOpenings } from "@/lib/openings/heal";
 
 export type ResultFilter = "all" | "win" | "loss" | "draw";
 export type CategoryFilter = "all" | "bullet" | "blitz" | "rapid" | "classical" | "untimed";
@@ -46,5 +47,7 @@ export async function fetchGameHistory({ userId, cursor, limit = 20, result, cat
   const page = hasMore ? games.slice(0, take) : games;
   const nextCursor = hasMore ? page[page.length - 1].id : null;
 
-  return { games: page, nextCursor };
+  // Older rows (and online games, saved by the realtime server) lack the
+  // opening columns — compute and persist them on first view.
+  return { games: ensureOpenings(page), nextCursor };
 }

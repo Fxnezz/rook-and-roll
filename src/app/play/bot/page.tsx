@@ -6,14 +6,21 @@ import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import type { Arrow } from "@/components/board/ArrowLayer";
 import { MoveList } from "@/components/game/MoveList";
+import { OpeningTicker } from "@/components/game/OpeningTicker";
 import { CapturedTray } from "@/components/game/CapturedTray";
 import { GameControls } from "@/components/game/GameControls";
 import { GameOverModal } from "@/components/game/GameOverModal";
 import { SharePanel } from "@/components/game/SharePanel";
+import { SanMoveInput } from "@/components/game/SanMoveInput";
 import { EvalBar } from "@/components/game/EvalBar";
 import { Clock } from "@/components/game/Clock";
 import { BotSetup, type BotConfig } from "@/components/bot/BotSetup";
 import { AnalysisPanel } from "@/components/bot/AnalysisPanel";
+import { BotAvatar } from "@/components/bot/BotAvatar";
+import { TimeUsageChart } from "@/components/game/TimeUsageChart";
+import { MaterialTimeline } from "@/components/game/MaterialTimeline";
+import { PieceActivityHeatmap } from "@/components/game/PieceActivityHeatmap";
+import { performanceRating } from "@/lib/ratings/performance";
 import { useChessGame, type GameStatus } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { useClock, getTimeControl } from "@/lib/chess/useClock";
@@ -59,19 +66,47 @@ function playMoveSound(san: string, flags: string, promotion?: string, over?: bo
 export default function BotGamePage() {
   const [config, setConfig] = useState<BotConfig | null>(null);
   const [rematchSeq, setRematchSeq] = useState(0);
+  // Series score tracker (#35) — survives each rematch remount since it lives
+  // one level up; always counted from the human's perspective regardless of
+  // which color they're swapped to play next.
+  const [series, setSeries] = useState({ wins: 0, losses: 0, draws: 0 });
   if (!config) return <BotSetup onStart={setConfig} />;
   return (
     <BotGame
       config={config}
       onExit={() => setConfig(null)}
-      onRematch={() => setRematchSeq((n) => n + 1)}
+      onRematch={() => {
+        // Swap sides for the rematch, matching how online rematches swap colors.
+        setConfig((c) => (c ? { ...c, color: c.color === "w" ? "b" : "w" } : c));
+        setRematchSeq((n) => n + 1);
+      }}
+      series={series}
+      onGameEnd={(outcome) =>
+        setSeries((s) => ({
+          wins: s.wins + (outcome === "win" ? 1 : 0),
+          losses: s.losses + (outcome === "loss" ? 1 : 0),
+          draws: s.draws + (outcome === "draw" ? 1 : 0),
+        }))
+      }
       key={`${JSON.stringify(config)}-${rematchSeq}`}
     />
   );
 }
 
-function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () => void; onRematch: () => void }) {
-  const game = useChessGame();
+function BotGame({
+  config,
+  onExit,
+  onRematch,
+  series,
+  onGameEnd,
+}: {
+  config: BotConfig;
+  onExit: () => void;
+  onRematch: () => void;
+  series: { wins: number; losses: number; draws: number };
+  onGameEnd: (outcome: "win" | "loss" | "draw") => void;
+}) {
+  const game = useChessGame(config.startFen);
   const { snapshot } = game;
   const { settings } = useSettings();
   const theme = getTheme(settings.boardTheme);
@@ -90,6 +125,7 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
 
   const [thinking, setThinking] = useState(false);
   const [evalScore, setEvalScore] = useState<{ cp: number | null; mate: number | null }>({ cp: 0, mate: null });
+  const [evalVisible, setEvalVisible] = useState(config.showEval);
   const [override, setOverride] = useState<GameStatus | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [tab, setTab] = useState<"moves" | "analysis" | "share">(settings.defaultGameTab);
@@ -103,6 +139,17 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
   const startedRef = useRef(false);
   const savedRef = useRef(false);
   const boardWrapperRef = useRef<HTMLDivElement>(null);
+  /** Per-ply think time in ms, index 0 = move 1 — recorded for the postgame time-usage graph. */
+  const moveTimesRef = useRef<number[]>([]);
+  const lastMoveAtRef = useRef(performance.now());
+
+  // Deep link: /play/bot?fen=… starts from a custom position (the analysis
+  // board's "Play out vs bot" and the replay viewer's practice button).
+  useEffect(() => {
+    const fen = new URLSearchParams(window.location.search).get("fen");
+    if (fen) game.loadFen(fen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- cheat panel state (bot games only — see CheatGate/CheatPanel) ---
   const [paused, setPaused] = useState(false);
@@ -178,6 +225,7 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
           uci: m.from + m.to + (m.promotion ?? ""),
           fen: m.after,
         })),
+        moveTimes: moveTimesRef.current,
       };
       fetch("/api/games", {
         method: "POST",
@@ -222,6 +270,8 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
     clock.reset();
     clock.start("w");
     startedRef.current = true;
+    moveTimesRef.current = [];
+    lastMoveAtRef.current = performance.now();
     return () => {
       // keep the shared engine alive for the next game; just stop searching
       engine.stop();
@@ -236,19 +286,22 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
       setShowResult(true);
       playSound("gameEnd");
       saveGame(status);
+      onGameEnd(status.result === "1/2-1/2" ? "draw" : status.winner === humanColor ? "win" : "loss");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.over]);
 
-  const applyMove = useCallback(
-    (from: Square, to: Square, promotion?: PieceSymbol) => {
-      const move = game.makeMove({ from, to, promotion });
+  const afterMoveApplied = useCallback(
+    (move: ReturnType<typeof game.makeMove>) => {
       if (!move) {
         playSound("illegal");
         return null;
       }
       playMoveSound(move.san, move.flags, move.promotion, false, moveSoundOverride, settings.hapticFeedback);
       clock.moved(move.color);
+      const now = performance.now();
+      moveTimesRef.current.push(Math.round(now - lastMoveAtRef.current));
+      lastMoveAtRef.current = now;
 
       const isCapture = move.flags.includes("e") || move.flags.includes("c");
       const isCheckmate = move.san.includes("#");
@@ -260,7 +313,26 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
 
       return move;
     },
-    [game, clock, moveSoundOverride],
+    [clock, moveSoundOverride],
+  );
+
+  const applyMove = useCallback(
+    (from: Square, to: Square, promotion?: PieceSymbol) => afterMoveApplied(game.makeMove({ from, to, promotion })),
+    [game, afterMoveApplied],
+  );
+
+  const applySanMove = useCallback(
+    (san: string) => afterMoveApplied(game.makeSanMove(san)),
+    [game, afterMoveApplied],
+  );
+
+  const onSanSubmit = useCallback(
+    (san: string) => {
+      if (status.over || paused || snapshot.turn !== humanColor) return false;
+      primeAudio();
+      return Boolean(applySanMove(san));
+    },
+    [applySanMove, status.over, paused, snapshot.turn, humanColor],
   );
 
   const onHumanMove = useCallback(
@@ -272,14 +344,21 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
     [applyMove, status.over, paused, snapshot.turn, humanColor],
   );
 
-  // Fire a queued premove the instant it becomes the human's turn (i.e. right
-  // after the bot's move lands), if it's still legal; otherwise drop it.
-  const [premove, setPremove] = useState<{ from: Square; to: Square } | null>(null);
+  // Fire the front of a queued premove chain the instant it becomes the
+  // human's turn (right after the bot's move lands), if it's still legal.
+  // A premove that's no longer legal invalidates the rest of the chain too —
+  // the position diverged from what the player anticipated.
+  const MAX_PREMOVES = 3;
+  const [premoveQueue, setPremoveQueue] = useState<{ from: Square; to: Square }[]>([]);
+  const premove = premoveQueue[0] ?? null;
   useEffect(() => {
     if (!premove || status.over || paused || snapshot.turn !== humanColor) return;
     const options = game.legalMovesFrom(premove.from).filter((mv) => mv.to === premove.to);
-    setPremove(null);
-    if (options.length === 0) return;
+    if (options.length === 0) {
+      setPremoveQueue([]);
+      return;
+    }
+    setPremoveQueue((q) => q.slice(1));
     onHumanMove(premove.from, premove.to, options.some((mv) => mv.promotion) ? "q" : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot.fen, snapshot.turn, status.over, paused, humanColor]);
@@ -294,15 +373,16 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
     if (status.over || snapshot.turn !== humanColor) return;
     setHintLoading(true);
     try {
-      const res = await getEngine().go(snapshot.fen, { depth: 14 });
-      const uci = res.bestmove || res.lines[0]?.move;
+      const wantsSecondBest = settings.hintMode === "second-best";
+      const res = await getEngine().go(snapshot.fen, { depth: 14, multipv: wantsSecondBest ? 2 : 1 });
+      const uci = (wantsSecondBest && res.lines[1]?.move) || res.bestmove || res.lines[0]?.move;
       if (uci) {
         setHintArrow({ from: uci.slice(0, 2) as Square, to: uci.slice(2, 4) as Square, color: "#5bbf7a" });
       }
     } finally {
       setHintLoading(false);
     }
-  }, [status.over, snapshot.turn, humanColor, snapshot.fen]);
+  }, [status.over, snapshot.turn, humanColor, snapshot.fen, settings.hintMode]);
 
   // Auto-hint: recompute the suggested move whenever it becomes the human's
   // turn, instead of waiting for a manual click.
@@ -310,17 +390,18 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
     setHintArrow(null);
     if (!autoHint || status.over || snapshot.turn !== humanColor) return;
     let cancelled = false;
+    const wantsSecondBest = settings.hintMode === "second-best";
     (async () => {
-      const res = await getEngine().go(snapshot.fen, { depth: 14 });
+      const res = await getEngine().go(snapshot.fen, { depth: 14, multipv: wantsSecondBest ? 2 : 1 });
       if (cancelled) return;
-      const uci = res.bestmove || res.lines[0]?.move;
+      const uci = (wantsSecondBest && res.lines[1]?.move) || res.bestmove || res.lines[0]?.move;
       if (uci) setHintArrow({ from: uci.slice(0, 2) as Square, to: uci.slice(2, 4) as Square, color: "#5bbf7a" });
     })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot.fen, autoHint, status.over, humanColor]);
+  }, [snapshot.fen, autoHint, status.over, humanColor, settings.hintMode]);
 
   // Threats: arrows from each of the opponent's attacking pieces to a human
   // piece they currently attack, for the "show threats" toggle.
@@ -396,11 +477,11 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
 
   // Eval bar on the human's turn.
   useEffect(() => {
-    if (!config.showEval || status.over || !snapshot.isLive || snapshot.turn !== humanColor) return;
+    if (!evalVisible || status.over || !snapshot.isLive || snapshot.turn !== humanColor) return;
     let cancelled = false;
     (async () => {
       try {
-        const r = await getEngine().evaluate(snapshot.fen, { depth: 12 });
+        const r = await getEngine().evaluate(snapshot.fen, { depth: settings.analysisDepth });
         if (!cancelled) setEvalScore({ cp: r.cp, mate: r.mate });
       } catch {
         /* ignore */
@@ -410,7 +491,7 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot.fen, snapshot.turn, snapshot.isLive, status.over, config.showEval, humanColor]);
+  }, [snapshot.fen, snapshot.turn, snapshot.isLive, status.over, evalVisible, humanColor]);
 
   const resign = () => {
     setOverride({
@@ -632,12 +713,12 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
     };
     setAnalysisProgress({ done: 0, total: positions.length });
     const result = await analyzeGame(getEngine(), input, {
-      depth: 12,
+      depth: settings.analysisDepth,
       onProgress: (done, total) => setAnalysisProgress({ done, total }),
     });
     setAnalysis(result);
     setAnalysisProgress(null);
-  }, [snapshot.moves]);
+  }, [snapshot.moves, settings.analysisDepth]);
 
   const canBack = snapshot.viewPly > 0;
   const canForward = snapshot.viewPly < snapshot.moves.length;
@@ -696,18 +777,25 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
     return (
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <span
-            className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-black"
-            style={{
-              background: isBot ? `${tier.accent}22` : "var(--bg-elev-2)",
-              color: isBot ? tier.accent : "var(--text-muted)",
-            }}
-          >
-            {isBot ? tier.name[0] : "You"[0]}
-          </span>
+          {isBot ? (
+            <BotAvatar tierId={tier.id} size={36} />
+          ) : (
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-black"
+              style={{ background: "var(--bg-elev-2)", color: "var(--text-muted)" }}
+            >
+              Y
+            </span>
+          )}
           <div className="leading-tight">
             <div className="text-sm font-semibold">
-              {isBot ? tier.name : "You"}
+              {isBot ? (
+                <span className="inline-flex items-center gap-1">
+                  {tier.flag} {tier.name}
+                </span>
+              ) : (
+                "You"
+              )}
               {isBot && <span className="ml-1.5 text-xs font-normal text-[var(--text-faint)]">{tier.elo}</span>}
             </div>
             {settings.showCapturedTray && (
@@ -805,6 +893,13 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
               >
                 Threats
               </button>
+              <button
+                className={`btn hidden sm:inline-flex ${evalVisible ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`}
+                onClick={() => setEvalVisible((v) => !v)}
+                title="Show/hide the live evaluation bar"
+              >
+                Eval bar
+              </button>
             </>
           )}
           {!status.over && snapshot.moves.length > 0 && (
@@ -822,7 +917,7 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         <div className="flex w-full gap-2 lg:max-w-[min(72vh,640px)]">
-          {config.showEval && (
+          {evalVisible && (
             <div className="hidden sm:block" style={{ width: 14 }}>
               <EvalBar cp={evalScore.cp} mate={evalScore.mate} orientation={orientation} />
             </div>
@@ -852,13 +947,16 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
                 arrowColor={settings.arrowColor}
                 boardFrame={settings.boardFrame}
                 zoomPercent={settings.boardZoom}
+                hidePieces={settings.blindfoldBot}
                 confirmMove={settings.confirmMove}
                 autoQueen={settings.autoQueen}
                 moveInputMode={settings.moveInputMode}
                 premovesEnabled={settings.premovesEnabled}
                 premove={premove}
-                onSetPremove={(from, to) => setPremove({ from, to })}
-                onCancelPremove={() => setPremove(null)}
+                onSetPremove={(from, to) =>
+                  setPremoveQueue((q) => (q.length < MAX_PREMOVES ? [...q, { from, to }] : q))
+                }
+                onCancelPremove={() => setPremoveQueue([])}
                 onSwipeBack={game.stepBack}
                 onSwipeForward={game.stepForward}
               />
@@ -891,6 +989,11 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
                 canForward={canForward}
                 canUndo={!status.over && snapshot.moves.length > 0 && snapshot.turn === humanColor && takebacksRemaining > 0}
               />
+              {premoveQueue.length > 0 && (
+                <span className="chip ml-2 !bg-[var(--accent)] !text-[var(--accent-contrast)]">
+                  Premove ×{premoveQueue.length}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -925,7 +1028,15 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
             {tab === "moves" ? (
               <>
                 <div className="flex-1 overflow-hidden">
-                  <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+                  <div className="flex h-full flex-col">
+                    <OpeningTicker moves={snapshot.moves} />
+                    <div className="min-h-0 flex-1">
+                      <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+                    </div>
+                  </div>
+                </div>
+                <div className="shrink-0 border-t border-[var(--border)]">
+                  <SanMoveInput onSubmit={onSanSubmit} disabled={status.over || paused || snapshot.turn !== humanColor} />
                 </div>
                 {snapshot.viewPly > 0 && (
                   <div className="shrink-0 border-t border-[var(--border)] p-2">
@@ -960,12 +1071,27 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
                 )}
               </>
             ) : tab === "analysis" ? (
-              <AnalysisPanel
-                analysis={analysis}
-                progress={analysisProgress}
-                onGoToPly={game.goToPly}
-                viewPly={snapshot.viewPly}
-              />
+              <div className="flex h-full flex-col overflow-y-auto">
+                {status.over && (
+                  <div className="flex items-center justify-between px-3 pb-2 pt-3">
+                    <span className="label">Performance rating (est.)</span>
+                    <span className="font-mono text-sm font-bold text-[var(--accent)]">
+                      {performanceRating(tier.elo, status.result === "1/2-1/2" ? "draw" : status.winner === humanColor ? "win" : "loss")}
+                    </span>
+                  </div>
+                )}
+                <MaterialTimeline moves={snapshot.moves} />
+                <PieceActivityHeatmap moves={snapshot.moves} />
+                {status.over && moveTimesRef.current.length > 0 && (
+                  <TimeUsageChart moves={snapshot.moves} moveTimes={moveTimesRef.current} />
+                )}
+                <AnalysisPanel
+                  analysis={analysis}
+                  progress={analysisProgress}
+                  onGoToPly={game.goToPly}
+                  viewPly={snapshot.viewPly}
+                />
+              </div>
             ) : (
               <div className="h-full overflow-y-auto">
                 {status.over && savedGameId && (
@@ -988,6 +1114,17 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
                   onLoadPgn={game.loadPgn}
                   theme={theme}
                   orientation={orientation}
+                  shareCardMeta={
+                    status.over
+                      ? {
+                          whiteName: humanColor === "w" ? "You" : tier.name,
+                          blackName: humanColor === "b" ? "You" : tier.name,
+                          result: status.result === "1/2-1/2" ? "DRAW" : status.result === "1-0" ? "WHITE_WINS" : "BLACK_WINS",
+                          accuracyW: analysis?.accuracy.w,
+                          accuracyB: analysis?.accuracy.b,
+                        }
+                      : undefined
+                  }
                 />
               </div>
             )}
@@ -1015,6 +1152,9 @@ function BotGame({ config, onExit, onRematch }: { config: BotConfig; onExit: () 
             runAnalysis();
           }}
           onClose={() => setShowResult(false)}
+          onRematch={onRematch}
+          series={series}
+          botTierId={tier.id}
         />
       )}
 

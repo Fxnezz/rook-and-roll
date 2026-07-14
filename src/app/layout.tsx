@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Header } from "@/components/ui/Header";
+import { Sidebar } from "@/components/ui/Sidebar";
 import { isMaintenance, getBroadcast } from "@/lib/admin/config";
 import { auth } from "@/lib/auth/auth";
 import { MaintenanceScreen } from "@/components/ui/MaintenanceScreen";
@@ -76,9 +77,12 @@ export default async function RootLayout({
             <MaintenanceScreen />
           ) : (
             <>
-              {broadcast && <BroadcastBanner broadcast={broadcast} />}
-              <Header />
-              <main className="flex-1">{children}</main>
+              <Sidebar />
+              <div className="flex flex-1 flex-col md:pl-56">
+                {broadcast && <BroadcastBanner broadcast={broadcast} />}
+                <Header />
+                <main className="flex-1">{children}</main>
+              </div>
             </>
           )}
         </Providers>

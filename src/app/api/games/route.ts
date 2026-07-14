@@ -4,6 +4,7 @@ import { prisma, isDbConfigured } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth/auth";
 import { updateElo, ratingFieldFor, type RatingCategory } from "@/lib/ratings/elo";
 import { checkAndAwardAchievements } from "@/lib/achievements/award";
+import { openingFor } from "@/lib/openings";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,8 @@ interface SaveBody {
   opponentName?: string;
   rated?: boolean;
   moves?: { ply: number; san: string; uci: string; fen: string }[];
+  /** Per-ply think time in ms, index 0 = move 1. */
+  moveTimes?: number[];
 }
 
 export async function POST(req: Request) {
@@ -100,6 +103,11 @@ export async function POST(req: Request) {
       pgn: b.pgn,
       finalFen: b.finalFen,
       ply: b.moves?.length ?? 0,
+      moveTimes: Array.isArray(b.moveTimes) && b.moveTimes.length ? b.moveTimes : undefined,
+      ...(() => {
+        const op = openingFor((b.moves ?? []).map((m) => m.san));
+        return { opening: op?.name ?? null, eco: op?.eco ?? null };
+      })(),
       whiteRatingBefore: whiteBefore,
       blackRatingBefore: blackBefore,
       whiteRatingAfter: whiteAfter,
@@ -124,6 +132,8 @@ export async function POST(req: Request) {
     category: b.category,
     rated,
     termination: b.termination,
+    ratingBefore: (b.color === "w" ? whiteBefore : blackBefore) ?? undefined,
+    ratingAfter: (b.color === "w" ? whiteAfter : blackAfter) ?? undefined,
   });
 
   return NextResponse.json({ ok: true, id: game.id, ratingDelta, newRating, achievements }, { status: 201 });

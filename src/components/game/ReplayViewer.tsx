@@ -7,11 +7,16 @@ import { MoveList } from "@/components/game/MoveList";
 import { GameControls } from "@/components/game/GameControls";
 import { SharePanel } from "@/components/game/SharePanel";
 import { AnalysisPanel } from "@/components/bot/AnalysisPanel";
+import { TimeUsageChart } from "@/components/game/TimeUsageChart";
+import { MaterialTimeline } from "@/components/game/MaterialTimeline";
+import { PieceActivityHeatmap } from "@/components/game/PieceActivityHeatmap";
 import { analyzeGame, type GameAnalysis } from "@/lib/engine/analysis";
 import { getEngine } from "@/lib/engine/stockfish";
 import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
+import { performanceRating } from "@/lib/ratings/performance";
+import type { ShareCardMeta } from "@/components/game/SharePanel";
 
 type Tab = "moves" | "analysis" | "share";
 
@@ -19,10 +24,27 @@ export function ReplayViewer({
   pgn,
   whiteName,
   blackName,
+  moveTimes,
+  yourColor,
+  opponentRating,
+  result,
+  opening,
+  eco,
 }: {
   pgn: string;
   whiteName: string;
   blackName: string;
+  /** Per-ply think time in ms, if this game was tracked (bot/local games only). */
+  moveTimes?: number[];
+  /** Which side you played, if known — enables the performance-rating readout. */
+  yourColor?: Color;
+  /** Your opponent's rating going into this game, if known. */
+  opponentRating?: number;
+  /** The game's actual final result (from the saved record) — independent of whichever ply is currently being viewed. */
+  result?: "WHITE_WINS" | "BLACK_WINS" | "DRAW";
+  /** Book opening name/ECO, if recorded for this game — shown on the downloadable share card. */
+  opening?: string;
+  eco?: string;
 }) {
   const game = useChessGame();
   const { snapshot } = game;
@@ -53,15 +75,34 @@ export function ReplayViewer({
     };
     setAnalysisProgress({ done: 0, total: positions.length });
     const result = await analyzeGame(getEngine(), input, {
-      depth: 12,
+      depth: settings.analysisDepth,
       onProgress: (done, total) => setAnalysisProgress({ done, total }),
     });
     setAnalysis(result);
     setAnalysisProgress(null);
-  }, [snapshot.moves]);
+  }, [snapshot.moves, settings.analysisDepth]);
 
   const canBack = snapshot.viewPly > 0;
   const canForward = snapshot.viewPly < snapshot.moves.length;
+
+  const perfRating = (() => {
+    if (yourColor == null || opponentRating == null || !result) return null;
+    const outcome =
+      result === "DRAW" ? "draw" : (result === "WHITE_WINS") === (yourColor === "w") ? "win" : "loss";
+    return performanceRating(opponentRating, outcome);
+  })();
+
+  const shareCardMeta: ShareCardMeta | undefined = result
+    ? {
+        whiteName,
+        blackName,
+        result,
+        opening,
+        eco,
+        accuracyW: analysis?.accuracy.w,
+        accuracyB: analysis?.accuracy.b,
+      }
+    : undefined;
 
   const label = (name: string) => (
     <div className="flex items-center gap-2">
@@ -94,7 +135,7 @@ export function ReplayViewer({
           zoomPercent={settings.boardZoom}
         />
         {label(orientation === "w" ? whiteName : blackName)}
-        <div className="panel mt-1 p-2">
+        <div className="panel mt-1 flex items-center gap-2 p-2">
           <GameControls
             onFirst={game.goStart}
             onPrev={game.stepBack}
@@ -104,6 +145,13 @@ export function ReplayViewer({
             canBack={canBack}
             canForward={canForward}
           />
+          <a
+            className="btn ml-auto !text-xs"
+            href={`/play/bot?fen=${encodeURIComponent(snapshot.fen)}`}
+            title="Open the position you're viewing as a bot game"
+          >
+            Practice from here
+          </a>
         </div>
       </div>
       <div className="panel flex w-full flex-col lg:h-[min(72vh,640px)] lg:w-[340px]">
@@ -131,7 +179,16 @@ export function ReplayViewer({
           {tab === "moves" ? (
             <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
           ) : tab === "analysis" ? (
-            <div className="flex h-full flex-col">
+            <div className="flex h-full flex-col overflow-y-auto">
+              {perfRating != null && (
+                <div className="flex items-center justify-between px-3 pb-2 pt-3">
+                  <span className="label">Performance rating (est.)</span>
+                  <span className="font-mono text-sm font-bold text-[var(--accent)]">{perfRating}</span>
+                </div>
+              )}
+              <MaterialTimeline moves={snapshot.moves} />
+              <PieceActivityHeatmap moves={snapshot.moves} />
+              {moveTimes && moveTimes.length > 0 && <TimeUsageChart moves={snapshot.moves} moveTimes={moveTimes} />}
               <div className="flex-1 overflow-hidden">
                 <AnalysisPanel analysis={analysis} progress={analysisProgress} onGoToPly={game.goToPly} viewPly={snapshot.viewPly} />
               </div>
@@ -145,7 +202,14 @@ export function ReplayViewer({
             </div>
           ) : (
             <div className="h-full overflow-y-auto">
-              <SharePanel fen={snapshot.fen} pgn={pgn} theme={theme} orientation={orientation} showImport={false} />
+              <SharePanel
+                fen={snapshot.fen}
+                pgn={pgn}
+                theme={theme}
+                orientation={orientation}
+                showImport={false}
+                shareCardMeta={shareCardMeta}
+              />
             </div>
           )}
         </div>

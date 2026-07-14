@@ -5,6 +5,8 @@ import { useSession } from "next-auth/react";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { MoveList } from "@/components/game/MoveList";
+import { SanMoveInput } from "@/components/game/SanMoveInput";
+import { OpeningTicker } from "@/components/game/OpeningTicker";
 import { CapturedTray } from "@/components/game/CapturedTray";
 import { GameControls } from "@/components/game/GameControls";
 import { SharePanel } from "@/components/game/SharePanel";
@@ -18,6 +20,9 @@ import { announcePosition } from "@/lib/chess/announce";
 import { getEngine } from "@/lib/engine/stockfish";
 import { classify, toCpWhite, analyzeGame, type MoveQuality, type GameAnalysis } from "@/lib/engine/analysis";
 import { AnalysisPanel } from "@/components/bot/AnalysisPanel";
+import { TimeUsageChart } from "@/components/game/TimeUsageChart";
+import { MaterialTimeline } from "@/components/game/MaterialTimeline";
+import { PieceActivityHeatmap } from "@/components/game/PieceActivityHeatmap";
 import { IconPlus, IconUsers } from "@/components/ui/icons";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
@@ -32,12 +37,15 @@ import {
   clampCustomMinutes,
   clampCustomIncrementSec,
   customTimeControlId,
+  type DelayMode,
 } from "@/lib/chess/useClock";
 import { NAG_SYMBOLS, parseAnnotation, formatAnnotation, type NagSymbol } from "@/lib/chess/nag";
+import { LOCAL_VARIANTS, kingOnCenter, type LocalVariant } from "@/lib/chess/variants";
 
 const CUSTOM_TC_STORAGE_KEY = "rr.customTimeControl.v1";
 
 const QUALITY_LABEL: Record<MoveQuality, string> = {
+  brilliant: "Brilliant",
   best: "Best",
   good: "Good",
   inaccuracy: "Inaccuracy",
@@ -45,6 +53,7 @@ const QUALITY_LABEL: Record<MoveQuality, string> = {
   blunder: "Blunder",
 };
 const QUALITY_COLOR: Record<MoveQuality, string> = {
+  brilliant: "#4fc3d9",
   best: "var(--good)",
   good: "var(--good)",
   inaccuracy: "#e0b13b",
@@ -62,6 +71,17 @@ export default function LocalGamePage() {
   const { data: session } = useSession();
   const { toasts, push: pushToast } = useToasts();
   const savedRef = useRef(false);
+  /** Per-ply think time in ms, index 0 = move 1 — recorded for the postgame time-usage graph. */
+  const moveTimesRef = useRef<number[]>([]);
+  const lastMoveAtRef = useRef(performance.now());
+
+  // Deep link: /play/local?fen=… starts from a custom position (the board
+  // editor's "Play locally" and the analysis board's "Play out" links).
+  useEffect(() => {
+    const fen = new URLSearchParams(window.location.search).get("fen");
+    if (fen) game.loadFen(fen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [manualOrientation, setManualOrientation] = useState<Color>("w");
   const [tab, setTab] = useState<Tab>(settings.defaultGameTab);
@@ -78,13 +98,15 @@ export default function LocalGamePage() {
   const [tcId, setTcId] = useState("untimed");
   const [customMinutes, setCustomMinutes] = useState(10);
   const [customIncrement, setCustomIncrement] = useState(0);
+  const [delayMode, setDelayMode] = useState<DelayMode>("increment");
   useEffect(() => {
     try {
       const raw = localStorage.getItem(CUSTOM_TC_STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as { minutes?: number; increment?: number };
+        const parsed = JSON.parse(raw) as { minutes?: number; increment?: number; delayMode?: DelayMode };
         if (typeof parsed.minutes === "number") setCustomMinutes(clampCustomMinutes(parsed.minutes));
         if (typeof parsed.increment === "number") setCustomIncrement(clampCustomIncrementSec(parsed.increment));
+        if (parsed.delayMode === "us" || parsed.delayMode === "bronstein") setDelayMode(parsed.delayMode);
       }
     } catch {
       /* ignore */
@@ -92,14 +114,15 @@ export default function LocalGamePage() {
   }, []);
   const tc = useMemo(() => getTimeControl(tcId), [tcId]);
   const isCustomTc = tcId.startsWith("custom:");
-  const applyCustom = (minutes: number, increment: number) => {
+  const applyCustom = (minutes: number, increment: number, mode: DelayMode = delayMode) => {
     const m = clampCustomMinutes(minutes);
     const i = clampCustomIncrementSec(increment);
     setCustomMinutes(m);
     setCustomIncrement(i);
-    setTcId(customTimeControlId(m, i));
+    setDelayMode(mode);
+    setTcId(customTimeControlId(m, i, mode));
     try {
-      localStorage.setItem(CUSTOM_TC_STORAGE_KEY, JSON.stringify({ minutes: m, increment: i }));
+      localStorage.setItem(CUSTOM_TC_STORAGE_KEY, JSON.stringify({ minutes: m, increment: i, delayMode: mode }));
     } catch {
       /* ignore */
     }
@@ -115,6 +138,29 @@ export default function LocalGamePage() {
     });
   });
   const status: GameStatus = override ?? snapshot.status;
+
+  // Optional local variants (#24-26): locked once the game has started.
+  const [variant, setVariant] = useState<LocalVariant>("standard");
+  const [checks, setChecks] = useState<{ w: number; b: number }>({ w: 0, b: 0 });
+  const selectVariant = useCallback(
+    (v: LocalVariant) => {
+      if (snapshot.moves.length > 0) return;
+      setVariant(v);
+      setChecks({ w: 0, b: 0 });
+      if (v === "armageddon") setTcId("5+0");
+    },
+    [snapshot.moves.length],
+  );
+  const [timeOddsEnabled, setTimeOddsEnabled] = useState(false);
+  const [timeOddsBlackMinutes, setTimeOddsBlackMinutes] = useState(3);
+
+  // Armageddon's whole point: a draw is a win for Black (draw odds).
+  const effectiveStatus: GameStatus = useMemo(() => {
+    if (variant === "armageddon" && status.over && status.result === "1/2-1/2") {
+      return { over: true, result: "0-1", winner: "b", reason: `${status.reason} — draw odds, Black wins` };
+    }
+    return status;
+  }, [variant, status]);
 
   // Save finished pass-and-play games to Game History, mirroring the bot
   // page's saveGame (src/app/play/bot/page.tsx) — same API, opponentType
@@ -146,6 +192,7 @@ export default function LocalGamePage() {
           uci: m.from + m.to + (m.promotion ?? ""),
           fen: m.after,
         })),
+        moveTimes: moveTimesRef.current,
       };
       fetch("/api/games", {
         method: "POST",
@@ -173,28 +220,60 @@ export default function LocalGamePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tcId]);
 
+  // Armageddon: White gets the full clock, Black starts a minute down. Must
+  // run after the reset effect above (same commit, later in declaration
+  // order) or the reset would immediately wipe the docked time back to 5:00.
+  useEffect(() => {
+    if (variant === "armageddon" && tcId === "5+0") clock.addTime("b", -60_000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant, tcId]);
+
+  // General time odds (#33) — an unequal starting clock, independent of the
+  // Armageddon variant's specific "5 vs 4, draw odds" package. Must also run
+  // after the reset effect, same reasoning as Armageddon's dock above.
+  useEffect(() => {
+    if (!timeOddsEnabled || variant === "armageddon" || tc.initialMs == null) return;
+    const targetMs = clampCustomMinutes(timeOddsBlackMinutes) * 60_000;
+    clock.addTime("b", targetMs - tc.initialMs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeOddsEnabled, timeOddsBlackMinutes, tcId, variant]);
+
   // Sounds tied to game state.
   useEffect(() => {
-    if (status.over) {
+    if (effectiveStatus.over) {
       clock.stop();
       setShowResult(true);
       playSound("gameEnd");
-      saveGame(status);
+      saveGame(effectiveStatus);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status.over]);
+  }, [effectiveStatus.over]);
 
-  const onMove = useCallback(
-    (from: Square, to: Square, promotion?: PieceSymbol) => {
-      primeAudio();
-      const beforeFen = snapshot.fen;
-      const ply = snapshot.moves.length + 1;
-      const move = game.makeMove({ from, to, promotion });
+  const processMove = useCallback(
+    (move: ReturnType<typeof game.makeMove>, beforeFen: string, ply: number) => {
       if (!move) {
         playSound("illegal");
         return;
       }
       clock.moved(move.color);
+      const nowTs = performance.now();
+      moveTimesRef.current.push(Math.round(nowTs - lastMoveAtRef.current));
+      lastMoveAtRef.current = nowTs;
+
+      // Variant win conditions — checked before the normal chess result, since
+      // both can end the game before checkmate/stalemate would ever trigger.
+      if (variant === "threeCheck" && (move.san.includes("+") || move.san.includes("#"))) {
+        setChecks((c) => {
+          const next = { ...c, [move.color]: c[move.color] + 1 };
+          if (next[move.color] >= 3) {
+            setOverride({ over: true, result: move.color === "w" ? "1-0" : "0-1", winner: move.color, reason: "Three checks" });
+          }
+          return next;
+        });
+      } else if (variant === "koth" && kingOnCenter(move.after, move.color)) {
+        setOverride({ over: true, result: move.color === "w" ? "1-0" : "0-1", winner: move.color, reason: "King of the Hill" });
+      }
+
       if (settings.hapticFeedback) vibrateForMove(move.san);
       if (move.san.includes("#")) {
         // handled by the game-over effect
@@ -219,8 +298,8 @@ export default function LocalGamePage() {
         try {
           const engine = getEngine();
           const [beforeRes, afterRes] = await Promise.all([
-            engine.go(beforeFen, { depth: 12 }),
-            engine.go(afterFen, { depth: 12 }),
+            engine.go(beforeFen, { depth: settings.analysisDepth }),
+            engine.go(afterFen, { depth: settings.analysisDepth }),
           ]);
           // engine.go returns cp/mate from the perspective of the side to
           // move in that FEN — convert to White's absolute perspective first
@@ -241,7 +320,30 @@ export default function LocalGamePage() {
         }
       })();
     },
-    [game, snapshot.fen, snapshot.moves.length, clock.moved],
+    [clock.moved, variant, settings.hapticFeedback, settings.analysisDepth],
+  );
+
+  const onMove = useCallback(
+    (from: Square, to: Square, promotion?: PieceSymbol) => {
+      primeAudio();
+      const beforeFen = snapshot.fen;
+      const ply = snapshot.moves.length + 1;
+      processMove(game.makeMove({ from, to, promotion }), beforeFen, ply);
+    },
+    [game, snapshot.fen, snapshot.moves.length, processMove],
+  );
+
+  const onSanMove = useCallback(
+    (san: string) => {
+      if (effectiveStatus.over) return false;
+      primeAudio();
+      const beforeFen = snapshot.fen;
+      const ply = snapshot.moves.length + 1;
+      const move = game.makeSanMove(san);
+      processMove(move, beforeFen, ply);
+      return Boolean(move);
+    },
+    [game, snapshot.fen, snapshot.moves.length, processMove, effectiveStatus.over],
   );
 
   const newGame = useCallback(() => {
@@ -249,10 +351,13 @@ export default function LocalGamePage() {
     setManualOrientation("w");
     setShowResult(true);
     setOverride(null);
+    setChecks({ w: 0, b: 0 });
     savedRef.current = false;
     setAnalysis(null);
     setAnalysisProgress(null);
     takebacksUsedRef.current = 0;
+    moveTimesRef.current = [];
+    lastMoveAtRef.current = performance.now();
     clock.reset();
     if (!clock.untimed) clock.start("w");
     primeAudio();
@@ -316,12 +421,12 @@ export default function LocalGamePage() {
     };
     setAnalysisProgress({ done: 0, total: positions.length });
     const result = await analyzeGame(getEngine(), input, {
-      depth: 12,
+      depth: settings.analysisDepth,
       onProgress: (done, total) => setAnalysisProgress({ done, total }),
     });
     setAnalysis(result);
     setAnalysisProgress(null);
-  }, [snapshot.moves]);
+  }, [snapshot.moves, settings.analysisDepth]);
 
   const canBack = snapshot.viewPly > 0;
   const canForward = snapshot.viewPly < snapshot.moves.length;
@@ -344,18 +449,18 @@ export default function LocalGamePage() {
   };
 
   const statusText = useMemo(() => {
-    if (status.over) {
+    if (effectiveStatus.over) {
       const r =
-        status.result === "1/2-1/2"
+        effectiveStatus.result === "1/2-1/2"
           ? "Draw"
-          : status.winner === "w"
+          : effectiveStatus.winner === "w"
             ? "White wins"
             : "Black wins";
-      return `${r} — ${status.reason}`;
+      return `${r} — ${effectiveStatus.reason}`;
     }
     const side = snapshot.turn === "w" ? "White" : "Black";
     return snapshot.check ? `${side} to move · Check!` : `${side} to move`;
-  }, [snapshot, status]);
+  }, [snapshot, effectiveStatus]);
 
   const Tray = ({ playerColor }: { playerColor: Color }) => {
     const isWhite = playerColor === "w";
@@ -409,6 +514,20 @@ export default function LocalGamePage() {
         <div className="flex flex-wrap items-center gap-2">
           <select
             className="input !w-auto !py-1.5 text-xs"
+            value={variant}
+            onChange={(e) => selectVariant(e.target.value as LocalVariant)}
+            disabled={snapshot.moves.length > 0}
+            aria-label="Variant"
+            title={snapshot.moves.length > 0 ? "Start a new game to change variant" : LOCAL_VARIANTS.find((v) => v.id === variant)?.blurb}
+          >
+            {LOCAL_VARIANTS.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="input !w-auto !py-1.5 text-xs"
             value={isCustomTc ? "custom" : tcId}
             onChange={(e) => {
               if (e.target.value === "custom") applyCustom(customMinutes, customIncrement);
@@ -447,6 +566,16 @@ export default function LocalGamePage() {
                 aria-label="Custom increment seconds"
               />
               <span className="text-xs text-[var(--text-faint)]">sec</span>
+              <select
+                className="input !w-auto !py-1.5 text-xs"
+                value={delayMode}
+                onChange={(e) => applyCustom(customMinutes, customIncrement, e.target.value as DelayMode)}
+                aria-label="Increment mode"
+              >
+                <option value="increment">Fischer</option>
+                <option value="us">US delay</option>
+                <option value="bronstein">Bronstein</option>
+              </select>
             </>
           )}
         </div>
@@ -454,6 +583,33 @@ export default function LocalGamePage() {
           <IconPlus width={16} height={16} /> New game
         </button>
       </div>
+
+      {!clock.untimed && variant !== "armageddon" && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+          <label className="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={timeOddsEnabled}
+              onChange={(e) => setTimeOddsEnabled(e.target.checked)}
+              disabled={snapshot.moves.length > 0}
+              className="h-3.5 w-3.5 accent-[var(--accent)]"
+            />
+            Time odds — Black starts with
+          </label>
+          <input
+            type="number"
+            min={0.25}
+            max={180}
+            step={0.25}
+            value={timeOddsBlackMinutes}
+            onChange={(e) => setTimeOddsBlackMinutes(Number(e.target.value))}
+            disabled={!timeOddsEnabled || snapshot.moves.length > 0}
+            className="input !w-16 !py-1 text-xs"
+            aria-label="Black's odds minutes"
+          />
+          <span className="text-[var(--text-faint)]">min instead of {Math.round((tc.initialMs ?? 0) / 60_000)} min</span>
+        </div>
+      )}
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         {/* Board column */}
@@ -502,7 +658,14 @@ export default function LocalGamePage() {
         {/* Side panel */}
         <div className="panel flex w-full flex-col lg:h-[min(72vh,640px)] lg:w-[340px]">
           <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
-            <p className="text-sm font-semibold">{statusText}</p>
+            <div>
+              <p className="text-sm font-semibold">{statusText}</p>
+              {variant === "threeCheck" && !effectiveStatus.over && (
+                <p className="text-xs text-[var(--text-faint)]">
+                  Checks — White {checks.w}/3 · Black {checks.b}/3
+                </p>
+              )}
+            </div>
             {analyzingPly === snapshot.moves.length ? (
               <span className="text-xs text-[var(--text-faint)]">Analyzing…</span>
             ) : (
@@ -537,7 +700,15 @@ export default function LocalGamePage() {
             {tab === "moves" ? (
               <>
                 <div className="flex-1 overflow-hidden">
-                  <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+                  <div className="flex h-full flex-col">
+                    <OpeningTicker moves={snapshot.moves} />
+                    <div className="min-h-0 flex-1">
+                      <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+                    </div>
+                  </div>
+                </div>
+                <div className="shrink-0 border-t border-[var(--border)]">
+                  <SanMoveInput onSubmit={onSanMove} disabled={effectiveStatus.over} />
                 </div>
                 {snapshot.viewPly > 0 && (
                   <div className="shrink-0 border-t border-[var(--border)] p-2">
@@ -574,7 +745,12 @@ export default function LocalGamePage() {
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : tab === "analysis" ? (
-              <div className="flex h-full flex-col">
+              <div className="flex h-full flex-col overflow-y-auto">
+                <MaterialTimeline moves={snapshot.moves} />
+                <PieceActivityHeatmap moves={snapshot.moves} />
+                {effectiveStatus.over && moveTimesRef.current.length > 0 && (
+                  <TimeUsageChart moves={snapshot.moves} moveTimes={moveTimesRef.current} />
+                )}
                 <div className="flex-1 overflow-hidden">
                   <AnalysisPanel analysis={analysis} progress={analysisProgress} onGoToPly={game.goToPly} viewPly={snapshot.viewPly} />
                 </div>
@@ -604,7 +780,7 @@ export default function LocalGamePage() {
 
       {showResult && (
         <GameOverModal
-          status={status}
+          status={effectiveStatus}
           onNewGame={newGame}
           onReview={() => {
             setShowResult(false);

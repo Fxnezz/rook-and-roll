@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Piece } from "@/lib/pieces";
-import { IconUsers, IconRobot } from "@/components/ui/icons";
+import { IconUsers, IconRobot, IconPuzzle, IconSparkles, IconTarget, IconGrid, IconChevronRight } from "@/components/ui/icons";
 import { HowToPlayChessLink } from "@/components/home/HowToPlayChessLink";
+import { BotAvatar } from "@/components/bot/BotAvatar";
 
 const FEATURES = [
   { title: "Play online", body: "Get matched with a live opponent, with clocks, chat, and rated ladders." },
@@ -9,30 +10,47 @@ const FEATURES = [
   { title: "Puzzles & more", body: "Sharpen tactics with rated puzzles, or pass-and-play a friend on one screen." },
 ];
 
+const QUICK_LINKS = [
+  { href: "/puzzles", label: "Puzzles", icon: IconPuzzle },
+  { href: "/analysis", label: "Analysis", icon: IconSparkles },
+  { href: "/training", label: "Training", icon: IconTarget },
+  { href: "/play", label: "Games Hub", icon: IconGrid },
+];
+
+const HERO_BOTS = ["pip", "nell", "rosa", "ilsa", "omen"] as const;
+
+// A recognizable, legal middlegame position (Ruy Lopez, after 3.Bb5) — rich
+// enough to read as "a real game in progress" rather than the bare starting
+// array, while still instantly familiar to anyone who's played a few games.
+const HERO_FEN_ROWS = ["r1bqkbnr", "pppp1ppp", "2n5", "1B2p3", "4P3", "5N2", "PPPP1PPP", "RNBQK2R"];
+
+function expandFenRow(row: string): (string | null)[] {
+  const cells: (string | null)[] = [];
+  for (const ch of row) {
+    if (/\d/.test(ch)) for (let i = 0; i < Number(ch); i++) cells.push(null);
+    else cells.push(ch);
+  }
+  return cells;
+}
+
 function HeroBoard() {
-  // Decorative 4x4 corner of a board with a few pieces.
   const light = "#ebecd0";
   const dark = "#6f8f5a";
-  const layout: ({ t: "p" | "r" | "n" | "b" | "q" | "k"; c: "w" | "b" } | null)[] = [
-    { t: "r", c: "b" }, { t: "q", c: "b" }, null, { t: "n", c: "b" },
-    null, { t: "p", c: "b" }, null, null,
-    null, null, { t: "p", c: "w" }, null,
-    { t: "b", c: "w" }, null, { t: "k", c: "w" }, { t: "r", c: "w" },
-  ];
+  const grid = HERO_FEN_ROWS.flatMap(expandFenRow);
   return (
     <div
       aria-hidden="true"
-      className="grid aspect-square w-full max-w-[360px] grid-cols-4 grid-rows-4 overflow-hidden rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] ring-1 ring-[var(--border)]"
+      className="grid aspect-square w-full max-w-[440px] grid-cols-8 grid-rows-8 overflow-hidden rounded-2xl shadow-[0_24px_70px_rgba(0,0,0,0.55)] ring-1 ring-[var(--border)]"
     >
-      {layout.map((p, i) => {
-        const row = Math.floor(i / 4);
-        const col = i % 4;
+      {grid.map((cell, i) => {
+        const row = Math.floor(i / 8);
+        const col = i % 8;
         const isLight = (row + col) % 2 === 0;
         return (
           <div key={i} className="relative" style={{ background: isLight ? light : dark }}>
-            {p && (
-              <div className="absolute inset-[8%]">
-                <Piece type={p.t} color={p.c} set="monarch" />
+            {cell && (
+              <div className="absolute inset-[6%]">
+                <Piece type={cell.toLowerCase() as "p" | "r" | "n" | "b" | "q" | "k"} color={cell === cell.toUpperCase() ? "w" : "b"} set="monarch" />
               </div>
             )}
           </div>
@@ -45,28 +63,57 @@ function HeroBoard() {
 export default function Home() {
   return (
     <div className="mx-auto max-w-6xl px-4">
-      <section className="grid items-center gap-10 py-14 md:grid-cols-2 md:py-20">
-        <div className="animate-fade">
+      <section className="grid items-center gap-12 py-12 md:grid-cols-2 md:py-16">
+        <div className="flex justify-center md:order-2 md:justify-end">
+          <HeroBoard />
+        </div>
+
+        <div className="animate-fade md:order-1">
           <span className="chip mb-4">♜ Original board · Original pieces</span>
-          <h1 className="text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl">
+          <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl">
             Chess, without the clutter.
           </h1>
           <p className="mt-4 max-w-md text-lg text-[var(--text-muted)]">
-            A fast, modern place to play. Pass-and-play today; bots and online multiplayer
-            rolling out. Built from scratch — no borrowed art, no noise.
+            A fast, modern place to play. Rated online matches, Stockfish bots of every
+            strength, puzzles, and pass-and-play — built from scratch, no borrowed art.
           </p>
-          <div className="mt-7 flex flex-wrap gap-3">
-            <Link href="/play/online" className="btn btn-primary text-base !px-5 !py-3">
-              <IconUsers width={18} height={18} /> Play online
+
+          <div className="mt-7 flex flex-col gap-3">
+            <Link href="/play/online" className="btn btn-primary btn-cta w-full sm:w-auto">
+              <IconUsers width={20} height={20} /> Play online
             </Link>
-            <Link href="/play/bot" className="btn text-base !px-5 !py-3">
-              <IconRobot width={18} height={18} /> Play a bot
+
+            <Link
+              href="/play/bot"
+              className="btn btn-secondary btn-cta group flex w-full items-center justify-between gap-3 sm:w-auto"
+            >
+              <span className="flex items-center gap-2.5">
+                <IconRobot width={20} height={20} /> Play the bots
+              </span>
+              <span className="flex items-center -space-x-2.5">
+                {HERO_BOTS.map((id) => (
+                  <BotAvatar key={id} tierId={id} size={26} rounded="full" className="ring-2 ring-[#6dd390] transition-transform duration-150 group-hover:translate-x-0" />
+                ))}
+              </span>
             </Link>
+          </div>
+
+          <div className="mt-5">
             <HowToPlayChessLink />
           </div>
-        </div>
-        <div className="flex justify-center md:justify-end">
-          <HeroBoard />
+
+          <div className="mt-8 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {QUICK_LINKS.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="hover-lift flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2.5 text-sm font-semibold text-[var(--text-muted)] transition-colors hover:border-[var(--accent-dim)] hover:text-[var(--text)]"
+              >
+                <l.icon width={16} height={16} />
+                {l.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -88,7 +135,7 @@ export default function Home() {
           </p>
         </div>
         <Link href="/play" className="btn btn-primary shrink-0 !px-5 !py-3 text-base">
-          Browse the Games Hub
+          Browse the Games Hub <IconChevronRight width={16} height={16} />
         </Link>
       </section>
     </div>

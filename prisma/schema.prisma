@@ -331,6 +331,17 @@ model Game {
   ply          Int          @default(0)
   /** Player-side bookmark on their own finished game — toggled from the game history list. */
   favorited    Boolean      @default(false)
+  /** Deepest matching book-opening name (src/lib/openings), computed at save time. */
+  opening      String?
+  /** ECO code of that opening, e.g. "C50". */
+  eco          String?
+  /** Per-ply think time in ms, index 0 = move 1 (client-tracked; bot/local games only). */
+  moveTimes    Json?
+  /** Engine-review accuracy 0-100, computed client-side and persisted on request (batch or per-game "Analyze"). */
+  accuracyW    Int?
+  accuracyB    Int?
+  /** True for games created via pasted-PGN import rather than actually played on the site. */
+  imported     Boolean      @default(false)
 
   whiteRatingBefore Int?
   blackRatingBefore Int?
