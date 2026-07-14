@@ -177,7 +177,7 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "rook-and-roll-settings.json";
+    a.download = "sams-arcade-settings.json";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -465,6 +465,32 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
           description="Automatically analyze the game when it ends, instead of requiring a manual click"
           checked={settings.autoAnalyze}
           onChange={(v) => update({ autoAnalyze: v })}
+        />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Analysis depth</span>
+        <Segmented
+          options={[
+            { id: "8", label: "Quick" },
+            { id: "12", label: "Standard" },
+            { id: "16", label: "Deep" },
+          ]}
+          value={String(settings.analysisDepth) as "8" | "12" | "16"}
+          onChange={(v) => update({ analysisDepth: Number(v) as 8 | 12 | 16 })}
+        />
+        <Toggle
+          label="Blindfold mode (bot games)"
+          description="Hide all pieces while playing bots — classic visualization training. Moves still work normally."
+          checked={settings.blindfoldBot}
+          onChange={(v) => update({ blindfoldBot: v })}
+        />
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Hint strength</span>
+        <Segmented
+          options={[
+            { id: "best", label: "Best move" },
+            { id: "second-best", label: "Lighter nudge" },
+          ]}
+          value={settings.hintMode}
+          onChange={(v) => update({ hintMode: v as "best" | "second-best" })}
         />
         <Toggle
           label="Unlimited takebacks (bot / pass & play)"

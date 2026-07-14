@@ -1,95 +1,227 @@
 import Link from "next/link";
+import { BotAvatar } from "@/components/bot/BotAvatar";
+import {
+  IconChevronRight,
+  IconGrid,
+  IconPuzzle,
+  IconRobot,
+  IconSparkles,
+  IconTraining,
+  IconUsers,
+} from "@/components/ui/icons";
 import { Piece } from "@/lib/pieces";
-import { IconUsers, IconRobot } from "@/components/ui/icons";
-import { HowToPlayChessLink } from "@/components/home/HowToPlayChessLink";
+import { getTheme } from "@/lib/chess/themes";
+import type { BotTierId } from "@/lib/engine/bots";
 
-const FEATURES = [
-  { title: "Play online", body: "Get matched with a live opponent, with clocks, chat, and rated ladders." },
-  { title: "Play the bots", body: "Stockfish-powered opponents from total beginner to expert, with post-game analysis." },
-  { title: "Puzzles & more", body: "Sharpen tactics with rated puzzles, or pass-and-play a friend on one screen." },
+type BoardPiece = { t: "p" | "r" | "n" | "b" | "q" | "k"; c: "w" | "b" };
+
+const BOT_PREVIEW: BotTierId[] = ["pip", "cass", "wren", "ilsa"];
+
+const QUICK_LINKS = [
+  { href: "/puzzles", label: "Puzzles", detail: "Daily tactics", icon: IconPuzzle },
+  { href: "/analysis", label: "Analysis", detail: "Review any game", icon: IconSparkles },
+  { href: "/training", label: "Training", detail: "Build real skills", icon: IconTraining },
+  { href: "/play", label: "Games Hub", detail: "72 games", icon: IconGrid },
 ];
 
+const GAME_SHELF = [
+  { name: "Othello", mark: "●○" },
+  { name: "Quoridor", mark: "▦" },
+  { name: "Word Game", mark: "Aa" },
+  { name: "Solitaire", mark: "♠" },
+  { name: "Tetris", mark: "▟" },
+  { name: "Mancala", mark: "•••" },
+];
+
+function parseBoard(rows: string[]): Array<BoardPiece | null> {
+  return rows.flatMap((row) =>
+    [...row].map((symbol) => {
+      if (symbol === ".") return null;
+      return {
+        t: symbol.toLowerCase() as BoardPiece["t"],
+        c: symbol === symbol.toUpperCase() ? "w" : "b",
+      };
+    }),
+  );
+}
+
 function HeroBoard() {
-  // Decorative 4x4 corner of a board with a few pieces.
-  const light = "#ebecd0";
-  const dark = "#6f8f5a";
-  const layout: ({ t: "p" | "r" | "n" | "b" | "q" | "k"; c: "w" | "b" } | null)[] = [
-    { t: "r", c: "b" }, { t: "q", c: "b" }, null, { t: "n", c: "b" },
-    null, { t: "p", c: "b" }, null, null,
-    null, null, { t: "p", c: "w" }, null,
-    { t: "b", c: "w" }, null, { t: "k", c: "w" }, { t: "r", c: "w" },
-  ];
+  const theme = getTheme("forest");
+  const layout = parseBoard([
+    "r.bqk..r",
+    "pppp.ppp",
+    "..n..n..",
+    "..b.p...",
+    "..B.P...",
+    "..N..N..",
+    "PPPP.PPP",
+    "R.BQ.RK.",
+  ]);
+
   return (
-    <div
-      aria-hidden="true"
-      className="grid aspect-square w-full max-w-[360px] grid-cols-4 grid-rows-4 overflow-hidden rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] ring-1 ring-[var(--border)]"
-    >
-      {layout.map((p, i) => {
-        const row = Math.floor(i / 4);
-        const col = i % 4;
-        const isLight = (row + col) % 2 === 0;
-        return (
-          <div key={i} className="relative" style={{ background: isLight ? light : dark }}>
-            {p && (
-              <div className="absolute inset-[8%]">
-                <Piece type={p.t} color={p.c} set="monarch" />
-              </div>
-            )}
+    <div className="relative mx-auto w-full max-w-[32rem] select-none lg:mx-0" aria-label="Decorative chess game between Rosa and you">
+      <div className="absolute -inset-10 -z-10 rounded-full bg-[var(--accent)]/10 blur-3xl" />
+      <div className="rounded-[1.7rem] border border-[var(--border-strong)] bg-[var(--panel)] p-3 shadow-[var(--shadow)] sm:p-4">
+        <div className="mb-3 flex items-center justify-between px-1">
+          <div className="flex items-center gap-2.5">
+            <BotAvatar tierId="rosa" size={36} rounded="full" />
+            <div className="leading-tight">
+              <p className="text-sm font-bold">Rosa Marchetti <span aria-hidden="true">🇮🇹</span></p>
+              <p className="text-xs text-[var(--text-faint)]">Tactical · 1150</p>
+            </div>
           </div>
-        );
-      })}
+          <span className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 font-mono text-sm font-bold">04:18</span>
+        </div>
+
+        <div className="grid aspect-square grid-cols-8 overflow-hidden rounded-xl ring-1 ring-[var(--border-strong)]">
+          {layout.map((piece, index) => {
+            const row = Math.floor(index / 8);
+            const col = index % 8;
+            const isLight = (row + col) % 2 === 0;
+            const isLastMove = row === 7 && (col === 4 || col === 6);
+            return (
+              <div key={index} className="relative" style={{ background: isLight ? theme.light : theme.dark }}>
+                {isLastMove && <span className="absolute inset-0" style={{ background: theme.lastMove }} />}
+                {piece && (
+                  <span className="absolute inset-[7%]">
+                    <Piece type={piece.t} color={piece.c} set="monarch" />
+                  </span>
+                )}
+                {col === 0 && (
+                  <span className="absolute left-1 top-0.5 text-[8px] font-black sm:text-[9px]" style={{ color: isLight ? theme.labelOnLight : theme.labelOnDark }}>
+                    {8 - row}
+                  </span>
+                )}
+                {row === 7 && (
+                  <span className="absolute bottom-0.5 right-1 text-[8px] font-black sm:text-[9px]" style={{ color: isLight ? theme.labelOnLight : theme.labelOnDark }}>
+                    {String.fromCharCode(97 + col)}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-3 flex items-center justify-between px-1">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-black text-[var(--accent-contrast)]">Y</span>
+            <div className="leading-tight">
+              <p className="text-sm font-bold">You</p>
+              <p className="text-xs text-[var(--text-faint)]">White to move</p>
+            </div>
+          </div>
+          <span className="rounded-lg border border-[var(--accent-dim)] bg-[var(--accent)] px-3 py-1.5 font-mono text-sm font-black text-[var(--accent-contrast)]">04:42</span>
+        </div>
+      </div>
+      <div className="absolute -bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-[var(--border-strong)] bg-[var(--bg-elev-2)] px-4 py-2 text-xs font-bold shadow-xl">
+        <span className="h-2 w-2 rounded-full bg-[var(--good)] shadow-[0_0_12px_var(--good)]" />
+        Original board. Original pieces.
+      </div>
     </div>
   );
 }
 
 export default function Home() {
   return (
-    <div className="mx-auto max-w-6xl px-4">
-      <section className="grid items-center gap-10 py-14 md:grid-cols-2 md:py-20">
-        <div className="animate-fade">
-          <span className="chip mb-4">♜ Original board · Original pieces</span>
-          <h1 className="text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl">
-            Chess, without the clutter.
-          </h1>
-          <p className="mt-4 max-w-md text-lg text-[var(--text-muted)]">
-            A fast, modern place to play. Pass-and-play today; bots and online multiplayer
-            rolling out. Built from scratch — no borrowed art, no noise.
-          </p>
-          <div className="mt-7 flex flex-wrap gap-3">
-            <Link href="/play/online" className="btn btn-primary text-base !px-5 !py-3">
-              <IconUsers width={18} height={18} /> Play online
-            </Link>
-            <Link href="/play/bot" className="btn text-base !px-5 !py-3">
-              <IconRobot width={18} height={18} /> Play a bot
-            </Link>
-            <HowToPlayChessLink />
+    <div className="overflow-hidden">
+      <section className="relative border-b border-[var(--border)]">
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_22%_32%,color-mix(in_srgb,var(--accent)_12%,transparent),transparent_30%)]" />
+        <div className="mx-auto grid max-w-6xl items-center gap-14 px-4 py-12 md:py-16 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16 lg:py-20">
+          <div className="order-2 lg:order-1">
+            <HeroBoard />
           </div>
-        </div>
-        <div className="flex justify-center md:justify-end">
-          <HeroBoard />
+
+          <div className="order-1 animate-fade lg:order-2">
+            <span className="chip mb-5 !border-[var(--accent)]/25 !bg-[var(--accent)]/10 !text-[var(--accent-strong)]">
+              ♜ Your next game starts here
+            </span>
+            <h1 className="max-w-xl text-5xl font-black leading-[0.98] tracking-[-0.05em] sm:text-6xl lg:text-7xl">
+              Play chess <span className="text-[var(--accent)]">your way.</span>
+            </h1>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-[var(--text-muted)] sm:text-xl">
+              Find a live opponent, challenge a bot with a real personality, or train until the hard moves feel obvious.
+            </p>
+
+            <div className="mt-8 flex max-w-xl flex-col gap-3">
+              <Link href="/play/online" className="btn btn-primary btn-cta w-full !justify-between !rounded-xl !px-5">
+                <span className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent-contrast)]/10">
+                    <IconUsers width={21} height={21} />
+                  </span>
+                  <span className="text-left">
+                    <span className="block text-lg leading-tight">Play Online</span>
+                    <span className="block text-xs font-semibold opacity-70">Find a live opponent</span>
+                  </span>
+                </span>
+                <IconChevronRight width={21} height={21} />
+              </Link>
+
+              <Link href="/play/bot" className="btn btn-cta w-full !justify-between !rounded-xl !border-[var(--border-strong)] !bg-[var(--bg-elev)] !px-5 hover:!bg-[var(--bg-elev-2)]">
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)]">
+                    <IconRobot width={21} height={21} />
+                  </span>
+                  <span className="text-left">
+                    <span className="block text-lg leading-tight">Play a Bot</span>
+                    <span className="block text-xs font-semibold text-[var(--text-faint)]">13 opponents · 400–2400</span>
+                  </span>
+                </span>
+                <span className="flex shrink-0 -space-x-2" aria-hidden="true">
+                  {BOT_PREVIEW.map((tierId) => (
+                    <BotAvatar key={tierId} tierId={tierId} size={34} rounded="full" className="ring-2 ring-[var(--bg-elev)]" />
+                  ))}
+                </span>
+              </Link>
+            </div>
+
+            <div className="mt-4 grid max-w-xl grid-cols-2 gap-2">
+              {QUICK_LINKS.map((item) => (
+                <Link key={item.href} href={item.href} className="group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-3 transition hover:border-[var(--border-strong)] hover:bg-[var(--bg-elev)]">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-elev-2)] text-[var(--accent)]">
+                    <item.icon width={18} height={18} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-extrabold">{item.label}</span>
+                    <span className="block truncate text-xs text-[var(--text-faint)]">{item.detail}</span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="grid gap-4 pb-8 sm:grid-cols-3">
-        {FEATURES.map((f) => (
-          <div key={f.title} className="panel p-5">
-            <h3 className="font-bold">{f.title}</h3>
-            <p className="mt-1.5 text-sm text-[var(--text-muted)]">{f.body}</p>
-          </div>
-        ))}
-      </section>
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
+        <div className="panel overflow-hidden">
+          <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[0.75fr_1.25fr] lg:items-center">
+            <div>
+              <span className="chip mb-4"><IconGrid width={14} height={14} /> Beyond chess</span>
+              <h2 className="text-3xl font-black tracking-tight sm:text-4xl">A whole games shelf lives here.</h2>
+              <p className="mt-4 leading-7 text-[var(--text-muted)]">
+                Switch from serious strategy to cards, words, puzzles, or a quick arcade run without leaving Sam&apos;s Arcade.
+              </p>
+              <div className="mt-6 flex items-center gap-5 text-sm font-bold text-[var(--text-muted)]">
+                <span><strong className="text-[var(--accent)]">72</strong> games</span>
+                <span><strong className="text-[var(--info)]">26</strong> online</span>
+                <span><strong className="text-[var(--good)]">2</strong> originals</span>
+              </div>
+              <Link href="/play" className="btn btn-primary mt-7 !px-5 !py-3 text-base">
+                Explore the Games Hub <IconChevronRight width={17} height={17} />
+              </Link>
+            </div>
 
-      <section className="panel mb-16 flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:justify-between sm:text-left">
-        <div>
-          <span className="chip mb-2">🎲 70+ games</span>
-          <h2 className="text-xl font-bold">More than chess</h2>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Othello, Quoridor, Wordle, Solitaire, and dozens more — all under one account, one theme.
-          </p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {GAME_SHELF.map((game, index) => (
+                <div key={game.name} className="flex min-h-32 flex-col justify-between rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)]">
+                  <span className={`text-2xl font-black ${index % 3 === 0 ? "text-[var(--accent)]" : index % 3 === 1 ? "text-[var(--info)]" : "text-[var(--good)]"}`}>
+                    {game.mark}
+                  </span>
+                  <span className="text-sm font-bold">{game.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-        <Link href="/play" className="btn btn-primary shrink-0 !px-5 !py-3 text-base">
-          Browse the Games Hub
-        </Link>
       </section>
     </div>
   );

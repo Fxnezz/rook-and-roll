@@ -247,6 +247,11 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             terminationStats={profileExtras.terminationStats}
             longestGame={profileExtras.longestGame}
             fastestCheckmate={profileExtras.fastestCheckmate}
+            openingsReport={profileExtras.openingsReport}
+            records={profileExtras.records}
+            bestWin={profileExtras.bestWin}
+            toughestLoss={profileExtras.toughestLoss}
+            opponentsTable={profileExtras.opponentsTable}
           />
           <RecentGamesList games={profileExtras.recentGames} username={user.username ?? ""} />
           <ActivityHeatmap days={profileExtras.activityHeatmap} />

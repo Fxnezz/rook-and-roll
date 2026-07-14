@@ -1,26 +1,26 @@
-# Render Blueprint for the Rook & Roll realtime (Socket.io) server.
-# This deploys ONLY the standalone server in server/ — the Next.js app lives on
-# Vercel. See README "Deployment" for the full picture.
-#
-# Usage: on https://dashboard.render.com → New → Blueprint → connect this repo.
-# Render auto-provides PORT; the server reads process.env.PORT.
-services:
-  - type: web
-    name: rook-and-roll-realtime
-    runtime: node
-    rootDir: server
-    plan: free
-    autoDeploy: true
-    buildCommand: npm install && npm run build
-    startCommand: npm start
-    healthCheckPath: /
-    envVars:
-      # Comma-separated list of allowed browser origins (CORS). Set this to your
-      # deployed Vercel URL (and localhost for testing if you like).
-      - key: CLIENT_ORIGIN
-        value: https://rook-and-roll.vercel.app
-      # Optional: set to your Postgres URL to persist finished rated games +
-      # apply Elo. Leave unset to run fully in-memory. Marked sync:false so it
-      # is entered in the dashboard, not committed.
-      - key: DATABASE_URL
-        sync: false
+# Render Blueprint for the Sam's Arcade realtime Socket.IO server.
+# The Next.js frontend is deployed separately on Vercel.
+projects:
+  - name: "Sam's Arcade"
+    environments:
+      - name: Production
+        services:
+          - type: web
+            name: sams-arcade-realtime
+            runtime: node
+            plan: free
+            autoDeploy: true
+            buildCommand: npm install --prefix server && npm run build --prefix server
+            startCommand: npm start --prefix server
+            healthCheckPath: /
+            buildFilter:
+              paths:
+                - server/**
+                - prisma/**
+            envVars:
+              - key: CLIENT_ORIGIN
+                value: https://sams-arcade.vercel.app
+              - key: DATABASE_URL
+                sync: false
+              - key: ADMIN_JWT_SECRET
+                sync: false

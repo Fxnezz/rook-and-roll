@@ -33,7 +33,7 @@ export function Wordmark({ size = 28 }: { size?: number }) {
     <span className="flex items-center gap-2.5">
       <Logo size={size} />
       <span className="hidden whitespace-nowrap text-[1.05rem] font-extrabold tracking-tight sm:inline">
-        Rook<span className="text-[var(--accent)]"> &amp; </span>Roll
+        Sam&apos;s <span className="text-[var(--accent)]">Arcade</span>
       </span>
     </span>
   );

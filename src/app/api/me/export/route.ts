@@ -74,7 +74,7 @@ export async function GET() {
   return new NextResponse(JSON.stringify(exportData, null, 2), {
     headers: {
       "Content-Type": "application/json",
-      "Content-Disposition": `attachment; filename="rook-and-roll-data-${userId}.json"`,
+      "Content-Disposition": `attachment; filename="sams-arcade-data-${userId}.json"`,
     },
   });
 }

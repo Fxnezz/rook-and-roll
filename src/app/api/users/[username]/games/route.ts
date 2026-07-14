@@ -36,7 +36,7 @@ function toPgnWithHeaders(g: {
   const date = g.createdAt.toISOString().slice(0, 10).replace(/-/g, ".");
   const headers = [
     `[Event "${g.rated ? "Rated" : "Casual"} ${g.category} game"]`,
-    `[Site "Rook & Roll"]`,
+    `[Site "Sam's Arcade"]`,
     `[Date "${date}"]`,
     `[White "${g.whiteName}"]`,
     `[Black "${g.blackName}"]`,
@@ -81,7 +81,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ username
     return new NextResponse(archive, {
       headers: {
         "Content-Type": "application/x-chess-pgn; charset=utf-8",
-        "Content-Disposition": `attachment; filename="rook-and-roll-${username}-games.pgn"`,
+        "Content-Disposition": `attachment; filename="sams-arcade-${username}-games.pgn"`,
       },
     });
   }

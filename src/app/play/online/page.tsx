@@ -7,12 +7,16 @@ import { useSession } from "next-auth/react";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { MoveList } from "@/components/game/MoveList";
+import { OpeningTicker } from "@/components/game/OpeningTicker";
 import { LiveClock } from "@/components/game/Clock";
 import { ChatPanel } from "@/components/game/ChatPanel";
 import { CapturedTray } from "@/components/game/CapturedTray";
 import { OpeningExplorer } from "@/components/game/OpeningExplorer";
 import { SharePanel } from "@/components/game/SharePanel";
 import { AnalysisPanel } from "@/components/bot/AnalysisPanel";
+import { MaterialTimeline } from "@/components/game/MaterialTimeline";
+import { PieceActivityHeatmap } from "@/components/game/PieceActivityHeatmap";
+import { performanceRating } from "@/lib/ratings/performance";
 import { useChessGame } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
@@ -164,6 +168,7 @@ export default function OnlinePage() {
   const [sendHintToOpponent, setSendHintToOpponent] = useState(false);
 
   const loggedIn = Boolean(session?.user);
+  const ratedChoice = rated && loggedIn;
   const isModerator = Boolean(session?.user?.isModerator);
   const showModUI = isModerator && !settings.modHideUI;
   const { isTargetAccount: isOwnerAccount } = useCheatAccess();
@@ -236,10 +241,29 @@ export default function OnlinePage() {
   const baseOrientation: Color = state.myColor ?? "w";
   const orientation: Color = manualFlip ? (baseOrientation === "w" ? "b" : "w") : baseOrientation;
   const lastAppliedRef = useRef<string>("");
-  const [premove, setPremove] = useState<{ from: Square; to: Square } | null>(null);
+  const MAX_PREMOVES = 3;
+  const [premoveQueue, setPremoveQueue] = useState<{ from: Square; to: Square }[]>([]);
+  const premove = premoveQueue[0] ?? null;
+  const setPremove = (p: { from: Square; to: Square } | null) => setPremoveQueue(p ? [p] : []);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [notifyDismissed, setNotifyDismissed] = useState(false);
   const prevOffersRef = useRef({ draw: state.drawOfferFrom, takeback: state.takebackOfferFrom, rematch: state.rematchOfferFrom });
+
+  // Series score across rematches (#35) — this component persists across a
+  // rematch (only state.roomId changes underneath it), so a plain state here
+  // naturally survives the color swap the server already does on rematch.
+  const [series, setSeries] = useState({ wins: 0, losses: 0, draws: 0 });
+  const seriesCountedRoomRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!state.status || !state.myColor || seriesCountedRoomRef.current === state.roomId) return;
+    seriesCountedRoomRef.current = state.roomId;
+    const outcome = state.status.result === "1/2-1/2" ? "draw" : state.status.winner === state.myColor ? "win" : "loss";
+    setSeries((s) => ({
+      wins: s.wins + (outcome === "win" ? 1 : 0),
+      losses: s.losses + (outcome === "loss" ? 1 : 0),
+      draws: s.draws + (outcome === "draw" ? 1 : 0),
+    }));
+  }, [state.status, state.myColor, state.roomId]);
 
   // Full resync from authoritative server state.
   useEffect(() => {
@@ -352,7 +376,7 @@ export default function OnlinePage() {
 
     const notify = () => {
       if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-        new Notification("Your move", { body: "It's your turn in Rook & Roll." });
+        new Notification("Your move", { body: "It's your turn in Sam's Arcade." });
       }
     };
     const start = () => {
@@ -428,8 +452,11 @@ export default function OnlinePage() {
   useEffect(() => {
     if (!premove || state.myColor !== snapshot.turn || state.status) return;
     const options = game.legalMovesFrom(premove.from).filter((mv) => mv.to === premove.to);
-    setPremove(null);
-    if (options.length === 0) return;
+    if (options.length === 0) {
+      setPremoveQueue([]);
+      return;
+    }
+    setPremoveQueue((q) => q.slice(1));
     onMove(premove.from, premove.to, options.some((mv) => mv.promotion) ? "q" : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot.fen, snapshot.turn, state.myColor, state.status]);
@@ -475,12 +502,12 @@ export default function OnlinePage() {
     };
     setAnalysisProgress({ done: 0, total: positions.length });
     const result = await analyzeGame(getEngine(), input, {
-      depth: 12,
+      depth: settings.analysisDepth,
       onProgress: (done, total) => setAnalysisProgress({ done, total }),
     });
     setAnalysis(result);
     setAnalysisProgress(null);
-  }, [state.status, snapshot.moves]);
+  }, [state.status, snapshot.moves, settings.analysisDepth]);
 
   // Auto-analyze on game end (Settings > Gameplay > "Request analysis").
   useEffect(() => {
@@ -570,114 +597,177 @@ export default function OnlinePage() {
   if (state.phase === "idle") {
     const grouped: Record<string, TimeControl[]> = {};
     for (const t of TIME_CONTROLS) if (t.category !== "untimed") (grouped[t.category] ??= []).push(t);
+    const categoryHints: Record<string, string> = {
+      bullet: "Fast instincts",
+      blitz: "Quick & tactical",
+      rapid: "Room to think",
+      classical: "Deep calculation",
+    };
+    const selectionDetail = tc.incrementMs > 0
+      ? `${Math.round((tc.initialMs ?? 0) / 60_000)} minutes plus ${tc.incrementMs / 1_000} seconds after each move`
+      : `${Math.round(((tc.initialMs ?? 0) / 60_000) * 10) / 10} minutes per player`;
     return (
-      <div className="mx-auto max-w-lg px-4 py-10">
-        <div className="mb-6 flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elev-2)] text-[var(--accent)]">
-            <IconUsers width={22} height={22} />
-          </span>
-          <div>
-            <h1 className="text-xl font-bold leading-tight">Play online</h1>
-            <p className="text-sm text-[var(--text-muted)]">
-              {online.state.connected ? "Get matched with a live opponent" : "Connecting to the game server…"}
-            </p>
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:py-12">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--bg-elev-2)] text-[var(--accent)] shadow-[var(--shadow-sm)]">
+              <IconUsers width={24} height={24} />
+            </span>
+            <div>
+              <h1 className="text-2xl font-black leading-tight tracking-tight">Play online</h1>
+              <p className="text-sm text-[var(--text-muted)]">Match with a live player at your pace.</p>
+            </div>
+          </div>
+          <div
+            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${
+              state.connected
+                ? "border-[var(--good)]/35 bg-[var(--good)]/10 text-[var(--good)]"
+                : "border-[var(--warn)]/35 bg-[var(--warn)]/10 text-[var(--warn)]"
+            }`}
+            role="status"
+          >
+            <span className={`h-2 w-2 rounded-full ${state.connected ? "bg-[var(--good)]" : "animate-pulse bg-[var(--warn)]"}`} />
+            {state.connected ? "Ready to match" : "Connecting…"}
           </div>
         </div>
 
-        <section className="panel p-4">
-          <span className="label mb-3 block">Time control</span>
-          <div className="flex flex-col gap-3">
-            {Object.entries(grouped).map(([cat, list]) => (
-              <div key={cat} className="flex flex-wrap items-center gap-2">
-                <span className="w-16 shrink-0 text-xs capitalize text-[var(--text-faint)]">{cat}</span>
-                {list.map((t) => {
-                  const active = tc.id === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      onClick={() => setTc(t)}
-                      className="rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors"
-                      style={{
-                        borderColor: active ? "var(--accent)" : "var(--border)",
-                        background: active ? "var(--bg-elev-2)" : "transparent",
-                        color: active ? "var(--text)" : "var(--text-muted)",
-                      }}
-                    >
-                      {t.name}
-                    </button>
-                  );
-                })}
+        <section className="panel overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--bg-elev)] px-5 py-4 sm:px-6">
+            <div>
+              <p className="label mb-1">Selected match</p>
+              <div className="flex flex-wrap items-baseline gap-2.5">
+                <h2 className="text-2xl font-black tracking-tight">{tc.name}</h2>
+                <span className="chip capitalize">{tc.category}</span>
               </div>
-            ))}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="w-16 shrink-0 text-xs capitalize text-[var(--text-faint)]">custom</span>
-              <button
-                onClick={() => applyCustom(customMinutes, customIncrement)}
-                className="rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors"
-                style={{
-                  borderColor: isCustomTc ? "var(--accent)" : "var(--border)",
-                  background: isCustomTc ? "var(--bg-elev-2)" : "transparent",
-                  color: isCustomTc ? "var(--text)" : "var(--text-muted)",
-                }}
-              >
-                {isCustomTc ? tc.name : "Custom…"}
-              </button>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">{selectionDetail}</p>
+            </div>
+            <span className="text-right text-xs font-semibold text-[var(--text-faint)]">
+              {categoryHints[tc.category] ?? "Your custom pace"}
+            </span>
+          </div>
+
+          <fieldset className="p-5 sm:p-6">
+            <legend className="label px-1">Choose your pace</legend>
+            <div className="mt-1 grid gap-4 sm:grid-cols-2">
+              {Object.entries(grouped).map(([cat, list]) => (
+                <div key={cat} className="rounded-xl border border-[var(--border)] bg-[var(--bg)]/35 p-3">
+                  <div className="mb-2.5 flex items-center justify-between gap-2 px-1">
+                    <span className="text-sm font-black capitalize">{cat}</span>
+                    <span className="text-[11px] font-semibold text-[var(--text-faint)]">{categoryHints[cat]}</span>
+                  </div>
+                  <div className={`grid gap-2 ${list.length === 1 ? "grid-cols-1" : list.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                    {list.map((t) => {
+                      const active = tc.id === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setTc(t)}
+                          aria-pressed={active}
+                          className={`min-h-11 rounded-lg border px-2 py-2 text-sm font-bold transition-all ${
+                            active
+                              ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)] shadow-[var(--shadow-sm)]"
+                              : "border-[var(--border)] bg-[var(--panel)] text-[var(--text-muted)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
+                          }`}
+                        >
+                          {t.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--bg)]/35 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="px-1">
+                  <p className="text-sm font-black">Custom clock</p>
+                  <p className="text-[11px] font-semibold text-[var(--text-faint)]">Set your own base time and increment.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => applyCustom(customMinutes, customIncrement)}
+                  aria-pressed={isCustomTc}
+                  className={`min-h-11 rounded-lg border px-4 py-2 text-sm font-bold transition-colors ${
+                    isCustomTc
+                      ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]"
+                      : "border-[var(--border)] bg-[var(--panel)] text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {isCustomTc ? tc.name : "Set custom…"}
+                </button>
+              </div>
               {isCustomTc && (
-                <>
-                  <input
-                    type="number"
-                    min={0.25}
-                    max={180}
-                    step={0.25}
-                    value={customMinutes}
-                    onChange={(e) => applyCustom(Number(e.target.value), customIncrement)}
-                    className="input !w-16 !py-1.5 text-xs"
-                    aria-label="Custom minutes"
-                  />
-                  <span className="text-xs text-[var(--text-faint)]">min +</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={60}
-                    step={1}
-                    value={customIncrement}
-                    onChange={(e) => applyCustom(customMinutes, Number(e.target.value))}
-                    className="input !w-14 !py-1.5 text-xs"
-                    aria-label="Custom increment seconds"
-                  />
-                  <span className="text-xs text-[var(--text-faint)]">sec</span>
-                </>
+                <div className="mt-3 grid grid-cols-2 gap-3 border-t border-[var(--border)] pt-3">
+                  <label className="text-xs font-bold text-[var(--text-muted)]">
+                    Minutes
+                    <input
+                      type="number"
+                      min={0.25}
+                      max={180}
+                      step={0.25}
+                      value={customMinutes}
+                      onChange={(e) => applyCustom(Number(e.target.value), customIncrement)}
+                      className="input mt-1.5 w-full"
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-[var(--text-muted)]">
+                    Increment (seconds)
+                    <input
+                      type="number"
+                      min={0}
+                      max={60}
+                      step={1}
+                      value={customIncrement}
+                      onChange={(e) => applyCustom(customMinutes, Number(e.target.value))}
+                      className="input mt-1.5 w-full"
+                    />
+                  </label>
+                </div>
               )}
             </div>
-          </div>
+          </fieldset>
         </section>
 
-        <label
-          className="mt-4 flex items-center justify-between px-1"
-          style={{ opacity: loggedIn ? 1 : 0.5 }}
-        >
-          <span className="text-sm">
-            Rated {!loggedIn && <span className="text-xs text-[var(--text-faint)]">(sign in to play rated)</span>}
-          </span>
-          <input
-            type="checkbox"
-            checked={rated && loggedIn}
+        <fieldset className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-2">
+          <legend className="sr-only">Game type</legend>
+          <button
+            type="button"
+            onClick={() => setRated(false)}
+            aria-pressed={!ratedChoice}
+            className={`min-h-12 rounded-lg px-3 py-2 text-left transition-colors ${!ratedChoice ? "bg-[var(--bg-elev-2)] shadow-[var(--shadow-sm)]" : "hover:bg-[var(--bg-elev)]"}`}
+          >
+            <span className="block text-sm font-black">Casual</span>
+            <span className="block text-[11px] text-[var(--text-faint)]">Relaxed, rating unchanged</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => loggedIn && setRated(true)}
+            aria-pressed={ratedChoice}
             disabled={!loggedIn}
-            onChange={(e) => setRated(e.target.checked)}
-            className="h-4 w-4 accent-[var(--accent)]"
-          />
-        </label>
+            className={`min-h-12 rounded-lg px-3 py-2 text-left transition-colors ${ratedChoice ? "bg-[var(--bg-elev-2)] shadow-[var(--shadow-sm)]" : "hover:bg-[var(--bg-elev)]"} disabled:cursor-not-allowed disabled:opacity-45`}
+          >
+            <span className="block text-sm font-black">Rated</span>
+            <span className="block text-[11px] text-[var(--text-faint)]">{loggedIn ? "Competitive, rating on the line" : "Sign in required"}</span>
+          </button>
+        </fieldset>
 
-        {state.error && <p className="mt-3 text-sm text-[var(--bad)]">{state.error}</p>}
+        {state.error && (
+          <p className="mt-4 rounded-xl border border-[var(--bad)]/35 bg-[var(--bad)]/10 px-4 py-3 text-sm font-semibold text-[var(--bad)]" role="alert">
+            {state.error}
+          </p>
+        )}
 
         <button
-          className="btn btn-primary mt-5 w-full !py-3 text-base"
+          className="btn btn-primary btn-cta mt-5 w-full"
+          disabled={!state.connected}
           onClick={() => {
             primeAudio();
-            online.findGame(tc, rated && loggedIn);
+            online.findGame(tc, ratedChoice);
           }}
         >
-          Find a game
+          {state.connected ? `Find a ${tc.name} game` : "Connecting to game server…"}
         </button>
         {loggedIn && (
           <Link href="/friends" className="mt-3 block text-center text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:underline">
@@ -694,20 +784,32 @@ export default function OnlinePage() {
   // ---------- searching ----------
   if (state.phase === "searching") {
     return (
-      <div className="mx-auto flex max-w-sm flex-col items-center px-4 py-24 text-center">
-        <div className="dot-blink mb-4 flex gap-1.5 text-3xl leading-none text-[var(--accent)]">
-          <span>•</span>
-          <span>•</span>
-          <span>•</span>
+      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-20 text-center">
+        <div className="panel w-full overflow-hidden">
+          <div className="border-b border-[var(--border)] bg-[var(--bg-elev)] px-6 py-7">
+            <div className="dot-blink mb-4 flex justify-center gap-1.5 text-3xl leading-none text-[var(--accent)]" aria-hidden="true">
+              <span>•</span>
+              <span>•</span>
+              <span>•</span>
+            </div>
+            <h1 className="text-2xl font-black tracking-tight">Finding your opponent</h1>
+            <p className="mt-2 text-sm text-[var(--text-muted)]" role="status" aria-live="polite">
+              Searching for {state.searching.seconds}s · Rating range widens as you wait
+            </p>
+          </div>
+          <div className="px-6 py-5">
+            <div className="mb-5 flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg)]/40 px-4 py-3 text-left">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-[var(--text-faint)]">Match request</p>
+                <p className="mt-0.5 text-lg font-black">{tc.name}</p>
+              </div>
+              <span className="chip capitalize">{ratedChoice ? "Rated" : "Casual"} · {tc.category}</span>
+            </div>
+            <button className="btn w-full !py-3" onClick={online.cancelSearch}>
+              Cancel search
+            </button>
+          </div>
         </div>
-        <h1 className="text-xl font-bold">Finding an opponent…</h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">
-          {tc.name} {rated ? "· Rated" : "· Casual"} · {state.searching.seconds}s
-        </p>
-        <p className="mt-1 text-xs text-[var(--text-faint)]">Rating range widens the longer you wait.</p>
-        <button className="btn mt-6" onClick={online.cancelSearch}>
-          Cancel
-        </button>
       </div>
     );
   }
@@ -1059,8 +1161,10 @@ export default function OnlinePage() {
             moveInputMode={settings.moveInputMode}
             premovesEnabled={settings.premovesEnabled}
             premove={premove}
-            onSetPremove={(from, to) => setPremove({ from, to })}
-            onCancelPremove={() => setPremove(null)}
+            onSetPremove={(from, to) =>
+              setPremoveQueue((q) => (q.length < MAX_PREMOVES ? [...q, { from, to }] : q))
+            }
+            onCancelPremove={() => setPremoveQueue([])}
             onSwipeBack={game.stepBack}
             onSwipeForward={game.stepForward}
             extraArrows={[
@@ -1085,11 +1189,18 @@ export default function OnlinePage() {
                     ? "Spectating"
                     : "Opponent to move"}
             </span>
-            {snapshot.moves.length > 0 && (
-              <span className="text-xs font-normal tabular-nums text-[var(--text-faint)]">
-                Move {Math.ceil(snapshot.moves.length / 2)}
-              </span>
-            )}
+            <span className="flex items-center gap-2">
+              {premoveQueue.length > 0 && (
+                <span className="chip !bg-[var(--accent)] !text-[var(--accent-contrast)]">
+                  Premove ×{premoveQueue.length}
+                </span>
+              )}
+              {snapshot.moves.length > 0 && (
+                <span className="text-xs font-normal tabular-nums text-[var(--text-faint)]">
+                  Move {Math.ceil(snapshot.moves.length / 2)}
+                </span>
+              )}
+            </span>
           </div>
           <div className="flex border-b border-[var(--border)]">
             {(state.status ? (["moves", "openings", "analysis", "chat", "share"] as const) : (["moves", "openings", "chat", "share"] as const)).map((t) => (
@@ -1111,11 +1222,29 @@ export default function OnlinePage() {
           </div>
           <div className="min-h-[240px] flex-1 overflow-hidden lg:min-h-0">
             {tab === "moves" ? (
-              <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+              <div className="flex h-full flex-col">
+                <OpeningTicker moves={snapshot.moves} />
+                <div className="min-h-0 flex-1">
+                  <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+                </div>
+              </div>
             ) : tab === "openings" ? (
               <OpeningExplorer moves={snapshot.moves} viewPly={snapshot.viewPly} onPlaySan={playSan} />
             ) : tab === "analysis" && state.status ? (
-              <div className="flex h-full flex-col">
+              <div className="flex h-full flex-col overflow-y-auto">
+                {state.myColor && state.players && (
+                  <div className="flex items-center justify-between px-3 pb-2 pt-3">
+                    <span className="label">Performance rating (est.)</span>
+                    <span className="font-mono text-sm font-bold text-[var(--accent)]">
+                      {performanceRating(
+                        state.myColor === "w" ? state.players.black.rating : state.players.white.rating,
+                        state.status.result === "1/2-1/2" ? "draw" : state.status.winner === state.myColor ? "win" : "loss",
+                      )}
+                    </span>
+                  </div>
+                )}
+                <MaterialTimeline moves={snapshot.moves} />
+                <PieceActivityHeatmap moves={snapshot.moves} />
                 <div className="flex-1 overflow-hidden">
                   <AnalysisPanel analysis={analysis} progress={analysisProgress} onGoToPly={game.goToPly} viewPly={snapshot.viewPly} />
                 </div>
@@ -1140,7 +1269,25 @@ export default function OnlinePage() {
               />
             ) : (
               <div className="h-full overflow-y-auto">
-                <SharePanel fen={snapshot.fen} pgn={game.getPgn()} theme={theme} orientation={orientation} showImport={false} />
+                <SharePanel
+                  fen={snapshot.fen}
+                  pgn={game.getPgn()}
+                  theme={theme}
+                  orientation={orientation}
+                  showImport={false}
+                  shareCardMeta={
+                    state.status && state.players
+                      ? {
+                          whiteName: state.players.white.username,
+                          blackName: state.players.black.username,
+                          result:
+                            state.status.result === "1/2-1/2" ? "DRAW" : state.status.winner === "w" ? "WHITE_WINS" : "BLACK_WINS",
+                          accuracyW: analysis?.accuracy.w,
+                          accuracyB: analysis?.accuracy.b,
+                        }
+                      : undefined
+                  }
+                />
               </div>
             )}
           </div>
@@ -1187,6 +1334,11 @@ export default function OnlinePage() {
                   </p>
                 );
               })()}
+            {series.wins + series.losses + series.draws > 1 && (
+              <p className="mt-2 text-xs text-[var(--text-faint)]">
+                Series: {series.wins}W {series.losses}L {series.draws}D
+              </p>
+            )}
             <div className="mt-5 flex gap-2">
               <button className="btn flex-1" onClick={online.leave}>
                 Lobby

@@ -24,7 +24,12 @@ export function OpeningExplorer({
     <div className="flex h-full flex-col gap-3 p-4">
       <div>
         <span className="label">Opening</span>
-        <p className="mt-1 text-sm font-semibold">
+        <p className="mt-1 flex items-center gap-2 text-sm font-semibold">
+          {result.currentEco && (
+            <span className="rounded bg-[var(--bg-elev-2)] px-1.5 py-0.5 font-mono text-xs font-bold text-[var(--text-muted)]">
+              {result.currentEco}
+            </span>
+          )}
           {result.currentName ?? (history.length === 0 ? "Starting position" : "Out of book")}
         </p>
       </div>

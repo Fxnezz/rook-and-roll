@@ -70,6 +70,8 @@ export interface BoardProps {
   onSwipeForward?: () => void;
   /** Read each move aloud via the browser's speech synthesis, alongside the aria-live announcement. */
   speechAnnounceMoves?: boolean;
+  /** Blindfold training: render the board and accept moves, but draw no pieces. */
+  hidePieces?: boolean;
 }
 
 interface DragState {
@@ -146,6 +148,7 @@ export function Board({
   onSwipeBack,
   onSwipeForward,
   speechAnnounceMoves = false,
+  hidePieces = false,
 }: BoardProps) {
   const effTheme: BoardTheme = {
     ...theme,
@@ -693,7 +696,7 @@ export function Board({
               top: `${y}%`,
               width: "12.5%",
               height: "12.5%",
-              opacity: hidden ? 0 : 1,
+              opacity: hidden || hidePieces ? 0 : 1,
               zIndex: 2,
               transform: pieceSizePercent !== 100 ? `scale(${pieceSizePercent / 100})` : undefined,
             }}
@@ -704,7 +707,7 @@ export function Board({
       })}
 
       {/* Sliding animation piece */}
-      {anim && (
+      {anim && !hidePieces && (
         <SlidePiece
           anim={anim}
           orientation={orientation}
@@ -715,7 +718,7 @@ export function Board({
       )}
 
       {/* Dragged piece follows the pointer */}
-      {drag && (
+      {drag && !hidePieces && (
         <div
           className="absolute pointer-events-none"
           style={{
@@ -734,6 +737,7 @@ export function Board({
 
       {/* Premove ghost piece preview at the queued destination */}
       {premove &&
+        !hidePieces &&
         (() => {
           const p = pieceAt(premove.from);
           if (!p) return null;

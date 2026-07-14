@@ -249,7 +249,20 @@ const ACHIEVEMENT_CATALOG: Record<string, { name: string; description: string; i
   blitz_win: { name: "Blitz Master", description: "Win a rated blitz game", icon: "💨" },
   rapid_win: { name: "Rapid Fire", description: "Win a rated rapid game", icon: "🎯" },
   classical_win: { name: "Grandmaster's Patience", description: "Win a rated classical game", icon: "🏛️" },
+  rating_1200: { name: "Club Player", description: "Reach a 1200 rating in any category", icon: "🥉" },
+  rating_1400: { name: "Rising Star", description: "Reach a 1400 rating in any category", icon: "🥈" },
+  rating_1600: { name: "Sharp Tactician", description: "Reach a 1600 rating in any category", icon: "🥇" },
+  rating_1800: { name: "Expert", description: "Reach an 1800 rating in any category", icon: "💎" },
+  rating_2000: { name: "Master Class", description: "Reach a 2000 rating in any category", icon: "👑" },
 };
+
+const RATING_MILESTONES: { threshold: number; id: string }[] = [
+  { threshold: 1200, id: "rating_1200" },
+  { threshold: 1400, id: "rating_1400" },
+  { threshold: 1600, id: "rating_1600" },
+  { threshold: 1800, id: "rating_1800" },
+  { threshold: 2000, id: "rating_2000" },
+];
 
 /** Checks the just-saved game against the achievement rules and awards any newly-earned ones (idempotent). Mirrors src/lib/achievements/award.ts on the Next.js side. */
 async function checkAndAwardAchievements(params: {
@@ -259,6 +272,8 @@ async function checkAndAwardAchievements(params: {
   category: string;
   rated: boolean;
   termination: string;
+  ratingBefore?: number;
+  ratingAfter?: number;
 }): Promise<string[]> {
   if (!prisma?.userAchievement || params.userId.startsWith("guest:")) return [];
   const { userId, color, result, category, rated, termination } = params;
@@ -300,6 +315,11 @@ async function checkAndAwardAchievements(params: {
     if (streak >= 5) toAward.push("win_streak_5");
   }
   if (drew) toAward.push("first_draw");
+  if (params.ratingBefore != null && params.ratingAfter != null) {
+    for (const m of RATING_MILESTONES) {
+      if (params.ratingBefore < m.threshold && params.ratingAfter >= m.threshold) toAward.push(m.id);
+    }
+  }
   if (toAward.length === 0) return [];
 
   const existing = await prisma.userAchievement.findMany({
@@ -433,10 +453,28 @@ export async function saveFinishedGame(
 
     const [whiteAch, blackAch] = await Promise.all([
       whiteReal
-        ? checkAndAwardAchievements({ userId: room.white.userId, color: "w", result: RESULT_ENUM[result], category: cat, rated: recordedAsRated, termination: room.status.reason })
+        ? checkAndAwardAchievements({
+            userId: room.white.userId,
+            color: "w",
+            result: RESULT_ENUM[result],
+            category: cat,
+            rated: recordedAsRated,
+            termination: room.status.reason,
+            ratingBefore: whiteBefore ?? undefined,
+            ratingAfter: whiteAfter ?? undefined,
+          })
         : Promise.resolve([]),
       blackReal
-        ? checkAndAwardAchievements({ userId: room.black.userId, color: "b", result: RESULT_ENUM[result], category: cat, rated: recordedAsRated, termination: room.status.reason })
+        ? checkAndAwardAchievements({
+            userId: room.black.userId,
+            color: "b",
+            result: RESULT_ENUM[result],
+            category: cat,
+            rated: recordedAsRated,
+            termination: room.status.reason,
+            ratingBefore: blackBefore ?? undefined,
+            ratingAfter: blackAfter ?? undefined,
+          })
         : Promise.resolve([]),
     ]);
 

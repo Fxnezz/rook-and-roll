@@ -19,6 +19,10 @@ export type BotTierId =
 export interface BotTier {
   id: BotTierId;
   name: string;
+  /** Full display name, chess.com-bot style (e.g. "Rosa Marchetti"). */
+  fullName: string;
+  /** Country flag emoji shown next to the name. */
+  flag: string;
   elo: number;
   blurb: string;
   /** Stockfish Skill Level 0–20 */
@@ -42,6 +46,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "pip",
     name: "Pip",
+    fullName: "Pip Ellison",
+    flag: "🇬🇧",
     elo: 400,
     blurb: "Just learning the ropes. Makes plenty of mistakes.",
     skill: 0,
@@ -54,6 +60,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "milo",
     name: "Milo",
+    fullName: "Milo Ferreira",
+    flag: "🇧🇷",
     elo: 550,
     blurb: "Plays fast and loose — endearing chaos, no plan.",
     skill: 1,
@@ -66,6 +74,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "nell",
     name: "Nell",
+    fullName: "Nell Okafor",
+    flag: "🇳🇬",
     elo: 700,
     blurb: "Knows the basics but plays it timid and quiet.",
     skill: 3,
@@ -78,6 +88,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "beau",
     name: "Beau",
+    fullName: "Beau Lambert",
+    flag: "🇫🇷",
     elo: 850,
     blurb: "Loves a good scrap — charges into every trade.",
     skill: 5,
@@ -90,6 +102,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "cass",
     name: "Cass",
+    fullName: "Cass Delgado",
+    flag: "🇪🇸",
     elo: 1000,
     blurb: "A solid club player. Punishes loose moves.",
     skill: 7,
@@ -102,6 +116,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "rosa",
     name: "Rosa",
+    fullName: "Rosa Marchetti",
+    flag: "🇮🇹",
     elo: 1150,
     blurb: "Sharp and swashbuckling — always hunting for tactics.",
     skill: 8,
@@ -114,6 +130,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "wren",
     name: "Wren",
+    fullName: "Wren Kobayashi",
+    flag: "🇯🇵",
     elo: 1300,
     blurb: "Patient and positional. Grinds you down slowly.",
     skill: 9,
@@ -126,6 +144,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "dex",
     name: "Dex",
+    fullName: "Dex Mercer",
+    flag: "🇺🇸",
     elo: 1450,
     blurb: "Balanced and dangerous. Nothing gets past him twice.",
     skill: 11,
@@ -138,6 +158,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "ilsa",
     name: "Ilsa",
+    fullName: "Ilsa Bergström",
+    flag: "🇸🇪",
     elo: 1600,
     blurb: "Relentless attacker. Punishes hesitation instantly.",
     skill: 13,
@@ -150,6 +172,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "vera",
     name: "Vera",
+    fullName: "Vera Kowalska",
+    flag: "🇵🇱",
     elo: 1750,
     blurb: "Strong and calculating. Hard to fool.",
     skill: 15,
@@ -162,6 +186,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "zephyr",
     name: "Zephyr",
+    fullName: "Zephyr Cole",
+    flag: "🇨🇦",
     elo: 1900,
     blurb: "Ice-cold and precise. Waits for your one mistake.",
     skill: 17,
@@ -174,6 +200,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "titan",
     name: "Titan",
+    fullName: "TITAN-7",
+    flag: "🤖",
     elo: 2150,
     blurb: "Blisteringly sharp. Attacks from move one.",
     skill: 19,
@@ -186,6 +214,8 @@ export const BOT_TIERS: BotTier[] = [
   {
     id: "omen",
     name: "Omen",
+    fullName: "The Omen",
+    flag: "🌑",
     elo: 2400,
     blurb: "Full strength, deep search, no mercy.",
     skill: 20,

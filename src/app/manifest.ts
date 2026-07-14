@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Rook & Roll — Play Chess",
-    short_name: "Rook & Roll",
+    name: "Sam's Arcade — Chess, Strategy & More",
+    short_name: "Sam's Arcade",
     description:
-      "A fast, modern place to play chess. Pass-and-play, bots, and online — original board, original pieces, no clutter.",
+      "Play chess online, challenge bots, train your skills, and explore a growing arcade of original games.",
     start_url: "/",
     scope: "/",
     display: "standalone",

@@ -8,7 +8,18 @@ export interface AwardContext {
   category: string;
   rated: boolean;
   termination: string;
+  /** Rating in this category immediately before/after this game — only set for rated games — used to detect milestone crossings. */
+  ratingBefore?: number;
+  ratingAfter?: number;
 }
+
+const RATING_MILESTONES: { threshold: number; id: AchievementId }[] = [
+  { threshold: 1200, id: "rating_1200" },
+  { threshold: 1400, id: "rating_1400" },
+  { threshold: 1600, id: "rating_1600" },
+  { threshold: 1800, id: "rating_1800" },
+  { threshold: 2000, id: "rating_2000" },
+];
 
 /** Checks the just-saved game against the achievement rules and awards any newly-earned ones (idempotent). */
 export async function checkAndAwardAchievements(ctx: AwardContext): Promise<AchievementId[]> {
@@ -54,6 +65,12 @@ export async function checkAndAwardAchievements(ctx: AwardContext): Promise<Achi
   }
 
   if (drew) toAward.push("first_draw");
+
+  if (ctx.ratingBefore != null && ctx.ratingAfter != null) {
+    for (const m of RATING_MILESTONES) {
+      if (ctx.ratingBefore < m.threshold && ctx.ratingAfter >= m.threshold) toAward.push(m.id);
+    }
+  }
 
   if (toAward.length === 0) return [];
 

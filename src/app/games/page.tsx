@@ -5,6 +5,9 @@ import { auth } from "@/lib/auth/auth";
 import { DbNotice } from "@/components/ui/DbNotice";
 import { fetchGameHistory, type CategoryFilter, type ResultFilter } from "@/lib/games/history";
 import { GameFavoriteStar } from "@/components/game/GameFavoriteStar";
+import { GameAccuracyBadge } from "@/components/game/GameAccuracyBadge";
+import { GameImportButton } from "@/components/game/GameImportButton";
+import { AnalyzeAllButton } from "@/components/game/AnalyzeAllButton";
 import { IconDownload, IconStar } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
@@ -84,11 +87,17 @@ export default async function GamesPage({
     <div className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-1 flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">{isOwn ? "My games" : `${profileUser.username}'s games`}</h1>
-        {games.length > 0 && (
-          <a href={downloadHref} className="btn hover-lift !py-1.5 text-xs" download>
-            <IconDownload width={14} height={14} /> Download all as PGN
-          </a>
-        )}
+        <div className="flex gap-2">
+          {isOwn && <GameImportButton />}
+          {isOwn && (
+            <AnalyzeAllButton games={games.filter((g) => g.accuracyW == null || g.accuracyB == null).map((g) => ({ id: g.id, pgn: g.pgn }))} />
+          )}
+          {games.length > 0 && (
+            <a href={downloadHref} className="btn hover-lift !py-1.5 text-xs" download>
+              <IconDownload width={14} height={14} /> Download all as PGN
+            </a>
+          )}
+        </div>
       </div>
       <Link href={`/u/${profileUser.username}`} className="mb-5 inline-block text-sm text-[var(--text-muted)] hover:text-[var(--text)]">
         ← Back to profile
@@ -182,6 +191,7 @@ export default async function GamesPage({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold">vs {opponent}</span>
                     <span className="block truncate text-xs text-[var(--text-faint)]">
+                      {g.opening ? `${g.eco} ${g.opening} · ` : ""}
                       {g.termination} · {g.ply} moves
                     </span>
                   </span>
@@ -192,7 +202,11 @@ export default async function GamesPage({
                     <span className="block">{g.createdAt.toLocaleDateString()}</span>
                   </span>
                   {g.rated && <span className="chip !px-1.5 !py-0.5 text-[10px]">Rated</span>}
+                  {g.imported && <span className="chip !px-1.5 !py-0.5 text-[10px]">Imported</span>}
                 </Link>
+                {isOwn && (
+                  <GameAccuracyBadge gameId={g.id} pgn={g.pgn} accuracyW={g.accuracyW} accuracyB={g.accuracyB} />
+                )}
               </div>
             );
           })}

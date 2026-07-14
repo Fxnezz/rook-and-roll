@@ -61,6 +61,11 @@ export const IconDownload = (p: SVGProps<SVGSVGElement>) => (
     <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
   </svg>
 );
+export const IconUpload = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M12 21V9M7 14l5-5 5 5M5 3h14" />
+  </svg>
+);
 export const IconPlus = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M12 5v14M5 12h14" />
@@ -110,6 +115,13 @@ export const IconGrid = (p: SVGProps<SVGSVGElement>) => (
 export const IconPuzzle = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M9 4h4a1 1 0 0 1 1 1v2.2a1.8 1.8 0 1 0 0 3.6V13a1 1 0 0 1-1 1h-2.2a1.8 1.8 0 1 0-3.6 0H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h2.2a1.8 1.8 0 1 0 3.6 0V5a1 1 0 0 1 1-1z" />
+  </svg>
+);
+export const IconTraining = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="8" />
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 2v3M22 12h-3M12 22v-3M2 12h3" />
   </svg>
 );
 export const IconTrophy = (p: SVGProps<SVGSVGElement>) => (

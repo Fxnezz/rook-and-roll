@@ -75,7 +75,7 @@ export function buildShareText(
   const EMOJI: Record<LetterState, string> = { correct: "🟩", present: "🟨", absent: "⬜" };
   const guessLine = won ? `${rows.length}/${MAX_GUESSES}` : `X/${MAX_GUESSES}`;
   const grid = rows.map((r) => r.states.map((s) => EMOJI[s]).join("")).join("\n");
-  return `Rook & Roll Word Game — ${label} ${guessLine}\n${grid}`;
+  return `Sam's Arcade Word Game — ${label} ${guessLine}\n${grid}`;
 }
 
 /** Merge a new guess's letter states into a running best-known keyboard state. */

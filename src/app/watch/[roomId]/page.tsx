@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import type { Color, PieceSymbol, Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { MoveList } from "@/components/game/MoveList";
+import { OpeningTicker } from "@/components/game/OpeningTicker";
 import { LiveClock } from "@/components/game/Clock";
 import { ChatPanel } from "@/components/game/ChatPanel";
 import { useChessGame } from "@/lib/chess/useChessGame";
@@ -388,7 +389,12 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
             )}
             <div className="flex-1 overflow-hidden">
               {tab === "moves" ? (
-                <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+                <div className="flex h-full flex-col">
+                  <OpeningTicker moves={snapshot.moves} />
+                  <div className="min-h-0 flex-1">
+                    <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} figurineNotation={settings.figurineNotation} commentsByPly={snapshot.commentsByPly} />
+                  </div>
+                </div>
               ) : tab === "share" ? (
                 <div className="h-full overflow-y-auto">
                   <SharePanel fen={snapshot.fen} pgn={game.getPgn()} theme={theme} orientation="w" showImport={false} />

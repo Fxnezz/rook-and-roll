@@ -1,8 +1,8 @@
 {
-  "name": "rook-and-roll-realtime",
+  "name": "sams-arcade-realtime",
   "version": "0.1.0",
   "private": true,
-  "description": "Rook & Roll realtime multiplayer server (Socket.io). Deploy separately from the Next.js app.",
+  "description": "Sam's Arcade realtime multiplayer server (Socket.io). Deploy separately from the Next.js app.",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

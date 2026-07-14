@@ -6,6 +6,7 @@ import { BOT_TIERS, type BotTierId } from "@/lib/engine/bots";
 import {
   TIME_CONTROLS,
   type TimeControl,
+  type DelayMode,
   clampCustomMinutes,
   clampCustomIncrementSec,
   customTimeControlId,
@@ -14,14 +15,32 @@ import {
 import { Piece } from "@/lib/pieces";
 import { IconRobot } from "@/components/ui/icons";
 import { ChessRulesModal } from "@/components/ui/ChessRulesModal";
+import { ODDS_OPTIONS, oddsStartFen, type OddsId } from "@/lib/chess/odds";
+import { BotAvatar } from "@/components/bot/BotAvatar";
 
 const CUSTOM_TC_STORAGE_KEY = "rr.customTimeControl.v1";
+
+const BOT_GROUPS = [
+  { title: "Beginner", detail: "400–700", ids: ["pip", "milo", "nell"] },
+  { title: "Intermediate", detail: "850–1300", ids: ["beau", "cass", "rosa", "wren"] },
+  { title: "Advanced", detail: "1450–1900", ids: ["dex", "ilsa", "vera", "zephyr"] },
+  { title: "Master", detail: "2150+", ids: ["titan", "omen"] },
+] as const;
+
+const PERSONALITY_LABEL = {
+  normal: "Balanced",
+  random: "Unpredictable",
+  passive: "Positional",
+  aggressive: "Aggressive",
+} as const;
 
 export interface BotConfig {
   tierId: BotTierId;
   color: Color; // human's colour
   timeControlId: string;
   showEval: boolean;
+  /** Non-standard starting position — handicap odds (or a deep-linked custom FEN) apply this instead of the normal start. */
+  startFen?: string;
 }
 
 export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
@@ -29,8 +48,10 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
   const [colorChoice, setColorChoice] = useState<"w" | "b" | "random">("w");
   const [tcId, setTcId] = useState("untimed");
   const [showEval, setShowEval] = useState(false);
+  const [oddsId, setOddsId] = useState<OddsId>("none");
   const [customMinutes, setCustomMinutes] = useState(10);
   const [customIncrement, setCustomIncrement] = useState(0);
+  const [delayMode, setDelayMode] = useState<DelayMode>("increment");
   const [showRules, setShowRules] = useState(false);
   const [myRating, setMyRating] = useState<number | null>(null);
 
@@ -66,9 +87,10 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
     try {
       const raw = localStorage.getItem(CUSTOM_TC_STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as { minutes?: number; increment?: number };
+        const parsed = JSON.parse(raw) as { minutes?: number; increment?: number; delayMode?: DelayMode };
         if (typeof parsed.minutes === "number") setCustomMinutes(clampCustomMinutes(parsed.minutes));
         if (typeof parsed.increment === "number") setCustomIncrement(clampCustomIncrementSec(parsed.increment));
+        if (parsed.delayMode === "us" || parsed.delayMode === "bronstein") setDelayMode(parsed.delayMode);
       }
     } catch {
       /* ignore */
@@ -77,14 +99,15 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
 
   const isCustom = tcId.startsWith("custom:");
 
-  const applyCustom = (minutes: number, increment: number) => {
+  const applyCustom = (minutes: number, increment: number, mode: DelayMode = delayMode) => {
     const m = clampCustomMinutes(minutes);
     const i = clampCustomIncrementSec(increment);
     setCustomMinutes(m);
     setCustomIncrement(i);
-    setTcId(customTimeControlId(m, i));
+    setDelayMode(mode);
+    setTcId(customTimeControlId(m, i, mode));
     try {
-      localStorage.setItem(CUSTOM_TC_STORAGE_KEY, JSON.stringify({ minutes: m, increment: i }));
+      localStorage.setItem(CUSTOM_TC_STORAGE_KEY, JSON.stringify({ minutes: m, increment: i, delayMode: mode }));
     } catch {
       /* ignore */
     }
@@ -92,21 +115,24 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
 
   const start = () => {
     const color: Color = colorChoice === "random" ? (Math.random() < 0.5 ? "w" : "b") : colorChoice;
-    onStart({ tierId, color, timeControlId: tcId, showEval });
+    const botColor: Color = color === "w" ? "b" : "w";
+    const startFen = oddsStartFen(botColor, oddsId) ?? undefined;
+    onStart({ tierId, color, timeControlId: tcId, showEval, startFen });
   };
 
   const grouped: Record<string, TimeControl[]> = {};
   for (const tc of TIME_CONTROLS) (grouped[tc.category] ??= []).push(tc);
+  const selectedTier = BOT_TIERS.find((tier) => tier.id === tierId) ?? BOT_TIERS[4];
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
       <div className="mb-6 flex items-center gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elev-2)] text-[var(--accent)]">
           <IconRobot width={22} height={22} />
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold leading-tight">Play a bot</h1>
-          <p className="text-sm text-[var(--text-muted)]">Powered by Stockfish, tuned per level</p>
+          <h1 className="text-2xl font-black leading-tight tracking-tight">Choose your opponent</h1>
+          <p className="text-sm text-[var(--text-muted)]">13 personalities, each tuned to play differently</p>
         </div>
         <button
           onClick={() => setShowRules(true)}
@@ -118,47 +144,68 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
         </button>
       </div>
 
-      <section className="panel p-4">
-        <span className="label mb-3 block">Choose your opponent</span>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {BOT_TIERS.map((t) => {
-            const active = tierId === t.id;
-            const recommended = recommendedTierId === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => setTierId(t.id)}
-                className="relative flex items-center gap-3 rounded-lg border p-3 text-left transition-colors"
-                style={{
-                  borderColor: active ? "var(--accent)" : recommended ? "var(--accent)" : "var(--border)",
-                  background: active ? "var(--bg-elev-2)" : "transparent",
-                  boxShadow: recommended && !active ? "0 0 0 1px var(--accent)" : undefined,
-                }}
-              >
-                {recommended && (
-                  <span
-                    className="absolute -top-2 right-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                    style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}
-                  >
-                    Recommended
-                  </span>
-                )}
-                <span
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg font-black"
-                  style={{ background: `${t.accent}22`, color: t.accent }}
-                >
-                  {t.name[0]}
-                </span>
-                <span className="min-w-0">
-                  <span className="flex items-center gap-2">
-                    <span className="font-bold">{t.name}</span>
-                    <span className="chip !px-1.5 !py-0.5 text-[10px]">{t.elo}</span>
-                  </span>
-                  <span className="block truncate text-xs text-[var(--text-muted)]">{t.blurb}</span>
-                </span>
-              </button>
-            );
-          })}
+      <section className="panel overflow-hidden">
+        <div className="grid gap-5 border-b border-[var(--border)] bg-[var(--bg-elev)]/45 p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:p-6" aria-live="polite">
+          <BotAvatar tierId={selectedTier.id} size={112} rounded="lg" className="shadow-[var(--shadow)]" />
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-2xl font-black tracking-tight sm:text-3xl">{selectedTier.fullName}</h2>
+              <span className="text-xl" aria-label={`Country flag ${selectedTier.flag}`}>{selectedTier.flag}</span>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="chip !border-[var(--accent)]/30 !text-[var(--accent)]">{selectedTier.elo} rating</span>
+              <span className="chip">{PERSONALITY_LABEL[selectedTier.personality]}</span>
+            </div>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--text-muted)]">{selectedTier.blurb}</p>
+          </div>
+          <div className="hidden text-right sm:block">
+            <IconRobot width={30} height={30} className="ml-auto text-[var(--accent)]" />
+            <p className="mt-2 text-xs font-bold uppercase tracking-wider text-[var(--text-faint)]">Stockfish tuned</p>
+          </div>
+        </div>
+
+        <div className="space-y-6 p-4 sm:p-6">
+          {BOT_GROUPS.map((group) => (
+            <div key={group.title}>
+              <div className="mb-3 flex items-baseline justify-between gap-3">
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-[var(--text-muted)]">{group.title}</h3>
+                <span className="text-xs font-semibold text-[var(--text-faint)]">{group.detail}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {group.ids.map((id) => {
+                  const tier = BOT_TIERS.find((candidate) => candidate.id === id)!;
+                  const active = tierId === tier.id;
+                  const recommended = recommendedTierId === tier.id;
+                  return (
+                    <button
+                      key={tier.id}
+                      type="button"
+                      onClick={() => setTierId(tier.id)}
+                      aria-pressed={active}
+                      className={`relative flex min-w-0 items-center gap-3 rounded-xl border p-2.5 text-left transition sm:flex-col sm:p-3 sm:text-center ${
+                        active
+                          ? "border-[var(--accent)] bg-[var(--bg-elev-2)] shadow-[0_0_0_1px_var(--accent)]"
+                          : recommended
+                            ? "border-[var(--accent-dim)] bg-[var(--accent)]/5 hover:bg-[var(--bg-elev)]"
+                            : "border-[var(--border)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-elev)]"
+                      }`}
+                    >
+                      {recommended && (
+                        <span className="absolute -right-1.5 -top-2 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-[var(--accent-contrast)]">
+                          Best match
+                        </span>
+                      )}
+                      <BotAvatar tierId={tier.id} size={58} rounded="lg" />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-extrabold">{tier.name} <span aria-hidden="true">{tier.flag}</span></span>
+                        <span className="mt-0.5 block text-xs font-bold text-[var(--text-faint)]">{tier.elo}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -250,7 +297,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
               />
             </label>
             <label className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-              Increment (sec)
+              Increment/delay (sec)
               <input
                 type="number"
                 min={0}
@@ -261,9 +308,47 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
                 className="input !w-20 !py-1 text-sm"
               />
             </label>
+            <label className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+              Mode
+              <select
+                className="input !w-auto !py-1 text-xs"
+                value={delayMode}
+                onChange={(e) => applyCustom(customMinutes, customIncrement, e.target.value as DelayMode)}
+              >
+                <option value="increment">Fischer increment</option>
+                <option value="us">US delay</option>
+                <option value="bronstein">Bronstein delay</option>
+              </select>
+            </label>
             {isCustom && <span className="chip !px-2 !py-0.5 text-xs">{getTimeControl(tcId).name}</span>}
           </div>
         </div>
+      </section>
+
+      <section className="panel mt-4 p-4">
+        <span className="label mb-3 block">Handicap (odds)</span>
+        <div className="flex flex-wrap gap-2">
+          {ODDS_OPTIONS.map((o) => {
+            const active = oddsId === o.id;
+            return (
+              <button
+                key={o.id}
+                onClick={() => setOddsId(o.id)}
+                className="rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors"
+                style={{
+                  borderColor: active ? "var(--accent)" : "var(--border)",
+                  background: active ? "var(--bg-elev-2)" : "transparent",
+                  color: active ? "var(--text)" : "var(--text-muted)",
+                }}
+              >
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+        {oddsId !== "none" && (
+          <p className="mt-2 text-xs text-[var(--text-muted)]">The bot starts without its {ODDS_OPTIONS.find((o) => o.id === oddsId)?.label.toLowerCase()}.</p>
+        )}
       </section>
 
       <label className="mt-4 flex cursor-pointer items-center justify-between px-1">
@@ -276,8 +361,8 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
         />
       </label>
 
-      <button className="btn btn-primary mt-5 w-full !py-3 text-base" onClick={start}>
-        Start game
+      <button className="btn btn-primary btn-cta mt-6 w-full" onClick={start}>
+        Play {selectedTier.name}
       </button>
 
       {showRules && <ChessRulesModal onClose={() => setShowRules(false)} />}

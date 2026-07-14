@@ -24,6 +24,11 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "board_game_win", name: "Board Game Champion", description: "Win a board game against the bot", category: "milestone", icon: "🎲" },
   { id: "five_board_games_won", name: "Jack of All Games", description: "Win 5 different board games against the bot", category: "milestone", icon: "🎰" },
   { id: "arcade_first_score", name: "Arcade Regular", description: "Submit your first arcade high score", category: "milestone", icon: "🕹️" },
+  { id: "rating_1200", name: "Club Player", description: "Reach a 1200 rating in any category", category: "milestone", icon: "🥉" },
+  { id: "rating_1400", name: "Rising Star", description: "Reach a 1400 rating in any category", category: "milestone", icon: "🥈" },
+  { id: "rating_1600", name: "Sharp Tactician", description: "Reach a 1600 rating in any category", category: "milestone", icon: "🥇" },
+  { id: "rating_1800", name: "Expert", description: "Reach an 1800 rating in any category", category: "milestone", icon: "💎" },
+  { id: "rating_2000", name: "Master Class", description: "Reach a 2000 rating in any category", category: "milestone", icon: "👑" },
 ];
 
 export type AchievementId = (typeof ACHIEVEMENTS)[number]["id"];

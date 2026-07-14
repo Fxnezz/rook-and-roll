@@ -10,6 +10,8 @@ export function GameOverModal({
   onReview,
   onClose,
   opponentUsername,
+  onRematch,
+  series,
 }: {
   status: GameStatus;
   onNewGame: () => void;
@@ -17,6 +19,10 @@ export function GameOverModal({
   onClose: () => void;
   /** Only set for online (real-opponent) games — omitted for bot/local games. Shows a link to the opponent's profile so reporting/friending is reachable right after the game ends. */
   opponentUsername?: string;
+  /** When set, shows a "Rematch" button alongside review/new-game (bot games — same opponent, sides swapped). */
+  onRematch?: () => void;
+  /** Running score across this rematch chain, from the player's perspective. */
+  series?: { wins: number; losses: number; draws: number };
 }) {
   if (!status.over) return null;
   const headline =
@@ -47,14 +53,30 @@ export function GameOverModal({
             View {opponentUsername}&apos;s profile
           </Link>
         )}
+        {series && (series.wins + series.losses + series.draws > 0) && (
+          <p className="mt-2 text-xs text-[var(--text-faint)]">
+            Series: {series.wins}W {series.losses}L {series.draws}D
+          </p>
+        )}
         <div className="mt-5 flex gap-2">
           <button className="btn flex-1" onClick={onReview}>
             Review game
           </button>
-          <button className="btn btn-primary flex-1" onClick={onNewGame}>
-            New game
-          </button>
+          {onRematch ? (
+            <button className="btn btn-primary flex-1" onClick={onRematch}>
+              Rematch
+            </button>
+          ) : (
+            <button className="btn btn-primary flex-1" onClick={onNewGame}>
+              New game
+            </button>
+          )}
         </div>
+        {onRematch && (
+          <button className="btn btn-ghost mt-2 w-full !text-xs" onClick={onNewGame}>
+            Choose a different opponent
+          </button>
+        )}
       </div>
     </div>
   );

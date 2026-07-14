@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------ */
-/*  Rook & Roll — design system                                        */
+/*  Sam's Arcade — design system                                       */
 /*  Dark-first. Warm amber/gold accent over deep slate. Original.      */
 /* ------------------------------------------------------------------ */
 
@@ -139,7 +139,7 @@ body {
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
 }
 
@@ -178,10 +178,37 @@ body {
   background: linear-gradient(180deg, var(--accent-strong), var(--accent));
   border-color: var(--accent-dim);
   color: var(--accent-contrast);
+  box-shadow: 0 4px 0 var(--accent-dim), var(--shadow-sm);
 }
 .btn-primary:hover {
   background: linear-gradient(180deg, var(--accent-strong), var(--accent-strong));
-  box-shadow: 0 4px 16px rgba(233, 162, 59, 0.3);
+  box-shadow: 0 5px 0 var(--accent-dim), var(--shadow);
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  box-shadow: 0 1px 0 var(--accent-dim), var(--shadow-sm);
+  transform: translateY(3px);
+}
+.btn-cta {
+  min-height: 3.8rem;
+  border-radius: var(--radius);
+  padding: 0.95rem 1.2rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.btn-good {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--good) 88%, white), var(--good));
+  border-color: color-mix(in srgb, var(--good) 72%, black);
+  color: var(--accent-contrast);
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--good) 72%, black), var(--shadow-sm);
+}
+.btn-good:hover {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--good) 92%, white), color-mix(in srgb, var(--good) 92%, white));
+  box-shadow: 0 5px 0 color-mix(in srgb, var(--good) 72%, black), var(--shadow);
+}
+.btn-good:active {
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--good) 72%, black), var(--shadow-sm);
+  transform: translateY(3px);
 }
 .btn-ghost {
   background: transparent;

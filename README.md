@@ -1,11 +1,11 @@
-# ♜ Rook & Roll
+# ♜ Sam's Arcade
 
 A full-stack online chess platform: play a friend on one screen, battle Stockfish bots with
 human-like difficulty tiers, or get matched against live opponents with clocks, chat, and
 Elo ratings. Original branding, hand-drawn SVG piece sets, and a from-scratch board — no
 third-party board skins.
 
-**Live app:** https://rook-and-roll.vercel.app
+**Live app:** https://sams-arcade.vercel.app
 
 ## Features
 
@@ -138,7 +138,7 @@ the `server/` subdirectory. Health check: `GET /` returns JSON.
 ### 3. CORS
 
 The realtime server only accepts Socket.io connections from `CLIENT_ORIGIN` (supports a
-comma-separated list, e.g. `https://rook-and-roll.vercel.app,http://localhost:3000`).
+comma-separated list, e.g. `https://sams-arcade.vercel.app,http://localhost:3000`).
 If the browser console shows CORS errors on `/socket.io/`, the origin list and
 `NEXT_PUBLIC_SOCKET_URL` don't match your actual domains.
 

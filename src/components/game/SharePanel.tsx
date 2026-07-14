@@ -61,6 +61,58 @@ function renderBoardCanvas(fen: string, theme: { light: string; dark: string }, 
   return canvas;
 }
 
+export interface ShareCardMeta {
+  whiteName: string;
+  blackName: string;
+  result: "WHITE_WINS" | "BLACK_WINS" | "DRAW";
+  opening?: string;
+  eco?: string;
+  accuracyW?: number;
+  accuracyB?: number;
+}
+
+/** Draws a shareable result card: board on top, names/result/opening/accuracy below. */
+function renderShareCard(fen: string, theme: { light: string; dark: string }, orientation: Color, meta: ShareCardMeta): HTMLCanvasElement | null {
+  const board = renderBoardCanvas(fen, theme, orientation);
+  if (!board) return null;
+  const boardSize = board.width;
+  const footerH = 150;
+  const canvas = document.createElement("canvas");
+  canvas.width = boardSize;
+  canvas.height = boardSize + footerH;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.fillStyle = "#1c2029";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(board, 0, 0);
+
+  const resultText = meta.result === "DRAW" ? "½–½" : meta.result === "WHITE_WINS" ? "1–0" : "0–1";
+  const pad = 20;
+  let y = boardSize + 34;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = "#f6f1e6";
+  ctx.font = "bold 22px sans-serif";
+  ctx.fillText(`${meta.whiteName}  ${resultText}  ${meta.blackName}`, pad, y);
+
+  y += 30;
+  ctx.font = "15px sans-serif";
+  ctx.fillStyle = "#9aa3b5";
+  if (meta.opening) {
+    ctx.fillText(`${meta.eco ? meta.eco + " · " : ""}${meta.opening}`, pad, y);
+    y += 24;
+  }
+  if (meta.accuracyW != null && meta.accuracyB != null) {
+    ctx.fillText(`Accuracy — White ${meta.accuracyW}% · Black ${meta.accuracyB}%`, pad, y);
+    y += 24;
+  }
+  ctx.font = "12px sans-serif";
+  ctx.fillStyle = "#5a6273";
+  ctx.fillText("Sam's Arcade", pad, boardSize + footerH - 14);
+
+  return canvas;
+}
+
 function useCopy() {
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (label: string, text: string) => {
@@ -83,6 +135,7 @@ export function SharePanel({
   theme = { light: "#ebecd0", dark: "#6f8f5a" },
   orientation = "w",
   showImport = true,
+  shareCardMeta,
 }: {
   fen: string;
   pgn: string;
@@ -92,6 +145,8 @@ export function SharePanel({
   orientation?: Color;
   /** Hide the "load a position/game" import sections — for read-only contexts (spectating, reviewing a finished game, live online games where importing a position would bypass server authority). */
   showImport?: boolean;
+  /** When set (a finished game with a known result), enables a "Share card" download with names/result/opening/accuracy baked in. */
+  shareCardMeta?: ShareCardMeta;
 }) {
   const { copied, copy } = useCopy();
   const [fenInput, setFenInput] = useState("");
@@ -103,7 +158,7 @@ export function SharePanel({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `rook-and-roll-${Date.now()}.pgn`;
+    a.download = `sams-arcade-${Date.now()}.pgn`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -116,7 +171,22 @@ export function SharePanel({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `rook-and-roll-${Date.now()}.png`;
+      a.download = `sams-arcade-${Date.now()}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  };
+
+  const downloadShareCard = () => {
+    if (!shareCardMeta) return;
+    const canvas = renderShareCard(fen, theme, orientation, shareCardMeta);
+    if (!canvas) return;
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sams-arcade-game-${Date.now()}.png`;
       a.click();
       URL.revokeObjectURL(url);
     });
@@ -140,6 +210,15 @@ export function SharePanel({
           {fen}
         </code>
       </section>
+
+      {shareCardMeta && (
+        <section className="flex items-center justify-between rounded-md bg-[var(--bg-elev)] p-2">
+          <span className="text-xs text-[var(--text-muted)]">Result card (board + names + accuracy)</span>
+          <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={downloadShareCard}>
+            <IconDownload width={14} height={14} /> Share card
+          </button>
+        </section>
+      )}
 
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between">

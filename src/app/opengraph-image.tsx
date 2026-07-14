@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Rook & Roll — Play Chess";
+export const alt = "Sam's Arcade — Chess, Strategy & More";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -36,17 +36,17 @@ export default function OgImage() {
               fontWeight: 800,
             }}
           >
-            R
+            S
           </div>
           <div style={{ display: "flex", fontSize: 50, fontWeight: 800, color: "#e9a23b" }}>
-            Rook & Roll
+            Sam&apos;s Arcade
           </div>
         </div>
         <div style={{ display: "flex", fontSize: 82, fontWeight: 800, letterSpacing: "-2px" }}>
-          Chess, without the clutter.
+          Your next game starts here.
         </div>
         <div style={{ display: "flex", fontSize: 34, color: "#9aa6b8", marginTop: 34 }}>
-          Play online · Stockfish bots · Puzzles · Original board
+          Chess · Strategy · Cards · Puzzles · Arcade
         </div>
       </div>
     ),

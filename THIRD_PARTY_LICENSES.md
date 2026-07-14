@@ -1,6 +1,6 @@
 # Third-party content & code
 
-Rook & Roll's own game logic, board/UI components, and server code are original
+Sam's Arcade's own game logic, board/UI components, and server code are original
 to this project. This file documents every piece of external content actually
 vendored into the repo, per the project's sourcing policy (search first,
 verify the license, adapt to the codebase, document it here — never GPL, never

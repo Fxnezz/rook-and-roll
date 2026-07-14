@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { PuzzlePlayer, type PuzzleOutcome } from "@/components/puzzles/PuzzlePlayer";
 import {
@@ -17,6 +18,43 @@ import { DEFAULT_PUZZLE_PROGRESS } from "@/lib/puzzles/types";
 
 type Mode = "practice" | "daily" | "rush";
 const RUSH_DURATION_MS = 180_000;
+
+// --- Daily-puzzle streak tracking (localStorage, keyed by UTC date) --------
+
+const DAILY_KEY = "rr.puzzles.daily.v1";
+
+function utcDateKey(offsetDays = 0): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+}
+
+function loadDailyLog(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(DAILY_KEY) ?? "{}") as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+function saveDailyLog(log: Record<string, boolean>) {
+  try {
+    localStorage.setItem(DAILY_KEY, JSON.stringify(log));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Consecutive solved days ending today (or yesterday, if today is still unsolved). */
+function dailyStreak(log: Record<string, boolean>): number {
+  let streak = 0;
+  let offset = log[utcDateKey()] ? 0 : -1;
+  while (log[utcDateKey(offset)]) {
+    streak++;
+    offset--;
+  }
+  return streak;
+}
 
 interface HistoryEntry {
   id: string;
@@ -46,6 +84,8 @@ export default function PuzzlesPage() {
 
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
+  const [dailyLog, setDailyLog] = useState<Record<string, boolean>>({});
+  const [shareCopied, setShareCopied] = useState(false);
 
   const daily = useMemo(() => dailyPuzzle(), []);
 
@@ -54,6 +94,7 @@ export default function PuzzlesPage() {
     const p = loadProgress();
     setProgress(p);
     setPuzzle(nextPuzzle(p));
+    setDailyLog(loadDailyLog());
     setHydrated(true);
   }, []);
 
@@ -117,6 +158,15 @@ export default function PuzzlesPage() {
 
   const onComplete = useCallback(
     (outcome: PuzzleOutcome) => {
+      if (mode === "daily") {
+        setDailyLog((log) => {
+          const next = { ...log, [utcDateKey()]: true };
+          saveDailyLog(next);
+          return next;
+        });
+        setSolvedThis(true);
+        return;
+      }
       if (!puzzle) return;
       setSolvedThis(true);
       // A clean solve counts fully; a solve after a wrong try keeps the streak
@@ -152,10 +202,12 @@ export default function PuzzlesPage() {
         }, 500);
       }
     },
-    [puzzle, progress, persist, rushActive, difficulty],
+    [mode, puzzle, progress, persist, rushActive, difficulty],
   );
 
   const onFirstMistake = useCallback(() => {
+    // The daily puzzle is a no-stakes bonus — it never touches the practice rating.
+    if (mode === "daily") return;
     if (!puzzle) return;
     const before = progress.rating;
     const rating = puzzleElo(progress, puzzle, false);
@@ -167,7 +219,7 @@ export default function PuzzlesPage() {
     };
     setRatingFlash(rating - before);
     persist(p, puzzle.id, false, before);
-  }, [puzzle, progress, persist]);
+  }, [mode, puzzle, progress, persist]);
 
   const advance = useCallback(() => {
     setSolvedThis(false);
@@ -183,7 +235,10 @@ export default function PuzzlesPage() {
         <div>
           <h1 className="text-xl font-bold leading-tight">Puzzles</h1>
           <p className="text-sm text-[var(--text-muted)]">
-            {PUZZLES.length} machine-verified tactics
+            {PUZZLES.length} machine-verified tactics ·{" "}
+            <Link href="/training" className="text-[var(--accent)] hover:underline">
+              More training
+            </Link>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -338,9 +393,49 @@ export default function PuzzlesPage() {
             </button>
           )}
           {mode === "daily" && (
-            <p className="mt-4 text-xs text-[var(--text-faint)]">
-              Everyone gets the same daily puzzle. A new one arrives at midnight UTC.
-            </p>
+            <>
+              <span className="label mt-4 block">Daily streak</span>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-2xl font-black">{dailyStreak(dailyLog)}</span>
+                <span className="text-xs text-[var(--text-faint)]">
+                  day{dailyStreak(dailyLog) === 1 ? "" : "s"} in a row
+                </span>
+              </div>
+              <div className="mt-2 flex gap-1">
+                {Array.from({ length: 14 }, (_, i) => {
+                  const key = utcDateKey(i - 13);
+                  const solved = Boolean(dailyLog[key]);
+                  const isToday = i === 13;
+                  return (
+                    <span
+                      key={key}
+                      title={key}
+                      className="h-4 w-4 rounded-sm"
+                      style={{
+                        background: solved ? "var(--good)" : "var(--bg-elev-2)",
+                        outline: isToday ? "1.5px solid var(--accent)" : undefined,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              {dailyLog[utcDateKey()] && (
+                <button
+                  className="btn mt-3 w-full !text-xs"
+                  onClick={() => {
+                    const text = `♞ Sam's Arcade daily puzzle ${utcDateKey()} — solved ✅ (streak ${dailyStreak(dailyLog)})`;
+                    navigator.clipboard.writeText(text).catch(() => {});
+                    setShareCopied(true);
+                    setTimeout(() => setShareCopied(false), 1500);
+                  }}
+                >
+                  {shareCopied ? "Copied!" : "Share result"}
+                </button>
+              )}
+              <p className="mt-3 text-xs text-[var(--text-faint)]">
+                Everyone gets the same daily puzzle. A new one arrives at midnight UTC.
+              </p>
+            </>
           )}
           {!session?.user && hydrated && (
             <p className="mt-4 text-xs text-[var(--text-faint)]">

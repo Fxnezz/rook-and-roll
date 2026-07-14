@@ -124,7 +124,7 @@ function liveGames() {
 // ---- health ----------------------------------------------------------------
 app.get("/", (_req, res) => {
   res.json({
-    service: "rook-and-roll-realtime",
+    service: "sams-arcade-realtime",
     status: "ok",
     rooms: rooms.size,
     searching: [...queues.values()].reduce((n, q) => n + q.length, 0),
@@ -1287,7 +1287,7 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
 
 initPersistence().finally(() => {
   server.listen(PORT, () => {
-    console.log(`▲ Rook & Roll realtime server on :${PORT}`);
+    console.log(`▲ Sam's Arcade realtime server on :${PORT}`);
     console.log(`  CORS origins: ${CLIENT_ORIGIN.join(", ")}`);
   });
 });

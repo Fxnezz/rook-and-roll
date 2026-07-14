@@ -62,10 +62,10 @@ export function InstallPrompt() {
   return (
     <div
       role="region"
-      aria-label="Install Rook & Roll"
+      aria-label="Install Sam's Arcade"
       className="fixed inset-x-0 bottom-0 z-[80] flex items-center justify-center gap-3 border-t border-[var(--border)] bg-[var(--panel)] px-4 py-3 text-sm shadow-[0_-8px_24px_rgba(0,0,0,0.35)] sm:bottom-4 sm:left-1/2 sm:right-auto sm:w-fit sm:-translate-x-1/2 sm:rounded-xl sm:border"
     >
-      <span className="text-[var(--text-muted)]">Install Rook & Roll for faster, full-screen access.</span>
+      <span className="text-[var(--text-muted)]">Install Sam&apos;s Arcade for faster, full-screen access.</span>
       <span className="flex shrink-0 items-center gap-2">
         <button className="btn btn-primary !py-1.5" onClick={install}>
           Install

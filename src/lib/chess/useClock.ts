@@ -5,6 +5,16 @@ import type { Color } from "chess.js";
 
 export type TimeCategory = "bullet" | "blitz" | "rapid" | "classical" | "untimed";
 
+/**
+ * How incrementMs is applied once a move completes:
+ * - "increment" (Fischer): added on top of whatever time remains — can grow your clock.
+ * - "us" (simple/US delay): each turn gets incrementMs of "free" thinking time before the
+ *   main clock starts counting down at all — never adds time, just delays the countdown.
+ * - "bronstein": time actually spent this move is refunded, capped at incrementMs — you
+ *   can never gain net time, but never lose more than incrementMs on a fast move either.
+ */
+export type DelayMode = "increment" | "us" | "bronstein";
+
 export interface TimeControl {
   id: string;
   name: string;
@@ -12,6 +22,7 @@ export interface TimeControl {
   initialMs: number | null;
   incrementMs: number;
   category: TimeCategory;
+  delayMode?: DelayMode;
 }
 
 export const TIME_CONTROLS: TimeControl[] = [
@@ -44,31 +55,36 @@ export function clampCustomIncrementSec(seconds: number): number {
 }
 
 /** Builds the self-describing id a custom time control is stored/looked-up by. */
-export function customTimeControlId(minutes: number, incrementSec: number): string {
+export function customTimeControlId(minutes: number, incrementSec: number, delayMode: DelayMode = "increment"): string {
   const initialMs = Math.round(clampCustomMinutes(minutes) * 60_000);
   const incrementMs = clampCustomIncrementSec(incrementSec) * 1_000;
-  return `custom:${initialMs}:${incrementMs}`;
+  return `custom:${initialMs}:${incrementMs}:${delayMode}`;
 }
 
-function formatCustomLabel(initialMs: number, incrementMs: number): string {
+const DELAY_MODE_LABEL: Record<DelayMode, string> = { increment: "", us: " US delay", bronstein: " Bronstein" };
+
+function formatCustomLabel(initialMs: number, incrementMs: number, delayMode: DelayMode): string {
   const mins = Math.round((initialMs / 60_000) * 10) / 10;
   const minsLabel = Number.isInteger(mins) ? `${mins}` : mins.toFixed(1);
   const incSec = Math.round(incrementMs / 1000);
-  return incSec > 0 ? `${minsLabel} | ${incSec}` : `${minsLabel} min`;
+  const base = incSec > 0 ? `${minsLabel} | ${incSec}` : `${minsLabel} min`;
+  return base + DELAY_MODE_LABEL[delayMode];
 }
 
 export function getTimeControl(id: string): TimeControl {
   if (id.startsWith("custom:")) {
-    const [, initialStr, incStr] = id.split(":");
+    const [, initialStr, incStr, delayStr] = id.split(":");
     const initialMs = Number(initialStr);
     const incrementMs = Number(incStr);
+    const delayMode: DelayMode = delayStr === "us" || delayStr === "bronstein" ? delayStr : "increment";
     if (Number.isFinite(initialMs) && initialMs > 0 && Number.isFinite(incrementMs)) {
       return {
         id,
-        name: formatCustomLabel(initialMs, incrementMs),
+        name: formatCustomLabel(initialMs, incrementMs, delayMode),
         initialMs,
         incrementMs,
         category: categoryForMs(initialMs, incrementMs),
+        delayMode,
       };
     }
   }
@@ -129,6 +145,7 @@ export interface UseClock {
 
 export function useClock(tc: TimeControl, onFlag: (loser: Color) => void): UseClock {
   const untimed = tc.initialMs == null;
+  const delayMode: DelayMode = tc.delayMode ?? "increment";
   const [whiteMs, setWhiteMs] = useState(tc.initialMs ?? 0);
   const [blackMs, setBlackMs] = useState(tc.initialMs ?? 0);
   const [active, setActive] = useState<Color | null>(null);
@@ -140,6 +157,11 @@ export function useClock(tc: TimeControl, onFlag: (loser: Color) => void): UseCl
   onFlagRef.current = onFlag;
   const frozenRef = useRef(frozen);
   frozenRef.current = frozen;
+  // "us" delay: free thinking time remaining this turn, ticked down before the
+  // main clock starts moving at all. "bronstein": when the current turn began,
+  // so moved() can refund whatever was actually spent (capped at incrementMs).
+  const delayRemainingRef = useRef<{ w: number; b: number }>({ w: 0, b: 0 });
+  const turnStartRef = useRef(0);
 
   useEffect(() => {
     if (untimed) return;
@@ -150,6 +172,10 @@ export function useClock(tc: TimeControl, onFlag: (loser: Color) => void): UseCl
       lastRef.current = now;
       setActive((cur) => {
         if (cur === "w" && !frozenRef.current.w) {
+          if (delayMode === "us" && delayRemainingRef.current.w > 0) {
+            delayRemainingRef.current.w = Math.max(0, delayRemainingRef.current.w - dt);
+            return cur;
+          }
           setWhiteMs((m) => {
             const n = m - dt;
             if (n <= 0 && !flaggedRef.current) {
@@ -161,6 +187,10 @@ export function useClock(tc: TimeControl, onFlag: (loser: Color) => void): UseCl
             return n;
           });
         } else if (cur === "b" && !frozenRef.current.b) {
+          if (delayMode === "us" && delayRemainingRef.current.b > 0) {
+            delayRemainingRef.current.b = Math.max(0, delayRemainingRef.current.b - dt);
+            return cur;
+          }
           setBlackMs((m) => {
             const n = m - dt;
             if (n <= 0 && !flaggedRef.current) {
@@ -176,28 +206,40 @@ export function useClock(tc: TimeControl, onFlag: (loser: Color) => void): UseCl
       });
     }, 100);
     return () => clearInterval(iv);
-  }, [untimed]);
+  }, [untimed, delayMode]);
 
   const start = useCallback(
     (color: Color) => {
       if (untimed) return;
       lastRef.current = performance.now();
+      turnStartRef.current = lastRef.current;
+      if (delayMode === "us") delayRemainingRef.current[color] = tc.incrementMs;
       runningRef.current = true;
       setActive(color);
     },
-    [untimed],
+    [untimed, delayMode, tc.incrementMs],
   );
 
   const moved = useCallback(
     (mover: Color) => {
       if (untimed) return;
-      if (mover === "w") setWhiteMs((m) => m + tc.incrementMs);
-      else setBlackMs((m) => m + tc.incrementMs);
+      if (delayMode === "increment") {
+        if (mover === "w") setWhiteMs((m) => m + tc.incrementMs);
+        else setBlackMs((m) => m + tc.incrementMs);
+      } else if (delayMode === "bronstein") {
+        const elapsed = performance.now() - turnStartRef.current;
+        const refund = Math.min(elapsed, tc.incrementMs);
+        if (mover === "w") setWhiteMs((m) => m + refund);
+        else setBlackMs((m) => m + refund);
+      }
+      const next = mover === "w" ? "b" : "w";
+      if (delayMode === "us") delayRemainingRef.current[next] = tc.incrementMs;
       lastRef.current = performance.now();
+      turnStartRef.current = lastRef.current;
       runningRef.current = true;
-      setActive(mover === "w" ? "b" : "w");
+      setActive(next);
     },
-    [untimed, tc.incrementMs],
+    [untimed, delayMode, tc.incrementMs],
   );
 
   const stop = useCallback(() => {
@@ -212,6 +254,8 @@ export function useClock(tc: TimeControl, onFlag: (loser: Color) => void): UseCl
     setBlackMs(tc.initialMs ?? 0);
     setActive(null);
     setFrozenState({ w: false, b: false });
+    delayRemainingRef.current = { w: 0, b: 0 };
+    turnStartRef.current = 0;
   }, [tc.initialMs]);
 
   const addTime = useCallback((color: Color, ms: number) => {

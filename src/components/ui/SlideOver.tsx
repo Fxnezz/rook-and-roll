@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useId, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { IconClose } from "./icons";
 import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
+
+const subscribeToNothing = () => () => {};
 
 export function SlideOver({
   open,
@@ -25,9 +27,9 @@ export function SlideOver({
   // containing block for position:fixed descendants — without escaping via
   // a portal, this overlay collapses to the header's own height instead of
   // the viewport's.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(subscribeToNothing, () => true, () => false);
   const asideRef = useFocusTrap<HTMLElement>(onClose, { open, lockBodyScroll: true });
+  const titleId = useId();
 
   if (!mounted) return null;
 
@@ -39,18 +41,24 @@ export function SlideOver({
       className={`fixed inset-0 z-50 transition-opacity duration-200 ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
       aria-hidden={!open}
     >
-      <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/55 backdrop-blur-[2px]"
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <aside
         ref={asideRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
+        aria-hidden={!open}
+        inert={!open}
         tabIndex={-1}
         className={`absolute top-0 flex h-full w-[min(88vw,23rem)] flex-col border-[var(--border)] bg-[var(--panel)] shadow-2xl transition-transform duration-300 ${edge}`}
         style={{ transform: open ? "translateX(0)" : closed, transitionTimingFunction: "var(--ease-smooth)" }}
       >
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-4 py-3.5">
-          <h2 className="text-base font-bold tracking-tight">{title}</h2>
+          <h2 id={titleId} className="text-base font-bold tracking-tight">{title}</h2>
           <button
             className="group flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
             onClick={onClose}
