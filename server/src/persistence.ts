@@ -5,6 +5,8 @@
 // To enable: install @prisma/client in this package (or hoist from the root)
 // and `prisma generate` against ../prisma/schema.prisma.
 
+import { createRequire } from "node:module";
+
 import { updateElo } from "./elo.js";
 import type { GameRoom } from "./GameRoom.js";
 import { OWNER_EMAIL } from "./ownerAccount.js";
@@ -46,7 +48,17 @@ export async function initPersistence(): Promise<boolean> {
     // (persistence simply stays disabled). A literal import() would make tsc
     // require the package at build time.
     const specifier: string = "@prisma/client";
-    const mod = (await import(specifier)) as { PrismaClient: new () => PrismaLike };
+    let mod: { PrismaClient: new () => PrismaLike };
+    try {
+      mod = (await import(specifier)) as { PrismaClient: new () => PrismaLike };
+    } catch {
+      // The shared schema lives at /prisma. On Render, `prisma generate`
+      // therefore places the generated client in the repository-root
+      // node_modules even though this server has its own package directory.
+      // Resolve from the root as a production-safe fallback.
+      const requireFromRoot = createRequire(new URL("../../package.json", import.meta.url));
+      mod = requireFromRoot(specifier) as { PrismaClient: new () => PrismaLike };
+    }
     const PrismaClient = mod.PrismaClient;
     prisma = new PrismaClient();
     enabled = true;
