@@ -53,7 +53,7 @@ export function Header() {
         <div className="flex items-center gap-4">
           {/* Mobile menu button */}
           <button
-            className="btn btn-ghost !p-2 md:hidden"
+            className="btn btn-ghost !p-2 md:!hidden"
             onClick={() => setMenuOpen(true)}
             aria-label="Open menu"
             aria-expanded={menuOpen}
