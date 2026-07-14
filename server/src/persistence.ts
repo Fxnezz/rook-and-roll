@@ -46,16 +46,7 @@ export async function initPersistence(): Promise<boolean> {
     // (persistence simply stays disabled). A literal import() would make tsc
     // require the package at build time.
     const specifier: string = "@prisma/client";
-    let mod: { PrismaClient: new () => PrismaLike };
-    try {
-      mod = (await import(specifier)) as { PrismaClient: new () => PrismaLike };
-    } catch {
-      // The shared schema also generates a dedicated client beside this
-      // package. Render installs the realtime server independently, so this
-      // path stays stable even when npm does not hoist dependencies.
-      const generatedSpecifier = new URL("../generated/prisma/index.js", import.meta.url).href;
-      mod = (await import(generatedSpecifier)) as { PrismaClient: new () => PrismaLike };
-    }
+    const mod = (await import(specifier)) as { PrismaClient: new () => PrismaLike };
     const PrismaClient = mod.PrismaClient;
     prisma = new PrismaClient();
     enabled = true;

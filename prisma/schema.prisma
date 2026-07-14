@@ -10,7 +10,7 @@ generator client {
 // hoisting or on the root application's node_modules layout.
 generator realtimeClient {
   provider = "prisma-client-js"
-  output   = "../server/generated/prisma"
+  output   = "../server/node_modules/.prisma/client"
 }
 
 datasource db {
