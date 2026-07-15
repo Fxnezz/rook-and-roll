@@ -371,6 +371,22 @@ function Omen() {
   );
 }
 
+function SamEngine() {
+  return (
+    <>
+      <path d="M8 64 Q11 45 32 45 Q53 45 56 64Z" fill="#183e44" stroke="#52d6c8" strokeWidth="1" />
+      <path d="M21 44 L18 24 Q18 12 32 10 Q46 12 46 24 L43 44Z" fill="#163238" stroke="#8af2e7" strokeWidth="1.2" />
+      <path d="M23 18 L32 12 L41 18 L43 34 L36 42 H28 L21 34Z" fill="#224c53" />
+      <path d="M24 27 L30 25 L29 31 L23 30Z" fill="#8af2e7" />
+      <path d="M40 27 L34 25 L35 31 L41 30Z" fill="#8af2e7" />
+      <path d="M28 36 H36" stroke="#52d6c8" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M32 10 V5 M29 7 H35" stroke="#8af2e7" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="32" cy="4" r="2" fill="#e9a23b" />
+      <path d="M14 56 H22 M42 56 H50" stroke="#8af2e7" strokeWidth="2" strokeLinecap="round" />
+    </>
+  );
+}
+
 const PORTRAITS: Record<BotTierId, () => React.ReactNode> = {
   pip: Pip,
   milo: Milo,
@@ -385,6 +401,7 @@ const PORTRAITS: Record<BotTierId, () => React.ReactNode> = {
   zephyr: Zephyr,
   titan: Titan,
   omen: Omen,
+  sam: SamEngine,
 };
 
 export function BotAvatar({

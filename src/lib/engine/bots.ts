@@ -14,7 +14,8 @@ export type BotTierId =
   | "vera"
   | "zephyr"
   | "titan"
-  | "omen";
+  | "omen"
+  | "sam";
 
 export interface BotTier {
   id: BotTierId;
@@ -223,6 +224,20 @@ export const BOT_TIERS: BotTier[] = [
     multipv: 1,
     temperature: 0,
     accent: "#b83a3a",
+    personality: "normal",
+  },
+  {
+    id: "sam",
+    name: "Sam Engine",
+    fullName: "Sam Engine S1",
+    flag: "⚡",
+    elo: 3200,
+    blurb: "An experimental maximum-strength arcade engine profile with configurable search depth, candidate breadth and playing style.",
+    skill: 20,
+    depth: 22,
+    multipv: 1,
+    temperature: 0,
+    accent: "#52d6c8",
     personality: "normal",
   },
 ];

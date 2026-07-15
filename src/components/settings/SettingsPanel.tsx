@@ -17,6 +17,10 @@ import {
 import { playSound, setSoundPack, type SoundName, type SoundPack } from "@/lib/chess/sound";
 import { BOARD_THEMES } from "@/lib/chess/themes";
 import { PIECE_SETS, Piece } from "@/lib/pieces";
+import { WebsiteControls } from "@/components/qol/WebsiteEnhancements";
+import { QOL_STATIC_ROUTES } from "@/lib/qol/routes";
+import { useQol } from "@/lib/qol/useQol";
+import type { SettingsTab } from "@/lib/settings/openSettings";
 import { IconPalette, IconVolume, IconVolumeOff, IconSparkles, IconMotion, IconRefresh, IconCheck, IconShield, IconDownload } from "../ui/icons";
 
 const SOUND_PACKS: { id: SoundPack; label: string }[] = [
@@ -81,10 +85,9 @@ const DEFAULT_GAME_TABS: { id: DefaultGameTab; label: string }[] = [
   { id: "share", label: "Share" },
 ];
 
-type SettingsTab = "motion" | "board" | "sound" | "gameplay" | "accessibility" | "moderation" | "data";
-
 const SETTINGS_TABS: { id: SettingsTab; label: string; symbol: string; description: string }[] = [
   { id: "motion", label: "Motion Studio", symbol: "✦", description: "Profiles, transitions and effects" },
+  { id: "qol", label: "QOL & Website", symbol: "◇", description: "Comfort, navigation and website tools" },
   { id: "board", label: "Board & style", symbol: "♞", description: "Themes, pieces and layout" },
   { id: "sound", label: "Sound", symbol: "♫", description: "Mix, packs and previews" },
   { id: "gameplay", label: "Gameplay", symbol: "♟", description: "Moves, analysis and controls" },
@@ -98,6 +101,11 @@ const SEARCH_ITEMS: { label: string; tab: SettingsTab; keywords: string }[] = [
   { label: "Page transitions", tab: "motion", keywords: "fade slide zoom curtain navigation" },
   { label: "Hover movement and panel glow", tab: "motion", keywords: "button hover glow effects depth blur" },
   { label: "Celebration intensity", tab: "motion", keywords: "confetti win celebration effects" },
+  { label: "Website and page tools", tab: "qol", keywords: "breadcrumbs notes reading ruler low data battery session clock" },
+  { label: "Interface density", tab: "qol", keywords: "compact comfortable spacious layout" },
+  { label: "Keyboard shortcuts", tab: "qol", keywords: "keys command alt navigation" },
+  { label: "Daily play target", tab: "qol", keywords: "goal games progress" },
+  { label: "Sidebar destinations", tab: "qol", keywords: "menu hidden navigation routes" },
   { label: "Board theme and piece set", tab: "board", keywords: "appearance chess pieces colors" },
   { label: "Board size, frame and coordinates", tab: "board", keywords: "zoom frame arrow square coordinate" },
   { label: "Sound effects and volume", tab: "sound", keywords: "audio music volume pack chat" },
@@ -251,11 +259,25 @@ function Section({ icon, title, i, children, visible = true, description }: { ic
   );
 }
 
-export function SettingsPanel({ canModerate = false }: { canModerate?: boolean } = {}) {
+export function SettingsPanel({ canModerate = false, initialTab = "motion" }: { canModerate?: boolean; initialTab?: SettingsTab } = {}) {
   const { settings, update, reset } = useSettings();
+  const {
+    state: qol,
+    setDailyTarget,
+    setDensity,
+    setInterfaceFocus,
+    setNavHidden,
+    restoreNavigation,
+    setShortcutsEnabled,
+    dismissOnboarding,
+    importState: importQolState,
+    resetState: resetQolState,
+  } = useQol();
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [confirmingQolReset, setConfirmingQolReset] = useState(false);
   const [importErr, setImportErr] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<SettingsTab>("motion");
+  const [qolImportErr, setQolImportErr] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [search, setSearch] = useState("");
   const availableTabs = SETTINGS_TABS.filter((tab) => tab.id !== "moderation" || canModerate);
   const normalizedSearch = search.trim().toLowerCase();
@@ -294,6 +316,28 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
         update(parsed);
       })
       .catch(() => setImportErr("That file isn't a valid settings export."));
+  };
+
+  const exportQolData = () => {
+    const blob = new Blob([JSON.stringify(qol, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sams-arcade-qol.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importQolData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setQolImportErr(null);
+    file.text()
+      .then((text) => {
+        if (!importQolState(JSON.parse(text))) throw new Error("invalid");
+      })
+      .catch(() => setQolImportErr("That file isn't a valid QOL backup."));
   };
 
   const handleReset = () => {
@@ -421,6 +465,63 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
           <Toggle label="Staggered menus" description="Items enter in sequence instead of all at once" checked={settings.staggerMenus} onChange={(v) => updateMotion({ staggerMenus: v })} />
           <Toggle label="Cinematic depth blur" description="Soft focus during supported page transitions" checked={settings.depthBlur} onChange={(v) => updateMotion({ depthBlur: v })} />
           <Toggle label="Reduce all motion" description="Accessibility override: minimize every animation" checked={settings.reduceMotion} onChange={(v) => update({ reduceMotion: v })} />
+        </div>
+      </Section>
+
+      <Section icon={<span aria-hidden="true">◇</span>} title="QOL & Website" description="All adjustable quality-of-life controls now live together here." i={1} visible={activeTab === "qol"}>
+        <div className="rounded-2xl border border-[var(--accent)]/25 bg-[var(--accent)]/8 p-4">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--accent)]">Quick comfort presets</p>
+          <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">Apply a coordinated set of display, sound and motion choices in one click.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <button type="button" className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 text-left hover-lift" onClick={() => { setDensity("spacious"); update({ uiTextScale: "large", reduceMotion: false, highContrast: false, soundEnabled: true }); }}><span className="block text-sm font-extrabold">Comfort</span><span className="mt-1 block text-xs text-[var(--text-faint)]">Larger text and more room.</span></button>
+            <button type="button" className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 text-left hover-lift" onClick={() => { setDensity("comfortable"); update({ reduceMotion: true, soundEnabled: false, flashOnSound: false }); }}><span className="block text-sm font-extrabold">Low sensory</span><span className="mt-1 block text-xs text-[var(--text-faint)]">Less motion and silent feedback.</span></button>
+            <button type="button" className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 text-left hover-lift" onClick={() => { setDensity("spacious"); update({ highContrast: true, colorblindMode: true, uiTextScale: "large", reduceMotion: true }); }}><span className="block text-sm font-extrabold">High visibility</span><span className="mt-1 block text-xs text-[var(--text-faint)]">Stronger contrast and cues.</span></button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <div>
+            <span className="mb-2 block text-xs font-black text-[var(--text-muted)]">Interface density</span>
+            <Segmented options={[{ id: "compact", label: "Compact" }, { id: "comfortable", label: "Comfort" }, { id: "spacious", label: "Spacious" }]} value={qol.density} onChange={setDensity} />
+          </div>
+          <div>
+            <span className="mb-2 block text-xs font-black text-[var(--text-muted)]">Daily play target</span>
+            <Segmented options={[{ id: "1", label: "1 game" }, { id: "3", label: "3 games" }, { id: "5", label: "5 games" }]} value={String(qol.dailyGoal.target) as "1" | "3" | "5"} onChange={(value) => setDailyTarget(Number(value) as 1 | 3 | 5)} />
+          </div>
+        </div>
+
+        <div className="mt-4 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] px-3">
+          <Toggle label="Keyboard shortcuts" description="Use Command/Ctrl K, ?, and Alt navigation shortcuts" checked={qol.shortcutsEnabled} onChange={setShortcutsEnabled} />
+          <Toggle label="Calm interface during focus" description="De-emphasize navigation while a focus timer runs" checked={qol.focus.interfaceFocus} onChange={setInterfaceFocus} />
+        </div>
+
+        <div className="mt-5">
+          <div className="flex items-center justify-between gap-3">
+            <div><h2 className="font-extrabold">Sidebar destinations</h2><p className="text-xs text-[var(--text-faint)]">Choose which main destinations appear in navigation.</p></div>
+            <button type="button" className="text-xs font-bold text-[var(--accent)]" onClick={restoreNavigation}>Restore all</button>
+          </div>
+          <div className="mt-2 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] px-3">
+            {QOL_STATIC_ROUTES.filter((route) => route.sidebar).map((route) => (
+              <label key={route.href} className="flex items-center justify-between gap-3 py-3 text-sm font-semibold">
+                <span>{route.emoji} {route.label}</span>
+                <input type="checkbox" checked={!qol.hiddenNav.includes(route.href)} onChange={(event) => setNavHidden(route.href, !event.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="my-5 border-t border-[var(--border)]" />
+        <WebsiteControls />
+
+        {qol.onboardingDismissed && <button type="button" className="btn mt-5 w-full" onClick={() => dismissOnboarding(false)}>Restore player-tools onboarding checklist</button>}
+
+        <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+          <h2 className="font-extrabold">Shortcut reference</h2>
+          <div className="mt-3 grid gap-x-5 gap-y-2 text-xs sm:grid-cols-2">
+            {[
+              ["Cmd / Ctrl K", "Command palette"], ["?", "Open QOL settings"], ["Alt H", "Home"], ["Alt G", "Games Hub"], ["Alt O", "Play online"], ["Alt B", "Chess bots"], ["Alt T", "Training"], ["Alt Q", "Open QOL settings"],
+            ].map(([keys, action]) => <div key={keys} className="flex items-center justify-between gap-3 border-b border-[var(--border)] py-2"><span className="text-[var(--text-muted)]">{action}</span><kbd className="rounded-md border border-[var(--border)] bg-[var(--bg-elev)] px-2 py-1 font-mono text-[0.65rem] font-bold">{keys}</kbd></div>)}
+          </div>
         </div>
       </Section>
 
@@ -803,6 +904,7 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
 
       <Section icon={<IconDownload width={15} height={15} />} title="Settings data" description="Back up your preferences, move them to another device or start over." i={6} visible={activeTab === "data"}>
       <div className="flex flex-col gap-2">
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-[var(--text-muted)]">Chess and interface settings</p>
         <div className="flex gap-2">
           <button className="btn hover-lift flex-1 !justify-start gap-2 !text-sm" onClick={exportSettings}>
             <IconDownload width={15} height={15} />
@@ -824,6 +926,17 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
         <IconRefresh width={15} height={15} />
         {confirmingReset ? "Click again to confirm" : "Reset to defaults"}
       </button>
+
+      <div className="mt-5 border-t border-[var(--border)] pt-5">
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-[var(--text-muted)]">QOL and player-tool data</p>
+        <p className="mt-1 text-xs leading-5 text-[var(--text-faint)]">Includes website preferences, navigation, favorites, collections, goals and recent activity.</p>
+        <div className="mt-3 flex gap-2">
+          <button className="btn hover-lift flex-1 !justify-start gap-2 !text-sm" onClick={exportQolData}><IconDownload width={15} height={15} />Export QOL</button>
+          <label className="btn hover-lift flex-1 cursor-pointer !justify-start gap-2 !text-sm"><IconDownload width={15} height={15} style={{ transform: "rotate(180deg)" }} />Import QOL<input type="file" accept="application/json" className="hidden" onChange={importQolData} /></label>
+        </div>
+        {qolImportErr && <p role="alert" className="mt-2 text-xs text-[var(--bad)]">{qolImportErr}</p>}
+        <button type="button" className={`btn hover-lift mt-3 w-full !justify-start gap-2 !text-sm ${confirmingQolReset ? "!border-[var(--bad)] !text-[var(--bad)]" : ""}`} onClick={() => { if (confirmingQolReset) { resetQolState(); setConfirmingQolReset(false); } else { setConfirmingQolReset(true); window.setTimeout(() => setConfirmingQolReset(false), 3500); } }}><IconRefresh width={15} height={15} />{confirmingQolReset ? "Click again to erase QOL data" : "Reset QOL and player-tool data"}</button>
+      </div>
       </Section>
         </div>
       </div>

@@ -227,7 +227,7 @@ function GameQuickView({ game, onClose }: { game: QolGame; onClose: () => void }
                   );
                 })}
               </div>
-            ) : <p className="rounded-xl border border-dashed border-[var(--border)] p-4 text-sm text-[var(--text-faint)]">Create a collection from the QOL Center, then save this game to it.</p>}
+            ) : <p className="rounded-xl border border-dashed border-[var(--border)] p-4 text-sm text-[var(--text-faint)]">Create a collection from Player Tools, then save this game to it.</p>}
           </div>
         </div>
       </section>
@@ -388,7 +388,7 @@ export function GamesHub({ sections }: GamesHubProps) {
           <button type="button" onClick={() => openCenter("overview")} className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-4 text-left transition hover:border-[var(--good)] hover:bg-[var(--good)]/5">
             <span className="text-[0.66rem] font-black uppercase tracking-wider text-[var(--good)]">Daily goal</span>
             <span className="mt-2 block font-extrabold">{state.dailyGoal.progress} / {state.dailyGoal.target} sessions</span>
-            <span className="mt-1 block text-xs text-[var(--text-faint)]">{state.dailyGoal.streak} day streak · adjust →</span>
+            <span className="mt-1 block text-xs text-[var(--text-faint)]">{state.dailyGoal.streak} day streak · open tools →</span>
           </button>
         </section>
 

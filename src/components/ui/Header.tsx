@@ -3,7 +3,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Wordmark } from "./Logo";
 import {
@@ -24,6 +24,7 @@ import { NotificationBell } from "./NotificationBell";
 import { ActiveGameIndicator } from "./ActiveGameIndicator";
 import { useQol } from "@/lib/qol/useQol";
 import { isAdminOwnerEmail } from "@/lib/admin/owner";
+import { OPEN_SETTINGS_EVENT, type SettingsTab } from "@/lib/settings/openSettings";
 
 const SettingsPanel = dynamic(
   () => import("@/components/settings/SettingsPanel").then((mod) => mod.SettingsPanel),
@@ -93,18 +94,30 @@ function SearchIcon() {
 export function Header() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("motion");
   const [menuOpen, setMenuOpen] = useState(false);
   const [shieldOpen, setShieldOpen] = useState(false);
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { state: qol, online, openPalette, openCenter } = useQol();
+  const { state: qol, openPalette } = useQol();
   const visibleNav = NAV.filter((item) => !qol.hiddenNav.includes(item.href));
   const isShieldOwner = isAdminOwnerEmail(session?.user?.email);
 
-  const openSettings = () => {
+  const openSettings = (tab: SettingsTab = "motion") => {
+    setSettingsTab(tab);
     setSettingsLoaded(true);
     setSettingsOpen(true);
   };
+
+  useEffect(() => {
+    const handleOpenSettings = (event: Event) => {
+      setSettingsTab((event as CustomEvent<SettingsTab>).detail ?? "motion");
+      setSettingsLoaded(true);
+      setSettingsOpen(true);
+    };
+    window.addEventListener(OPEN_SETTINGS_EVENT, handleOpenSettings);
+    return () => window.removeEventListener(OPEN_SETTINGS_EVENT, handleOpenSettings);
+  }, []);
 
   return (
     <>
@@ -173,19 +186,19 @@ export function Header() {
               Shield Center
             </button>
           )}
-          <button
+          <Link
+            href="/quality-of-life"
             className="group mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
-            onClick={() => openCenter()}
           >
             <span className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-elev)] text-[var(--accent)]">
-              200
-              <span className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full ring-2 ring-[var(--bg)] ${online ? "bg-[var(--good)]" : "bg-[var(--danger)]"}`} />
+              ✦
+              <span className="absolute -right-2 -top-1 rounded-full bg-[var(--good)] px-1 text-[7px] font-black uppercase text-white">New</span>
             </span>
-            QOL Center
-          </button>
+            Patch Notes
+          </Link>
           <button
             className="group mb-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
-            onClick={openSettings}
+            onClick={() => openSettings()}
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-elev)] text-[var(--text-faint)] transition-transform duration-500 group-hover:rotate-90 group-hover:text-[var(--accent)]">
               <IconSettings width={17} height={17} />
@@ -235,7 +248,7 @@ export function Header() {
             <NotificationBell />
             <button
               className="group btn btn-ghost !p-2"
-              onClick={openSettings}
+              onClick={() => openSettings()}
               aria-label="Settings"
             >
               <span className="inline-flex transition-transform duration-500 group-hover:rotate-90">
@@ -248,7 +261,7 @@ export function Header() {
       </header>
 
       <SlideOver open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings Control Center" size="wide">
-        {settingsLoaded && <SettingsPanel canModerate={isShieldOwner} />}
+        {settingsLoaded && <SettingsPanel key={settingsTab} canModerate={isShieldOwner} initialTab={settingsTab} />}
       </SlideOver>
 
       {isShieldOwner && <ShieldCenter open={shieldOpen} onClose={() => setShieldOpen(false)} />}
@@ -260,20 +273,18 @@ export function Header() {
         side="left"
         footer={
           <div className="grid grid-cols-2 divide-x divide-[var(--border)]">
-            <button
+            <Link
+              href="/quality-of-life"
               className="flex items-center justify-center gap-2 px-3 py-3.5 text-sm font-semibold text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
-              onClick={() => {
-                setMenuOpen(false);
-                openCenter();
-              }}
+              onClick={() => setMenuOpen(false)}
             >
-              <span className="font-black text-[var(--accent)]">200</span> QOL Center
-            </button>
+              <span className="font-black text-[var(--accent)]">✦</span> Patch Notes
+            </Link>
             <button
               className="flex items-center justify-center gap-2 px-3 py-3.5 text-sm font-semibold text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
               onClick={() => {
                 setMenuOpen(false);
-                openSettings();
+                openSettings("motion");
               }}
             >
               <IconSettings width={17} height={17} /> Settings

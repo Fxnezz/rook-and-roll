@@ -13,7 +13,7 @@ import {
 import { usePathname } from "next/navigation";
 
 export type QolDensity = "compact" | "comfortable" | "spacious";
-export type QolCenterView = "overview" | "website" | "activity" | "collections" | "focus" | "customize" | "shortcuts";
+export type QolCenterView = "overview" | "activity" | "collections" | "focus";
 export type WebsiteContentWidth = "narrow" | "standard" | "wide";
 export type WebsiteLineHeight = "compact" | "comfortable" | "relaxed";
 export type WebsiteLetterSpacing = "normal" | "wide";

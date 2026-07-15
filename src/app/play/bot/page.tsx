@@ -110,7 +110,16 @@ function BotGame({
   const { snapshot } = game;
   const { settings } = useSettings();
   const theme = getTheme(settings.boardTheme);
-  const tier = getTier(config.tierId);
+  const tier = useMemo(() => {
+    const base = getTier(config.tierId);
+    return {
+      ...base,
+      depth: config.engineDepth ?? base.depth,
+      skill: config.engineSkill ?? base.skill,
+      multipv: config.engineMultipv ?? base.multipv,
+      personality: config.enginePersonality ?? base.personality,
+    };
+  }, [config.engineDepth, config.engineMultipv, config.enginePersonality, config.engineSkill, config.tierId]);
   const tc = getTimeControl(config.timeControlId);
 
   // A plain useState (not derived from config) so the "swap sides" cheat can flip

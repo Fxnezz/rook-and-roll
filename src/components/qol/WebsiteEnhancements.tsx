@@ -12,7 +12,6 @@ import {
   type WebsiteLineHeight,
   type WebsitePreferences,
 } from "@/lib/qol/useQol";
-import { QOL_WEBSITE_IMPROVEMENT_COUNT } from "@/lib/qol/features";
 
 type NetworkHint = {
   effectiveType?: string;
@@ -169,13 +168,12 @@ export function WebsiteControls() {
       <div className="rounded-2xl border border-[var(--accent)]/30 bg-[var(--accent)]/8 p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--accent)]">Website upgrade suite</p>
-            <h2 className="mt-1 text-2xl font-black">{QOL_WEBSITE_IMPROVEMENT_COUNT} more improvements</h2>
-            <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">25 substantial website systems, each backed by three refinements.</p>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--accent)]">Website preferences</p>
+            <h2 className="mt-1 text-xl font-black">Make every page work your way</h2>
+            <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">Navigation, reading, performance and session controls are saved on this device.</p>
           </div>
           <span className="chip shrink-0 !border-[var(--good)]/30 !bg-[var(--good)]/10 !text-[var(--good)]">{activeCount} active</span>
         </div>
-        <Link href="/quality-of-life" prefetch={false} className="mt-3 inline-flex text-xs font-extrabold text-[var(--accent)] hover:underline">Open the complete 200-improvement ledger →</Link>
       </div>
 
       <div>

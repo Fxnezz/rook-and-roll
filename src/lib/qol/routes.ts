@@ -19,5 +19,5 @@ export const QOL_STATIC_ROUTES: readonly QolStaticRoute[] = [
   { href: "/leaderboard", label: "Leaderboard", description: "Ratings and top players", emoji: "🏆", sidebar: true },
   { href: "/friends", label: "Friends", description: "Requests, presence and head-to-head", emoji: "♣" },
   { href: "/account", label: "Account", description: "Profile, privacy and preferences", emoji: "●" },
-  { href: "/quality-of-life", label: "What's New", description: "All 200 QOL improvements", emoji: "200" },
+  { href: "/quality-of-life", label: "Patch Notes", description: "A compact history of arcade updates", emoji: "✦" },
 ] as const;

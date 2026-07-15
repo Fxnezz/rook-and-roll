@@ -6,6 +6,7 @@ import { Chess, type Color, type PieceSymbol } from "chess.js";
 import { Piece } from "@/lib/pieces";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
+import type { BotPersonality } from "@/lib/cheats/botManipulation";
 
 type BoardPiece = { type: PieceSymbol; color: Color };
 type Grid = (BoardPiece | null)[][]; // grid[0] = rank8 … grid[7] = rank1
@@ -70,6 +71,9 @@ export default function BoardEditorPage() {
   const [turn, setTurn] = useState<Color>("w");
   const [castling, setCastling] = useState({ K: true, Q: true, k: true, q: true });
   const [epFile, setEpFile] = useState<string>("-");
+  const [engineDepth, setEngineDepth] = useState(22);
+  const [engineSkill, setEngineSkill] = useState(20);
+  const [engineStyle, setEngineStyle] = useState<Exclude<BotPersonality, "random">>("normal");
 
   const fen = useMemo(() => {
     const placement = gridToPlacement(grid);
@@ -275,15 +279,35 @@ export default function BoardEditorPage() {
           <textarea readOnly className="input h-16 w-full resize-none font-mono !text-xs" value={fen} />
           {!validation.ok && <p className="mt-1 text-xs text-[var(--bad)]">{validation.message}</p>}
 
+          <div className="mt-4 rounded-xl border border-[#52d6c8]/30 bg-[#52d6c8]/8 p-3">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#52d6c8]">Sam Engine settings</p>
+            <label className="mt-3 block"><span className="mb-1 flex justify-between text-xs font-bold"><span>Search depth</span><span>{engineDepth}</span></span><input type="range" min={4} max={30} value={engineDepth} onChange={(event) => setEngineDepth(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
+            <label className="mt-3 block"><span className="mb-1 flex justify-between text-xs font-bold"><span>Skill level</span><span>{engineSkill} / 20</span></span><input type="range" min={0} max={20} value={engineSkill} onChange={(event) => setEngineSkill(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
+            <label className="mt-3 block"><span className="label mb-1 block">Playing style</span><select className="input w-full !py-2 text-xs" value={engineStyle} onChange={(event) => setEngineStyle(event.target.value as Exclude<BotPersonality, "random">)}><option value="normal">Precision</option><option value="aggressive">Aggressive</option><option value="passive">Positional</option></select></label>
+            <p className="mt-2 text-[0.68rem] leading-5 text-[var(--text-faint)]">These choices are carried into Sam Engine matches opened below.</p>
+          </div>
+
           <div className="mt-3 flex flex-col gap-2">
             <button className="btn !text-xs" onClick={copyFen}>
               Copy FEN
             </button>
             <Link
               className={`btn !text-xs ${!validation.ok ? "pointer-events-none opacity-50" : ""}`}
+              href={`/play/bot?fen=${encodeURIComponent(fen)}&tier=sam&depth=${engineDepth}&skill=${engineSkill}&style=${engineStyle}`}
+            >
+              Play vs Sam Engine from here
+            </Link>
+            <Link
+              className={`btn !border-[#52d6c8]/40 !text-xs !text-[#52d6c8] ${!validation.ok ? "pointer-events-none opacity-50" : ""}`}
+              href={`/play/engine-lab?fen=${encodeURIComponent(fen)}&depth=${engineDepth}&skill=${engineSkill}&style=${engineStyle}`}
+            >
+              Watch Sam vs another bot
+            </Link>
+            <Link
+              className={`btn !text-xs ${!validation.ok ? "pointer-events-none opacity-50" : ""}`}
               href={`/play/bot?fen=${encodeURIComponent(fen)}`}
             >
-              Play vs bot from here
+              Choose a different bot
             </Link>
             <Link
               className={`btn !text-xs ${!validation.ok ? "pointer-events-none opacity-50" : ""}`}

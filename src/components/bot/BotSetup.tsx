@@ -17,6 +17,7 @@ import { IconRobot } from "@/components/ui/icons";
 import { ChessRulesModal } from "@/components/ui/ChessRulesModal";
 import { ODDS_OPTIONS, oddsStartFen, type OddsId } from "@/lib/chess/odds";
 import { BotAvatar } from "@/components/bot/BotAvatar";
+import type { BotPersonality } from "@/lib/cheats/botManipulation";
 
 const CUSTOM_TC_STORAGE_KEY = "rr.customTimeControl.v1";
 
@@ -25,6 +26,7 @@ const BOT_GROUPS = [
   { title: "Intermediate", detail: "850–1300", ids: ["beau", "cass", "rosa", "wren"] },
   { title: "Advanced", detail: "1450–1900", ids: ["dex", "ilsa", "vera", "zephyr"] },
   { title: "Master", detail: "2150+", ids: ["titan", "omen"] },
+  { title: "Engine Lab", detail: "Adjustable maximum strength", ids: ["sam"] },
 ] as const;
 
 const PERSONALITY_LABEL = {
@@ -41,6 +43,10 @@ export interface BotConfig {
   showEval: boolean;
   /** Non-standard starting position — handicap odds (or a deep-linked custom FEN) apply this instead of the normal start. */
   startFen?: string;
+  engineDepth?: number;
+  engineSkill?: number;
+  engineMultipv?: number;
+  enginePersonality?: BotPersonality;
 }
 
 export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
@@ -54,6 +60,26 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
   const [delayMode, setDelayMode] = useState<DelayMode>("increment");
   const [showRules, setShowRules] = useState(false);
   const [myRating, setMyRating] = useState<number | null>(null);
+  const [engineDepth, setEngineDepth] = useState(22);
+  const [engineSkill, setEngineSkill] = useState(20);
+  const [engineMultipv, setEngineMultipv] = useState(1);
+  const [enginePersonality, setEnginePersonality] = useState<BotPersonality>("normal");
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("tier") === "sam") setTierId("sam");
+      const depth = Number(params.get("depth"));
+      const skill = Number(params.get("skill"));
+      const multipv = Number(params.get("multipv"));
+      const personality = params.get("style");
+      if (Number.isFinite(depth) && depth >= 4) setEngineDepth(Math.min(30, Math.round(depth)));
+      if (Number.isFinite(skill) && skill >= 0) setEngineSkill(Math.min(20, Math.round(skill)));
+      if (Number.isFinite(multipv) && multipv >= 1) setEngineMultipv(Math.min(5, Math.round(multipv)));
+      if (personality === "normal" || personality === "aggressive" || personality === "passive") setEnginePersonality(personality);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   // Recommended-bot guidance: fetch the signed-in player's blitz rating and
   // highlight the tier closest to it. Silently skipped when signed out.
@@ -116,8 +142,16 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
   const start = () => {
     const color: Color = colorChoice === "random" ? (Math.random() < 0.5 ? "w" : "b") : colorChoice;
     const botColor: Color = color === "w" ? "b" : "w";
-    const startFen = oddsStartFen(botColor, oddsId) ?? undefined;
-    onStart({ tierId, color, timeControlId: tcId, showEval, startFen });
+    const deepLinkedFen = new URLSearchParams(window.location.search).get("fen") ?? undefined;
+    const startFen = deepLinkedFen ?? oddsStartFen(botColor, oddsId) ?? undefined;
+    onStart({
+      tierId,
+      color,
+      timeControlId: tcId,
+      showEval,
+      startFen,
+      ...(tierId === "sam" ? { engineDepth, engineSkill, engineMultipv, enginePersonality } : {}),
+    });
   };
 
   const grouped: Record<string, TimeControl[]> = {};
@@ -132,7 +166,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-black leading-tight tracking-tight">Choose your opponent</h1>
-          <p className="text-sm text-[var(--text-muted)]">13 personalities, each tuned to play differently</p>
+          <p className="text-sm text-[var(--text-muted)]">14 opponents, including the adjustable Sam Engine S1</p>
         </div>
         <button
           onClick={() => setShowRules(true)}
@@ -153,14 +187,14 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
               <span className="text-xl" aria-label={`Country flag ${selectedTier.flag}`}>{selectedTier.flag}</span>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="chip !border-[var(--accent)]/30 !text-[var(--accent)]">{selectedTier.elo} rating</span>
+              <span className="chip !border-[var(--accent)]/30 !text-[var(--accent)]">{selectedTier.id === "sam" ? "Unrated maximum-strength profile" : `${selectedTier.elo} rating`}</span>
               <span className="chip">{PERSONALITY_LABEL[selectedTier.personality]}</span>
             </div>
             <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--text-muted)]">{selectedTier.blurb}</p>
           </div>
           <div className="hidden text-right sm:block">
             <IconRobot width={30} height={30} className="ml-auto text-[var(--accent)]" />
-            <p className="mt-2 text-xs font-bold uppercase tracking-wider text-[var(--text-faint)]">Stockfish tuned</p>
+            <p className="mt-2 text-xs font-bold uppercase tracking-wider text-[var(--text-faint)]">{selectedTier.id === "sam" ? "Sam Engine S1" : "Stockfish tuned"}</p>
           </div>
         </div>
 
@@ -206,6 +240,21 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
               </div>
             </div>
           ))}
+
+          {tierId === "sam" && (
+            <section className="rounded-2xl border border-[#52d6c8]/35 bg-[#52d6c8]/8 p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div><p className="text-xs font-black uppercase tracking-[0.14em] text-[#52d6c8]">Engine controls</p><h3 className="mt-1 text-lg font-black">Tune Sam Engine S1</h3><p className="mt-1 max-w-xl text-xs leading-5 text-[var(--text-muted)]">Higher depth is stronger but takes longer. Depth 22 is the recommended balance for browser play.</p></div>
+                <a href="/play/engine-lab" className="btn !py-2 text-xs">Open bot-vs-bot arena →</a>
+              </div>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <label className="block"><span className="mb-1 flex items-center justify-between text-xs font-bold"><span>Search depth</span><span className="text-[#52d6c8]">{engineDepth}</span></span><input type="range" min={4} max={30} step={1} value={engineDepth} onChange={(event) => setEngineDepth(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
+                <label className="block"><span className="mb-1 flex items-center justify-between text-xs font-bold"><span>Skill level</span><span className="text-[#52d6c8]">{engineSkill} / 20</span></span><input type="range" min={0} max={20} step={1} value={engineSkill} onChange={(event) => setEngineSkill(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
+                <label className="block"><span className="label mb-1 block">Playing style</span><select value={enginePersonality} onChange={(event) => setEnginePersonality(event.target.value as BotPersonality)} className="input w-full !py-2 text-sm"><option value="normal">Precision</option><option value="aggressive">Aggressive</option><option value="passive">Positional</option></select></label>
+                <label className="block"><span className="label mb-1 block">Candidate lines</span><select value={engineMultipv} onChange={(event) => setEngineMultipv(Number(event.target.value))} className="input w-full !py-2 text-sm"><option value={1}>1 · strongest move only</option><option value={2}>2 · style choice</option><option value={3}>3 · wider choice</option><option value={5}>5 · experimental</option></select></label>
+              </div>
+            </section>
+          )}
         </div>
       </section>
 

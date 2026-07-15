@@ -8,7 +8,7 @@ const CARDS = [
   { href: "/training/editor", title: "Board editor", blurb: "Set up any position and play it out vs a bot, locally, or against a friend." },
   { href: "/openings", title: "Opening drills", blurb: "Practice book lines against a bot that plays straight theory." },
   { href: "/puzzles", title: "Tactics puzzles", blurb: "Daily puzzle, rated practice, and timed Puzzle Rush." },
-  { href: "/training/exhibition", title: "Engine exhibition", blurb: "Sit back and watch two engines play each other, with a live eval bar." },
+  { href: "/play/engine-lab", title: "Sam Engine Arena", blurb: "Tune search depth, load any position, and watch Sam Engine S1 face another arcade bot." },
 ];
 
 export default function TrainingHubPage() {

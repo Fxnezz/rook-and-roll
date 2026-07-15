@@ -4,11 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { SlideOver } from "@/components/ui/SlideOver";
-import { useSettings } from "@/lib/chess/useSettings";
 import { formatRelativeTime, useQol, type QolCenterView, type QolGame } from "@/lib/qol/useQol";
 import { QOL_STATIC_ROUTES } from "@/lib/qol/routes";
-import { QOL_IMPROVEMENT_COUNT, QOL_SYSTEM_COUNT } from "@/lib/qol/features";
-import { WebsiteControls, WebsiteEnhancementLayer } from "@/components/qol/WebsiteEnhancements";
+import { WebsiteEnhancementLayer } from "@/components/qol/WebsiteEnhancements";
+import { openSettingsPanel } from "@/lib/settings/openSettings";
 
 type CommandResult = {
   href: string;
@@ -20,12 +19,9 @@ type CommandResult = {
 
 const CENTER_TABS: Array<{ id: QolCenterView; label: string }> = [
   { id: "overview", label: "Overview" },
-  { id: "website", label: "Website" },
   { id: "activity", label: "Activity" },
   { id: "collections", label: "Collections" },
   { id: "focus", label: "Focus" },
-  { id: "customize", label: "Customize" },
-  { id: "shortcuts", label: "Shortcuts" },
 ];
 
 function SearchIcon({ size = 18 }: { size?: number }) {
@@ -298,45 +294,18 @@ function QualityCenter() {
     createCollection,
     deleteCollection,
     toggleCollectionGame,
-    setDensity,
-    setNavHidden,
-    restoreNavigation,
-    setShortcutsEnabled,
     dismissOnboarding,
     onboardingProgress,
-    importState,
-    resetState,
   } = useQol();
-  const { settings, update } = useSettings();
   const pathname = usePathname();
   const [collectionName, setCollectionName] = useState("");
-  const [importError, setImportError] = useState<string | null>(null);
-  const [confirmReset, setConfirmReset] = useState(false);
   const currentGame = state.registry.find((game) => game.links.some((link) => link.href === pathname));
   const currentLabel = currentGame?.title ?? QOL_STATIC_ROUTES.find((route) => route.href === pathname)?.label ?? pathname;
 
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-    const href = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = href;
-    anchor.download = "sams-arcade-qol.json";
-    anchor.click();
-    URL.revokeObjectURL(href);
-  };
-
-  const importData = (file: File | undefined) => {
-    if (!file) return;
-    setImportError(null);
-    file.text().then((text) => {
-      if (!importState(JSON.parse(text))) throw new Error("invalid");
-    }).catch(() => setImportError("That file is not a valid Sam's Arcade QOL export."));
-  };
-
   return (
-    <SlideOver open={centerOpen} onClose={closeCenter} title="Player QOL Center">
+    <SlideOver open={centerOpen} onClose={closeCenter} title="Player Tools">
       <div className="border-b border-[var(--border)] p-3">
-        <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="QOL Center sections">
+        <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Player tool sections">
           {CENTER_TABS.map((tab) => (
             <button key={tab.id} type="button" role="tab" aria-selected={centerView === tab.id} onClick={() => openCenter(tab.id)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${centerView === tab.id ? "bg-[var(--accent)] text-[var(--accent-contrast)]" : "text-[var(--text-muted)] hover:bg-[var(--bg-elev)]"}`}>
               {tab.label}
@@ -393,16 +362,11 @@ function QualityCenter() {
               <button type="button" className="btn !justify-start !py-3 text-xs" onClick={() => pinRoute({ href: pathname, label: currentLabel, emoji: currentGame?.emoji, kind: currentGame ? "game" : "route" })}>{isPinned(pathname) ? "★ Unpin page" : "☆ Pin page"}</button>
               <button type="button" className="btn !justify-start !py-3 text-xs" onClick={() => navigator.clipboard.writeText(window.location.href)}>⧉ Copy link</button>
               {currentGame && <button type="button" className="btn !justify-start !py-3 text-xs" onClick={() => toggleFavorite(currentGame)}>{state.favorites[currentGame.links[0]?.href] ? "♥ Unfavorite" : "♡ Favorite game"}</button>}
-              <Link href="/quality-of-life" onClick={closeCenter} className="btn !justify-start !py-3 text-xs">200 What&apos;s New</Link>
+              <button type="button" className="btn !justify-start !py-3 text-xs" onClick={() => { closeCenter(); openSettingsPanel("qol"); }}>◇ QOL settings</button>
+              <Link href="/quality-of-life" onClick={closeCenter} className="btn !justify-start !py-3 text-xs">✦ Patch Notes</Link>
             </section>
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 text-center">
-              <p className="text-2xl font-black text-[var(--accent)]">{QOL_IMPROVEMENT_COUNT}</p>
-              <p className="text-xs font-bold text-[var(--text-faint)]">improvements across {QOL_SYSTEM_COUNT} systems</p>
-            </div>
           </>
         )}
-
-        {centerView === "website" && <WebsiteControls />}
 
         {centerView === "activity" && (
           <section>
@@ -465,86 +429,13 @@ function QualityCenter() {
         )}
 
         {centerView === "focus" && <FocusCard />}
-
-        {centerView === "customize" && (
-          <section className="space-y-5">
-            <div>
-              <h2 className="font-extrabold">Interface density</h2>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {(["compact", "comfortable", "spacious"] as const).map((density) => (
-                  <button key={density} type="button" className={`btn !px-1 !py-2 text-[0.68rem] capitalize ${state.density === density ? "btn-primary" : "btn-ghost"}`} onClick={() => setDensity(density)}>{density}</button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h2 className="font-extrabold">Accessibility presets</h2>
-              <div className="mt-3 grid gap-2">
-                <button type="button" className="rounded-xl border border-[var(--border)] p-3 text-left hover:bg-[var(--bg-elev)]" onClick={() => { setDensity("spacious"); update({ uiTextScale: "large", reduceMotion: false, highContrast: false, soundEnabled: true }); }}><span className="block text-sm font-extrabold">Comfort</span><span className="text-xs text-[var(--text-faint)]">Larger text, more breathing room and standard motion.</span></button>
-                <button type="button" className="rounded-xl border border-[var(--border)] p-3 text-left hover:bg-[var(--bg-elev)]" onClick={() => { setDensity("comfortable"); update({ reduceMotion: true, soundEnabled: false, flashOnSound: false }); }}><span className="block text-sm font-extrabold">Low sensory</span><span className="text-xs text-[var(--text-faint)]">Reduced movement and silent feedback.</span></button>
-                <button type="button" className="rounded-xl border border-[var(--border)] p-3 text-left hover:bg-[var(--bg-elev)]" onClick={() => { setDensity("spacious"); update({ highContrast: true, colorblindMode: true, uiTextScale: "large", reduceMotion: true }); }}><span className="block text-sm font-extrabold">High visibility</span><span className="text-xs text-[var(--text-faint)]">Stronger contrast, color-safe cues and larger text.</span></button>
-              </div>
-              <p className="mt-2 text-[0.68rem] text-[var(--text-faint)]">Current chess UI scale: {settings.uiTextScale}</p>
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <h2 className="font-extrabold">Sidebar destinations</h2>
-                <button type="button" className="text-xs font-bold text-[var(--accent)]" onClick={restoreNavigation}>Restore all</button>
-              </div>
-              <div className="mt-2 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] px-3">
-                {QOL_STATIC_ROUTES.filter((route) => route.sidebar).map((route) => (
-                  <label key={route.href} className="flex items-center justify-between gap-3 py-3 text-sm font-semibold">
-                    <span>{route.emoji} {route.label}</span>
-                    <input type="checkbox" checked={!state.hiddenNav.includes(route.href)} onChange={(event) => setNavHidden(route.href, !event.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h2 className="font-extrabold">Data portability</h2>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button type="button" className="btn" onClick={exportData}>Export</button>
-                <label className="btn cursor-pointer">Import<input type="file" accept="application/json" className="sr-only" onChange={(event) => { importData(event.target.files?.[0]); event.target.value = ""; }} /></label>
-              </div>
-              {importError && <p role="alert" className="mt-2 text-xs font-semibold text-[var(--danger)]">{importError}</p>}
-              {state.onboardingDismissed && <button type="button" className="btn mt-3 w-full" onClick={() => dismissOnboarding(false)}>Restore onboarding checklist</button>}
-              <button type="button" className="btn btn-danger mt-3 w-full" onClick={() => { if (confirmReset) { resetState(); setConfirmReset(false); } else { setConfirmReset(true); window.setTimeout(() => setConfirmReset(false), 3500); } }}>{confirmReset ? "Click again to erase local QOL data" : "Reset QOL data"}</button>
-            </div>
-          </section>
-        )}
-
-        {centerView === "shortcuts" && (
-          <section>
-            <label className="flex items-center justify-between rounded-xl border border-[var(--border)] p-4">
-              <span><span className="block text-sm font-extrabold">Keyboard shortcuts</span><span className="block text-xs text-[var(--text-faint)]">Disable route shortcuts while keeping normal typing.</span></span>
-              <input type="checkbox" checked={state.shortcutsEnabled} onChange={(event) => setShortcutsEnabled(event.target.checked)} className="h-5 w-5 accent-[var(--accent)]" />
-            </label>
-            <div className="mt-4 divide-y divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)]">
-              {[
-                ["Cmd / Ctrl K", "Open command palette"],
-                ["?", "Open shortcut reference"],
-                ["Alt H", "Home"],
-                ["Alt G", "Games Hub"],
-                ["Alt O", "Play online chess"],
-                ["Alt B", "Chess bots"],
-                ["Alt T", "Training"],
-                ["Alt Q", "Player QOL Center"],
-                ["Esc", "Close the active overlay"],
-              ].map(([keys, action]) => (
-                <div key={keys} className="flex items-center justify-between gap-4 px-3 py-3 text-sm">
-                  <span className="text-[var(--text-muted)]">{action}</span>
-                  <kbd className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 font-mono text-[0.68rem] font-bold">{keys}</kbd>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
       </div>
     </SlideOver>
   );
 }
 
 function GlobalShortcuts() {
-  const { state, openPalette, openCenter, paletteOpen, centerOpen, closePalette, closeCenter } = useQol();
+  const { state, openPalette, paletteOpen, centerOpen, closePalette, closeCenter } = useQol();
   const router = useRouter();
 
   useEffect(() => {
@@ -565,7 +456,7 @@ function GlobalShortcuts() {
       if (!state.shortcutsEnabled || typing) return;
       if (event.key === "?") {
         event.preventDefault();
-        openCenter("shortcuts");
+        openSettingsPanel("qol");
         return;
       }
       if (!event.altKey) return;
@@ -573,7 +464,7 @@ function GlobalShortcuts() {
       const key = event.key.toLowerCase();
       if (key === "q") {
         event.preventDefault();
-        openCenter();
+        openSettingsPanel("qol");
       } else if (destinations[key]) {
         event.preventDefault();
         router.push(destinations[key]);
@@ -581,7 +472,7 @@ function GlobalShortcuts() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [centerOpen, closeCenter, closePalette, openCenter, openPalette, paletteOpen, router, state.shortcutsEnabled]);
+  }, [centerOpen, closeCenter, closePalette, openPalette, paletteOpen, router, state.shortcutsEnabled]);
 
   return null;
 }

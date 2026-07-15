@@ -10,6 +10,7 @@ const CHESS_GAMES: GameCard[] = [
     links: [
       { href: "/play/online", label: "Play Online" },
       { href: "/play/bot", label: "vs Bot" },
+      { href: "/play/engine-lab", label: "Engine Arena" },
     ],
   },
   {
