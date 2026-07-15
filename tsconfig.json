@@ -39,6 +39,7 @@
   "exclude": [
     "node_modules",
     "server",
-    "**/* [0-9].ts"
+    ".next/types/**/* ?.ts",
+    ".next/dev/types/**/* ?.ts"
   ]
 }

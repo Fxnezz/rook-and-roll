@@ -6,10 +6,10 @@ import Link from "next/link";
 
 export default function ErrorBoundary({
   error,
-  reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }) {
   useEffect(() => {
     console.error(error);
@@ -28,7 +28,7 @@ export default function ErrorBoundary({
         <p className="mt-1 font-mono text-xs text-[var(--text-faint)]">ref: {error.digest}</p>
       )}
       <div className="mt-7 flex flex-col justify-center gap-2 sm:flex-row">
-        <button className="btn btn-primary !px-5 !py-3" onClick={reset}>
+        <button className="btn btn-primary !px-5 !py-3" onClick={unstable_retry}>
           Retry this screen
         </button>
         <Link href="/play" className="btn !px-5 !py-3">Open Games Hub</Link>

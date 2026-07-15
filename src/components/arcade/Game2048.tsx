@@ -30,11 +30,26 @@ const TILE_COLORS: Record<number, { bg: string; fg: string }> = {
   8192: { bg: "#e0507a", fg: "#fff" },
 };
 
-function makeInitial(): Board2048 {
+function makeRandomInitial(): Board2048 {
   let b = emptyBoard2048();
   b = spawnTile(b);
   b = spawnTile(b);
   return b;
+}
+
+/**
+ * The first board must be identical in the server HTML and the browser's
+ * initial render. A random useState initializer produces two different boards
+ * and makes React throw away the server-rendered game during hydration.
+ * Subsequent "New game" actions still use a freshly randomized board.
+ */
+function makeHydrationSafeInitial(): Board2048 {
+  return [
+    [0, 2, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 0, 2],
+    [0, 0, 0, 0],
+  ];
 }
 
 interface Confetto {
@@ -47,7 +62,7 @@ interface Confetto {
 export function Game2048() {
   const { best, submit } = useHighScore("2048");
   const { settings } = useSettings();
-  const [board, setBoard] = useState<Board2048>(() => makeInitial());
+  const [board, setBoard] = useState<Board2048>(() => makeHydrationSafeInitial());
   const [score, setScore] = useState(0);
   const [over, setOver] = useState(false);
   const [won, setWon] = useState(false);
@@ -62,13 +77,16 @@ export function Game2048() {
   const popupSeq = useRef(0);
 
   const reset = useCallback(() => {
-    setBoard(makeInitial());
+    setBoard(makeRandomInitial());
     setScore(0);
     scoreRef.current = 0;
     setOver(false);
     setWon(false);
     setContinued(false);
     setCanUndo(false);
+    setPopup(null);
+    setNewCell(null);
+    setConfetti([]);
     historyRef.current = null;
   }, []);
 
@@ -105,9 +123,9 @@ export function Game2048() {
         scoreRef.current += gained;
         setScore(scoreRef.current);
         if (gained > 0) {
-          popupSeq.current += 1;
-          setPopup({ text: `+${gained}`, id: popupSeq.current });
-          setTimeout(() => setPopup((p) => (p?.id === popupSeq.current ? null : p)), 600);
+          const popupId = ++popupSeq.current;
+          setPopup({ text: `+${gained}`, id: popupId });
+          setTimeout(() => setPopup((p) => (p?.id === popupId ? null : p)), 600);
         }
         const isNewBest = best === null || scoreRef.current > best;
         if (!won && hasTile2048(withSpawn, 2048)) {
@@ -159,13 +177,14 @@ export function Game2048() {
     touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStart.current) return;
-    const dx = e.changedTouches[0].clientX - touchStart.current.x;
-    const dy = e.changedTouches[0].clientY - touchStart.current.y;
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start) return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    const dy = e.changedTouches[0].clientY - start.y;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 20) return;
     const dir: Dir2048 = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
     applyMove(dir);
-    touchStart.current = null;
   };
 
   return (
