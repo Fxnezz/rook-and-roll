@@ -9,6 +9,10 @@ import {
   type CoordinateStyle,
   type UiTextScale,
   type DefaultGameTab,
+  type MotionProfile,
+  type PageTransition,
+  type HoverMotion,
+  type CelebrationIntensity,
 } from "@/lib/chess/useSettings";
 import { playSound, setSoundPack, type SoundName, type SoundPack } from "@/lib/chess/sound";
 import { BOARD_THEMES } from "@/lib/chess/themes";
@@ -77,6 +81,80 @@ const DEFAULT_GAME_TABS: { id: DefaultGameTab; label: string }[] = [
   { id: "share", label: "Share" },
 ];
 
+type SettingsTab = "motion" | "board" | "sound" | "gameplay" | "accessibility" | "moderation" | "data";
+
+const SETTINGS_TABS: { id: SettingsTab; label: string; symbol: string; description: string }[] = [
+  { id: "motion", label: "Motion Studio", symbol: "✦", description: "Profiles, transitions and effects" },
+  { id: "board", label: "Board & style", symbol: "♞", description: "Themes, pieces and layout" },
+  { id: "sound", label: "Sound", symbol: "♫", description: "Mix, packs and previews" },
+  { id: "gameplay", label: "Gameplay", symbol: "♟", description: "Moves, analysis and controls" },
+  { id: "accessibility", label: "Accessibility", symbol: "◉", description: "Motion, contrast and reading" },
+  { id: "moderation", label: "Moderation", symbol: "◆", description: "Owner-only alerts and controls" },
+  { id: "data", label: "Settings data", symbol: "⇄", description: "Export, import and reset" },
+];
+
+const SEARCH_ITEMS: { label: string; tab: SettingsTab; keywords: string }[] = [
+  { label: "Motion profiles and presets", tab: "motion", keywords: "animation cinematic arcade calm balanced" },
+  { label: "Page transitions", tab: "motion", keywords: "fade slide zoom curtain navigation" },
+  { label: "Hover movement and panel glow", tab: "motion", keywords: "button hover glow effects depth blur" },
+  { label: "Celebration intensity", tab: "motion", keywords: "confetti win celebration effects" },
+  { label: "Board theme and piece set", tab: "board", keywords: "appearance chess pieces colors" },
+  { label: "Board size, frame and coordinates", tab: "board", keywords: "zoom frame arrow square coordinate" },
+  { label: "Sound effects and volume", tab: "sound", keywords: "audio music volume pack chat" },
+  { label: "Move controls and premoves", tab: "gameplay", keywords: "drag click confirm queen legal moves" },
+  { label: "Analysis and hints", tab: "gameplay", keywords: "engine depth hint review bot blindfold" },
+  { label: "Reduced motion and contrast", tab: "accessibility", keywords: "accessible animation high contrast colorblind" },
+  { label: "Speech, notation and text size", tab: "accessibility", keywords: "dyslexia read font announce" },
+  { label: "Import, export or reset settings", tab: "data", keywords: "backup restore defaults json" },
+];
+
+const MOTION_PROFILES: {
+  id: Exclude<MotionProfile, "custom">;
+  label: string;
+  description: string;
+  accent: string;
+  settings: {
+    pageTransition: PageTransition;
+    hoverMotion: HoverMotion;
+    ambientMotion: boolean;
+    panelGlow: boolean;
+    buttonEffects: boolean;
+    staggerMenus: boolean;
+    celebrationIntensity: CelebrationIntensity;
+    depthBlur: boolean;
+    animationSpeed: AnimationSpeed;
+  };
+}[] = [
+  {
+    id: "calm",
+    label: "Calm",
+    description: "Quick, quiet movement with no ambient distractions.",
+    accent: "#78a8c8",
+    settings: { pageTransition: "fade", hoverMotion: "off", ambientMotion: false, panelGlow: false, buttonEffects: false, staggerMenus: false, celebrationIntensity: "off", depthBlur: false, animationSpeed: "fast" },
+  },
+  {
+    id: "balanced",
+    label: "Balanced",
+    description: "Polished motion that stays fast and easy to follow.",
+    accent: "#e9a23b",
+    settings: { pageTransition: "fade", hoverMotion: "subtle", ambientMotion: true, panelGlow: true, buttonEffects: true, staggerMenus: true, celebrationIntensity: "subtle", depthBlur: false, animationSpeed: "normal" },
+  },
+  {
+    id: "cinematic",
+    label: "Cinematic",
+    description: "Smooth depth, slower transitions and dramatic entrances.",
+    accent: "#9f8bea",
+    settings: { pageTransition: "curtain", hoverMotion: "subtle", ambientMotion: true, panelGlow: true, buttonEffects: true, staggerMenus: true, celebrationIntensity: "full", depthBlur: true, animationSpeed: "slow" },
+  },
+  {
+    id: "arcade",
+    label: "Arcade",
+    description: "Expressive lifts, energetic highlights and full celebrations.",
+    accent: "#5bbf7a",
+    settings: { pageTransition: "zoom", hoverMotion: "expressive", ambientMotion: true, panelGlow: true, buttonEffects: true, staggerMenus: true, celebrationIntensity: "full", depthBlur: false, animationSpeed: "fast" },
+  },
+];
+
 function Segmented<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
     <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
@@ -85,6 +163,8 @@ function Segmented<T extends string>({ options, value, onChange }: { options: { 
         return (
           <button
             key={o.id}
+            type="button"
+            aria-pressed={active}
             onClick={() => onChange(o.id)}
             className="hover-lift rounded-md border px-1.5 py-1.5 text-xs font-medium transition-colors"
             style={{
@@ -133,7 +213,7 @@ function Toggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <button className="hover-lift flex w-full items-center justify-between gap-3 rounded-lg px-1 py-2.5 text-left" onClick={() => onChange(!checked)}>
+    <button type="button" aria-pressed={checked} className="hover-lift flex w-full items-center justify-between gap-3 rounded-lg px-1 py-2.5 text-left" onClick={() => onChange(!checked)}>
       <span>
         <span className="block text-sm text-[var(--text)]">{label}</span>
         {description && <span className="block text-xs text-[var(--text-faint)]">{description}</span>}
@@ -155,12 +235,16 @@ function Toggle({
   );
 }
 
-function Section({ icon, title, i, children }: { icon: ReactNode; title: string; i: number; children: ReactNode }) {
+function Section({ icon, title, i, children, visible = true, description }: { icon: ReactNode; title: string; i: number; children: ReactNode; visible?: boolean; description?: string }) {
+  if (!visible) return null;
   return (
-    <section className="stagger-item" style={{ "--i": i } as React.CSSProperties}>
-      <div className="mb-2.5 flex items-center gap-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--bg-elev)] text-[var(--accent)]">{icon}</span>
-        <span className="label">{title}</span>
+    <section className="settings-surface stagger-item rounded-2xl border border-[var(--border)] bg-[var(--bg)]/45 p-4 sm:p-5" style={{ "--i": i } as React.CSSProperties}>
+      <div className="mb-4 flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-elev)] text-[var(--accent)]">{icon}</span>
+        <span>
+          <span className="block text-base font-black tracking-tight text-[var(--text)]">{title}</span>
+          {description && <span className="mt-0.5 block text-xs text-[var(--text-faint)]">{description}</span>}
+        </span>
       </div>
       {children}
     </section>
@@ -171,6 +255,21 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
   const { settings, update, reset } = useSettings();
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [importErr, setImportErr] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("motion");
+  const [search, setSearch] = useState("");
+  const availableTabs = SETTINGS_TABS.filter((tab) => tab.id !== "moderation" || canModerate);
+  const normalizedSearch = search.trim().toLowerCase();
+  const searchResults = normalizedSearch
+    ? SEARCH_ITEMS.filter((item) => `${item.label} ${item.keywords}`.toLowerCase().includes(normalizedSearch))
+    : [];
+
+  const updateMotion = (patch: Parameters<typeof update>[0]) => {
+    update({ ...patch, motionProfile: "custom" });
+  };
+
+  const applyMotionProfile = (profile: (typeof MOTION_PROFILES)[number]) => {
+    update({ motionProfile: profile.id, reduceMotion: false, ...profile.settings });
+  };
 
   const exportSettings = () => {
     const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" });
@@ -208,8 +307,124 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
   };
 
   return (
-    <div className="flex flex-col gap-6 p-4">
-      <Section icon={<IconPalette width={14} height={14} />} title="Appearance" i={0}>
+    <div className="p-3 sm:p-5">
+      <div className="relative mb-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[linear-gradient(135deg,var(--bg-elev-2),var(--panel)_58%,color-mix(in_srgb,var(--accent)_12%,var(--panel)))] p-4 sm:p-5">
+        <div className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-[var(--accent)]/10 blur-3xl" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <span className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-[var(--accent)]/25 bg-[var(--accent)]/10 px-2.5 py-1 text-[0.66rem] font-black uppercase tracking-[0.13em] text-[var(--accent)]">
+              <IconSparkles width={12} height={12} /> Personalized control center
+            </span>
+            <h3 className="text-xl font-black tracking-tight sm:text-2xl">Make the arcade feel like yours.</h3>
+            <p className="mt-1 max-w-xl text-xs leading-relaxed text-[var(--text-muted)] sm:text-sm">
+              Tune movement, chess controls, sound and accessibility. Every change is saved instantly on this device.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)]/55 px-3 py-2">
+              <span className="block text-base font-black text-[var(--accent)]">{availableTabs.length}</span><span className="text-[0.62rem] text-[var(--text-faint)]">Categories</span>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)]/55 px-3 py-2">
+              <span className="block text-base font-black text-[var(--good)]">Live</span><span className="text-[0.62rem] text-[var(--text-faint)]">Preview</span>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)]/55 px-3 py-2">
+              <span className="block text-base font-black capitalize text-[var(--info)]">{settings.motionProfile}</span><span className="text-[0.62rem] text-[var(--text-faint)]">Motion</span>
+            </div>
+          </div>
+        </div>
+        <div className="relative mt-4">
+          <svg aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Find a setting…"
+            aria-label="Search settings"
+            className="input !rounded-xl !bg-[var(--bg)]/80 !py-2.5 !pl-10 !font-sans"
+          />
+          {search && <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-bold text-[var(--text-faint)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]">Clear</button>}
+        </div>
+        {normalizedSearch && (
+          <div className="relative mt-2 grid gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg)]/90 p-2 sm:grid-cols-2">
+            {searchResults.length > 0 ? searchResults.map((result) => (
+              <button key={result.label} type="button" className="flex items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-bold text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]" onClick={() => { setActiveTab(result.tab); setSearch(""); }}>
+                {result.label}<span className="text-[var(--accent)]">Open →</span>
+              </button>
+            )) : <p className="px-3 py-2 text-xs text-[var(--text-faint)] sm:col-span-2">No matching setting yet. Try “motion”, “sound”, “board” or “text”.</p>}
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-[13.5rem_minmax(0,1fr)]">
+        <nav aria-label="Settings categories" className="grid grid-cols-2 gap-2 self-start sm:grid-cols-4 md:sticky md:top-3 md:grid-cols-1">
+          {availableTabs.map((tab) => {
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                aria-current={active ? "page" : undefined}
+                onClick={() => setActiveTab(tab.id)}
+                className="group flex min-w-0 items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition"
+                style={{ borderColor: active ? "var(--accent)" : "var(--border)", background: active ? "var(--bg-elev-2)" : "var(--bg)", color: active ? "var(--text)" : "var(--text-muted)" }}
+              >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--bg-elev)] text-sm text-[var(--accent)] transition-transform group-hover:scale-110">{tab.symbol}</span>
+                <span className="min-w-0"><span className="block truncate text-xs font-black sm:text-sm">{tab.label}</span><span className="hidden truncate text-[0.63rem] text-[var(--text-faint)] md:block">{tab.description}</span></span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="min-w-0">
+      <Section icon={<IconMotion width={17} height={17} />} title="Motion Studio" description="Coordinated animation profiles with a live, reduced-motion-safe preview." i={0} visible={activeTab === "motion"}>
+        <div className="mb-5 overflow-hidden rounded-2xl border border-[var(--border)] bg-[radial-gradient(circle_at_80%_10%,color-mix(in_srgb,var(--accent)_18%,transparent),transparent_45%),var(--bg-elev)] p-4">
+          <div className="grid min-h-44 gap-4 sm:grid-cols-[1fr_12rem] sm:items-center">
+            <div>
+              <span className="text-[0.65rem] font-black uppercase tracking-[0.14em] text-[var(--accent)]">Live preview</span>
+              <h4 className="mt-1 text-lg font-black">Motion with purpose</h4>
+              <p className="mt-1 max-w-sm text-xs leading-relaxed text-[var(--text-muted)]">Hover the cards and button. The preview updates immediately as you tune the controls below.</p>
+              <button type="button" className="btn btn-primary mt-4">Preview action <span aria-hidden="true">→</span></button>
+            </div>
+            <div className="relative mx-auto grid h-36 w-44 place-items-center" aria-hidden="true">
+              <span className="motion-preview-ring absolute h-24 w-24 rounded-full border border-[var(--accent)]/55" />
+              <div className="motion-preview-float settings-surface relative w-36 rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-3 shadow-xl">
+                <div className="mb-3 flex gap-1.5"><span className="h-2 w-2 rounded-full bg-[var(--bad)]" /><span className="h-2 w-2 rounded-full bg-[var(--warn)]" /><span className="h-2 w-2 rounded-full bg-[var(--good)]" /></div>
+                <div className="mb-2 h-2 w-20 rounded-full bg-[var(--accent)]/55" /><div className="mb-1.5 h-1.5 w-full rounded-full bg-[var(--border-strong)]" /><div className="h-1.5 w-3/4 rounded-full bg-[var(--border)]" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <span className="mb-2 block text-xs font-black text-[var(--text-muted)]">Motion profile</span>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {MOTION_PROFILES.map((profile) => {
+            const active = settings.motionProfile === profile.id;
+            return (
+              <button key={profile.id} type="button" aria-pressed={active} onClick={() => applyMotionProfile(profile)} className="hover-lift rounded-xl border p-3 text-left" style={{ borderColor: active ? profile.accent : "var(--border)", background: active ? `color-mix(in srgb, ${profile.accent} 9%, var(--bg-elev))` : "var(--bg-elev)" }}>
+                <span className="flex items-center justify-between gap-2"><span className="text-sm font-black">{profile.label}</span><span className="h-2.5 w-2.5 rounded-full" style={{ background: profile.accent, boxShadow: active ? `0 0 14px ${profile.accent}` : "none" }} /></span>
+                <span className="mt-1 block text-xs leading-relaxed text-[var(--text-faint)]">{profile.description}</span>
+              </button>
+            );
+          })}
+        </div>
+        {settings.motionProfile === "custom" && <p className="mt-2 rounded-lg border border-[var(--info)]/25 bg-[var(--info)]/10 px-3 py-2 text-xs text-[var(--info)]">Custom profile — you have fine-tuned one or more effects.</p>}
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <div><span className="mb-2 block text-xs font-black text-[var(--text-muted)]">Page transition</span><Segmented options={[{ id: "none", label: "None" }, { id: "fade", label: "Fade" }, { id: "slide", label: "Slide" }, { id: "zoom", label: "Zoom" }, { id: "curtain", label: "Curtain" }]} value={settings.pageTransition} onChange={(v) => updateMotion({ pageTransition: v })} /></div>
+          <div><span className="mb-2 block text-xs font-black text-[var(--text-muted)]">Hover response</span><Segmented options={[{ id: "off", label: "Off" }, { id: "subtle", label: "Subtle" }, { id: "expressive", label: "Expressive" }]} value={settings.hoverMotion} onChange={(v) => updateMotion({ hoverMotion: v })} /></div>
+          <div><span className="mb-2 block text-xs font-black text-[var(--text-muted)]">Animation speed</span><Segmented options={ANIM_SPEEDS} value={settings.animationSpeed} onChange={(v) => updateMotion({ animationSpeed: v })} /></div>
+          <div><span className="mb-2 block text-xs font-black text-[var(--text-muted)]">Celebrations</span><Segmented options={[{ id: "off", label: "Off" }, { id: "subtle", label: "Subtle" }, { id: "full", label: "Full" }]} value={settings.celebrationIntensity} onChange={(v) => updateMotion({ celebrationIntensity: v })} /></div>
+        </div>
+        <div className="mt-4 grid gap-x-5 sm:grid-cols-2">
+          <Toggle label="Ambient motion" description="Slow light and arcade-grid movement behind pages" checked={settings.ambientMotion} onChange={(v) => updateMotion({ ambientMotion: v })} />
+          <Toggle label="Panel glow" description="Accent glow on interactive cards and surfaces" checked={settings.panelGlow} onChange={(v) => updateMotion({ panelGlow: v })} />
+          <Toggle label="Button effects" description="Shimmer and richer press feedback on primary actions" checked={settings.buttonEffects} onChange={(v) => updateMotion({ buttonEffects: v })} />
+          <Toggle label="Staggered menus" description="Items enter in sequence instead of all at once" checked={settings.staggerMenus} onChange={(v) => updateMotion({ staggerMenus: v })} />
+          <Toggle label="Cinematic depth blur" description="Soft focus during supported page transitions" checked={settings.depthBlur} onChange={(v) => updateMotion({ depthBlur: v })} />
+          <Toggle label="Reduce all motion" description="Accessibility override: minimize every animation" checked={settings.reduceMotion} onChange={(v) => update({ reduceMotion: v })} />
+        </div>
+      </Section>
+
+      <Section icon={<IconPalette width={14} height={14} />} title="Board & style" description="Build the chess board you want to look at for hours." i={1} visible={activeTab === "board"}>
         <span className="mb-2 mt-3 block text-xs font-semibold text-[var(--text-muted)]">Board theme</span>
         <div className="grid grid-cols-2 gap-2">
           {BOARD_THEMES.map((t) => {
@@ -343,9 +558,7 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
         )}
       </Section>
 
-      <div className="h-px bg-[var(--border)]" />
-
-      <Section icon={settings.soundEnabled ? <IconVolume width={14} height={14} /> : <IconVolumeOff width={14} height={14} />} title="Sound" i={1}>
+      <Section icon={settings.soundEnabled ? <IconVolume width={14} height={14} /> : <IconVolumeOff width={14} height={14} />} title="Sound" description="Balance game, interface and notification audio." i={2} visible={activeTab === "sound"}>
         <Toggle label="Sound effects" checked={settings.soundEnabled} onChange={(v) => update({ soundEnabled: v })} />
         <div
           className="overflow-hidden transition-all duration-200"
@@ -411,9 +624,7 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
         </div>
       </Section>
 
-      <div className="h-px bg-[var(--border)]" />
-
-      <Section icon={<IconSparkles width={14} height={14} />} title="Gameplay" i={2}>
+      <Section icon={<IconSparkles width={14} height={14} />} title="Gameplay" description="Control how moves, hints and game review behave." i={3} visible={activeTab === "gameplay"}>
         <Toggle label="Show coordinates" checked={settings.showCoordinates} onChange={(v) => update({ showCoordinates: v })} />
         <Toggle label="Show legal moves" checked={settings.showLegalMoves} onChange={(v) => update({ showLegalMoves: v })} />
         <Toggle label="Highlight last move" checked={settings.highlightLastMove} onChange={(v) => update({ highlightLastMove: v })} />
@@ -524,9 +735,7 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
         />
       </Section>
 
-      <div className="h-px bg-[var(--border)]" />
-
-      <Section icon={<IconMotion width={14} height={14} />} title="Accessibility" i={3}>
+      <Section icon={<IconMotion width={14} height={14} />} title="Accessibility" description="Make every screen easier to see, hear and navigate." i={4} visible={activeTab === "accessibility"}>
         <Toggle
           label="Reduce motion"
           description="Minimizes transitions and animations across the site"
@@ -576,9 +785,7 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
       </Section>
 
       {canModerate && (
-        <>
-          <div className="h-px bg-[var(--border)]" />
-          <Section icon={<IconShield width={14} height={14} />} title="Moderation" i={4}>
+          <Section icon={<IconShield width={14} height={14} />} title="Moderation" description="Private owner preferences for the Shield Center." i={5} visible={activeTab === "moderation"}>
             <Toggle
               label="Flagged-message sound"
               description="Play a distinct sound when a flagged chat message arrives"
@@ -592,9 +799,9 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
               onChange={(v) => update({ modHideUI: v })}
             />
           </Section>
-        </>
       )}
 
+      <Section icon={<IconDownload width={15} height={15} />} title="Settings data" description="Back up your preferences, move them to another device or start over." i={6} visible={activeTab === "data"}>
       <div className="flex flex-col gap-2">
         <div className="flex gap-2">
           <button className="btn hover-lift flex-1 !justify-start gap-2 !text-sm" onClick={exportSettings}>
@@ -611,12 +818,15 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
       </div>
 
       <button
-        className={`btn hover-lift !justify-start gap-2 !text-sm ${confirmingReset ? "!border-[var(--bad)] !text-[var(--bad)]" : ""}`}
+        className={`btn hover-lift mt-3 !justify-start gap-2 !text-sm ${confirmingReset ? "!border-[var(--bad)] !text-[var(--bad)]" : ""}`}
         onClick={handleReset}
       >
         <IconRefresh width={15} height={15} />
         {confirmingReset ? "Click again to confirm" : "Reset to defaults"}
       </button>
+      </Section>
+        </div>
+      </div>
     </div>
   );
 }

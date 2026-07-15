@@ -439,6 +439,188 @@ body {
   transform: translateY(0);
 }
 
+/* ------------------------------------------------------------------ */
+/*  Motion Studio — player-controlled choreography                     */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --motion-duration: 320ms;
+  --motion-distance: 10px;
+  --motion-hover-y: -1px;
+  --motion-hover-scale: 1;
+  --motion-glow-strength: 0.16;
+}
+
+:root[data-motion-profile="calm"] {
+  --motion-duration: 180ms;
+  --motion-distance: 4px;
+  --motion-glow-strength: 0.06;
+}
+:root[data-motion-profile="cinematic"] {
+  --motion-duration: 560ms;
+  --motion-distance: 18px;
+  --motion-glow-strength: 0.24;
+}
+:root[data-motion-profile="arcade"] {
+  --motion-duration: 380ms;
+  --motion-distance: 14px;
+  --motion-glow-strength: 0.3;
+}
+
+:root[data-hover-motion="off"] {
+  --motion-hover-y: 0px;
+  --motion-hover-scale: 1;
+}
+:root[data-hover-motion="subtle"] {
+  --motion-hover-y: -2px;
+  --motion-hover-scale: 1.005;
+}
+:root[data-hover-motion="expressive"] {
+  --motion-hover-y: -5px;
+  --motion-hover-scale: 1.018;
+}
+
+[data-hover-motion] .hover-lift {
+  transition-duration: var(--motion-duration);
+}
+[data-hover-motion] .hover-lift:hover {
+  transform: translateY(var(--motion-hover-y)) scale(var(--motion-hover-scale));
+}
+[data-hover-motion="off"] .btn:hover {
+  transform: none;
+}
+[data-hover-motion="expressive"] .btn:hover {
+  transform: translateY(-3px) scale(1.015);
+}
+
+[data-panel-glow="true"] .panel,
+[data-panel-glow="true"] .settings-surface {
+  transition: border-color var(--motion-duration) var(--ease-out), box-shadow var(--motion-duration) var(--ease-out), transform var(--motion-duration) var(--ease-out);
+}
+[data-panel-glow="true"] .panel:hover,
+[data-panel-glow="true"] .settings-surface:hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  box-shadow: 0 12px 38px rgba(0, 0, 0, 0.28), 0 0 32px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+@keyframes motion-button-sheen {
+  0% { transform: translateX(-145%) skewX(-22deg); }
+  55%, 100% { transform: translateX(245%) skewX(-22deg); }
+}
+[data-button-effects="true"] .btn-primary {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+[data-button-effects="true"] .btn-primary::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -40% auto -40% 0;
+  width: 36%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.34), transparent);
+  transform: translateX(-145%) skewX(-22deg);
+}
+[data-button-effects="true"] .btn-primary:hover::after {
+  animation: motion-button-sheen 900ms var(--ease-smooth);
+}
+
+@keyframes motion-orbit-one {
+  0%, 100% { transform: translate3d(-4vw, -3vh, 0) scale(0.92); opacity: 0.34; }
+  50% { transform: translate3d(11vw, 9vh, 0) scale(1.1); opacity: 0.58; }
+}
+@keyframes motion-orbit-two {
+  0%, 100% { transform: translate3d(5vw, 8vh, 0) scale(1.08); opacity: 0.2; }
+  50% { transform: translate3d(-10vw, -8vh, 0) scale(0.9); opacity: 0.42; }
+}
+@keyframes motion-grid-drift {
+  to { background-position: 32px 32px; }
+}
+.motion-ambient-layer {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.motion-ambient-orb {
+  position: absolute;
+  width: min(42vw, 34rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  filter: blur(70px);
+  will-change: transform, opacity;
+}
+.motion-ambient-orb-one {
+  right: -18vw;
+  top: 5vh;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  animation: motion-orbit-one 16s ease-in-out infinite;
+}
+.motion-ambient-orb-two {
+  bottom: -24vw;
+  left: 18vw;
+  background: color-mix(in srgb, var(--info) 10%, transparent);
+  animation: motion-orbit-two 21s ease-in-out infinite;
+}
+.motion-ambient-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  background-image: linear-gradient(color-mix(in srgb, var(--accent) 32%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--accent) 32%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(circle at 75% 30%, black, transparent 62%);
+  animation: motion-grid-drift 8s linear infinite;
+}
+
+@keyframes route-fade {
+  from { opacity: 0.22; }
+  to { opacity: 0; }
+}
+@keyframes route-slide {
+  from { opacity: 0.32; clip-path: inset(0 0 0 0); transform: translateX(0); }
+  to { opacity: 0; clip-path: inset(0 0 0 100%); transform: translateX(5%); }
+}
+@keyframes route-zoom {
+  from { opacity: 0.25; transform: scale(1.05); }
+  to { opacity: 0; transform: scale(1); }
+}
+@keyframes route-curtain {
+  0% { opacity: 0.48; transform: scaleX(1); transform-origin: right; }
+  100% { opacity: 0; transform: scaleX(0); transform-origin: right; }
+}
+.motion-route-pulse {
+  position: fixed;
+  z-index: 35;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 55% 35%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 58%), var(--bg);
+  animation-duration: var(--motion-duration);
+  animation-fill-mode: both;
+  animation-timing-function: var(--ease-smooth);
+}
+.motion-route-fade { animation-name: route-fade; }
+.motion-route-slide { animation-name: route-slide; }
+.motion-route-zoom { animation-name: route-zoom; }
+.motion-route-curtain { animation-name: route-curtain; background: linear-gradient(110deg, var(--bg), var(--bg-elev-2), color-mix(in srgb, var(--accent) 24%, var(--bg))); }
+[data-depth-blur="true"] .motion-route-pulse { backdrop-filter: blur(7px); }
+
+[data-menu-stagger="false"] .stagger-item,
+[data-menu-stagger="false"] .stagger-item-side {
+  animation-delay: 0ms;
+}
+
+@keyframes motion-preview-float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-8px) rotate(1deg); }
+}
+@keyframes motion-preview-ring {
+  0% { transform: scale(0.55); opacity: 0.8; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+.motion-preview-float { animation: motion-preview-float calc(var(--motion-duration) * 8) ease-in-out infinite; }
+.motion-preview-ring { animation: motion-preview-ring calc(var(--motion-duration) * 4) var(--ease-out) infinite; }
+
 /* Respect reduced-motion — both the OS preference and our own toggle. */
 [data-motion="reduced"] *,
 [data-motion="reduced"] *::before,

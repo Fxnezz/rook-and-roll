@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useHighScore } from "@/lib/arcade/useHighScore";
 import { playArcadeSound } from "@/lib/arcade/sound";
+import { useSettings } from "@/lib/chess/useSettings";
 import {
   emptyBoard2048,
   spawnTile,
@@ -45,6 +46,7 @@ interface Confetto {
 
 export function Game2048() {
   const { best, submit } = useHighScore("2048");
+  const { settings } = useSettings();
   const [board, setBoard] = useState<Board2048>(() => makeInitial());
   const [score, setScore] = useState(0);
   const [over, setOver] = useState(false);
@@ -70,10 +72,12 @@ export function Game2048() {
     historyRef.current = null;
   }, []);
 
-  const fireConfetti = () => {
+  const fireConfetti = useCallback(() => {
+    if (settings.celebrationIntensity === "off") return;
     const colors = ["#e9a23b", "#5bbf7a", "#5aa8e0", "#e5604d", "#b06fe0", "#e0c030"];
+    const particleCount = settings.celebrationIntensity === "full" ? 54 : 18;
     setConfetti(
-      Array.from({ length: 24 }, (_, i) => ({
+      Array.from({ length: particleCount }, (_, i) => ({
         id: i,
         x: Math.random() * 100,
         color: colors[i % colors.length],
@@ -81,7 +85,7 @@ export function Game2048() {
       })),
     );
     setTimeout(() => setConfetti([]), 1400);
-  };
+  }, [settings.celebrationIntensity]);
 
   const applyMove = useCallback(
     (dir: Dir2048) => {
@@ -120,7 +124,7 @@ export function Game2048() {
         return withSpawn;
       });
     },
-    [over, won, continued, submit, best],
+    [over, won, continued, submit, best, fireConfetti],
   );
 
   const undo = useCallback(() => {

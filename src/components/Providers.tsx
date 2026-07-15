@@ -10,6 +10,7 @@ import { SoundFlashOverlay } from "@/components/ui/SoundFlashOverlay";
 import { useWeeklyRecap } from "@/lib/hooks/useWeeklyRecap";
 import { QolProvider } from "@/lib/qol/useQol";
 import { QolGlobalLayer } from "@/components/qol/QolGlobalLayer";
+import { MotionExperienceLayer } from "@/components/settings/MotionExperienceLayer";
 
 function WeeklyRecapTrigger() {
   useWeeklyRecap();
@@ -27,6 +28,7 @@ export function Providers({ children }: { children: ReactNode }) {
           <InstallPrompt />
           <SoundFlashOverlay />
           <WeeklyRecapTrigger />
+          <MotionExperienceLayer />
           <QolGlobalLayer />
         </QolProvider>
       </SettingsProvider>

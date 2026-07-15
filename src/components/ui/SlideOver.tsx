@@ -14,6 +14,7 @@ export function SlideOver({
   children,
   side = "right",
   footer,
+  size = "default",
 }: {
   open: boolean;
   onClose: () => void;
@@ -21,6 +22,7 @@ export function SlideOver({
   children: ReactNode;
   side?: "left" | "right";
   footer?: ReactNode;
+  size?: "default" | "wide";
 }) {
   // Portal to <body>: the header uses backdrop-blur, and per spec any
   // ancestor with a backdrop-filter/filter/transform establishes a new
@@ -35,6 +37,7 @@ export function SlideOver({
 
   const closed = side === "left" ? "translateX(-100%)" : "translateX(100%)";
   const edge = side === "left" ? "left-0 border-r" : "right-0 border-l";
+  const width = size === "wide" ? "w-[min(96vw,58rem)]" : "w-[min(88vw,23rem)]";
 
   return createPortal(
     <div
@@ -54,7 +57,7 @@ export function SlideOver({
         aria-hidden={!open}
         inert={!open}
         tabIndex={-1}
-        className={`absolute top-0 flex h-full w-[min(88vw,23rem)] flex-col border-[var(--border)] bg-[var(--panel)] shadow-2xl transition-transform duration-300 ${edge}`}
+        className={`absolute top-0 flex h-full ${width} flex-col border-[var(--border)] bg-[var(--panel)] shadow-2xl transition-transform duration-300 ${edge}`}
         style={{ transform: open ? "translateX(0)" : closed, transitionTimingFunction: "var(--ease-smooth)" }}
       >
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-4 py-3.5">

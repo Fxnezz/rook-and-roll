@@ -247,7 +247,7 @@ export function Header() {
         </div>
       </header>
 
-      <SlideOver open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
+      <SlideOver open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings Control Center" size="wide">
         {settingsLoaded && <SettingsPanel canModerate={isShieldOwner} />}
       </SlideOver>
 

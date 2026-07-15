@@ -11,6 +11,10 @@ export type BoardFrame = "none" | "wood" | "minimal" | "shadow";
 export type CoordinateStyle = "inside" | "outside";
 export type UiTextScale = "small" | "normal" | "large";
 export type DefaultGameTab = "moves" | "analysis" | "share";
+export type MotionProfile = "calm" | "balanced" | "cinematic" | "arcade" | "custom";
+export type PageTransition = "none" | "fade" | "slide" | "zoom" | "curtain";
+export type HoverMotion = "off" | "subtle" | "expressive";
+export type CelebrationIntensity = "off" | "subtle" | "full";
 
 export interface Settings {
   boardTheme: BoardThemeId;
@@ -87,6 +91,24 @@ export interface Settings {
   blindfoldBot: boolean;
   /** Hint strength: "best" shows the engine's top move; "second-best" shows its #2 choice — a lighter nudge that still requires you to find the strongest move yourself. */
   hintMode: "best" | "second-best";
+  /** Coordinated site-wide animation preset. Individual controls switch this to custom. */
+  motionProfile: MotionProfile;
+  /** Visual treatment played when the active route changes. */
+  pageTransition: PageTransition;
+  /** How far interactive cards and buttons travel on hover. */
+  hoverMotion: HoverMotion;
+  /** Slow decorative light movement behind the interface. */
+  ambientMotion: boolean;
+  /** Allow elevated panels to gain an accent glow on interaction. */
+  panelGlow: boolean;
+  /** Add richer press and highlight effects to primary actions. */
+  buttonEffects: boolean;
+  /** Stagger the entrance of menu and settings items. */
+  staggerMenus: boolean;
+  /** Controls the amount of confetti and win feedback used by supported games. */
+  celebrationIntensity: CelebrationIntensity;
+  /** Use a subtle blur/depth layer during cinematic transitions. */
+  depthBlur: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -134,6 +156,15 @@ const DEFAULTS: Settings = {
   analysisDepth: 12,
   blindfoldBot: false,
   hintMode: "best",
+  motionProfile: "balanced",
+  pageTransition: "fade",
+  hoverMotion: "subtle",
+  ambientMotion: true,
+  panelGlow: true,
+  buttonEffects: true,
+  staggerMenus: true,
+  celebrationIntensity: "subtle",
+  depthBlur: false,
 };
 
 const STORAGE_KEY = "rr.settings.v1";
@@ -161,16 +192,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   // Hydrate from localStorage once on mount.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<Settings>;
-        setSettings((s) => ({ ...s, ...parsed }));
+    const frame = requestAnimationFrame(() => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<Settings>;
+          setSettings((s) => ({ ...s, ...parsed }));
+        }
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore */
-    }
-    setReady(true);
+      setReady(true);
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   // Persist + sync side-effects to the sound engine.
@@ -207,6 +241,31 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.dyslexiaFont = settings.dyslexiaFont ? "true" : "false";
     document.documentElement.dataset.textScale = settings.uiTextScale;
   }, [settings.dyslexiaFont, settings.uiTextScale]);
+
+  // Motion Studio controls are reflected at the document root so every game,
+  // menu and route can share one animation language without prop drilling.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.motionProfile = settings.motionProfile;
+    root.dataset.pageTransition = settings.pageTransition;
+    root.dataset.hoverMotion = settings.hoverMotion;
+    root.dataset.ambientMotion = settings.ambientMotion ? "true" : "false";
+    root.dataset.panelGlow = settings.panelGlow ? "true" : "false";
+    root.dataset.buttonEffects = settings.buttonEffects ? "true" : "false";
+    root.dataset.menuStagger = settings.staggerMenus ? "true" : "false";
+    root.dataset.celebration = settings.celebrationIntensity;
+    root.dataset.depthBlur = settings.depthBlur ? "true" : "false";
+  }, [
+    settings.ambientMotion,
+    settings.buttonEffects,
+    settings.celebrationIntensity,
+    settings.depthBlur,
+    settings.hoverMotion,
+    settings.motionProfile,
+    settings.pageTransition,
+    settings.panelGlow,
+    settings.staggerMenus,
+  ]);
 
   const update = useCallback((patch: Partial<Settings>) => {
     setSettings((s) => ({ ...s, ...patch }));
