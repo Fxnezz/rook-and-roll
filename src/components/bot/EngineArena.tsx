@@ -7,36 +7,64 @@ import { BotAvatar } from "@/components/bot/BotAvatar";
 import { useChessGame, START_FEN } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
-import { BOT_TIERS, chooseMove, getTier, type BotTierId } from "@/lib/engine/bots";
+import { BOT_TIERS, chooseMove, getTier, type BotTier, type BotTierId } from "@/lib/engine/bots";
 import { getEngine } from "@/lib/engine/stockfish";
 import { choosePersonalityMove, type BotPersonality } from "@/lib/cheats/botManipulation";
 
-type ArenaConfig = {
-  fen: string;
-  samColor: Color;
-  samDepth: number;
-  samSkill: number;
-  samMultipv: number;
-  samStyle: Exclude<BotPersonality, "random">;
-  opponentId: Exclude<BotTierId, "sam">;
-  opponentDepth: number;
+type ArenaSideConfig = {
+  id: BotTierId;
+  depth: number;
+  skill: number;
+  multipv: number;
+  style: BotPersonality;
 };
 
-const OPPONENTS = BOT_TIERS.filter((tier) => tier.id !== "sam");
+type ArenaConfig = {
+  fen: string;
+  white: ArenaSideConfig;
+  black: ArenaSideConfig;
+};
+
+const SAM_MAX_DEPTH = 40;
+
+const PERSONALITY_LABELS: Record<BotPersonality, string> = {
+  normal: "Precision",
+  aggressive: "Aggressive",
+  passive: "Positional",
+  random: "Unpredictable",
+};
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Math.round(value)));
 }
 
+function sideFromTier(id: BotTierId): ArenaSideConfig {
+  const tier = getTier(id);
+  return {
+    id: tier.id,
+    depth: tier.depth,
+    skill: tier.skill,
+    multipv: tier.multipv,
+    style: tier.personality,
+  };
+}
+
+function arenaTier(side: ArenaSideConfig): BotTier {
+  return {
+    ...getTier(side.id),
+    depth: side.depth,
+    skill: side.skill,
+    multipv: side.multipv,
+    personality: side.style,
+  };
+}
+
 export function EngineArena() {
   const [config, setConfig] = useState<ArenaConfig | null>(null);
-  const [samColor, setSamColor] = useState<Color>("w");
-  const [samDepth, setSamDepth] = useState(22);
-  const [samSkill, setSamSkill] = useState(20);
-  const [samMultipv, setSamMultipv] = useState(1);
-  const [samStyle, setSamStyle] = useState<ArenaConfig["samStyle"]>("normal");
-  const [opponentId, setOpponentId] = useState<ArenaConfig["opponentId"]>("omen");
-  const [opponentDepth, setOpponentDepth] = useState(20);
+  const [sides, setSides] = useState<Record<Color, ArenaSideConfig>>({
+    w: sideFromTier("sam"),
+    b: sideFromTier("omen"),
+  });
   const [fen, setFen] = useState(START_FEN);
 
   useEffect(() => {
@@ -49,9 +77,16 @@ export function EngineArena() {
       const skill = skillParam == null ? Number.NaN : Number(skillParam);
       const style = params.get("style");
       if (queryFen) setFen(queryFen);
-      if (Number.isFinite(depth)) setSamDepth(clamp(depth, 4, 30));
-      if (Number.isFinite(skill)) setSamSkill(clamp(skill, 0, 20));
-      if (style === "normal" || style === "aggressive" || style === "passive") setSamStyle(style);
+      setSides((current) => ({
+        ...current,
+        w: {
+          ...current.w,
+          id: "sam",
+          ...(Number.isFinite(depth) ? { depth: clamp(depth, 4, SAM_MAX_DEPTH) } : {}),
+          ...(Number.isFinite(skill) ? { skill: clamp(skill, 0, 20) } : {}),
+          ...(style === "normal" || style === "aggressive" || style === "passive" || style === "random" ? { style } : {}),
+        },
+      }));
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
@@ -66,45 +101,122 @@ export function EngineArena() {
 
   if (config) return <ArenaMatch config={config} onExit={() => setConfig(null)} />;
 
-  const opponent = getTier(opponentId);
+  const whiteTier = getTier(sides.w.id);
+  const blackTier = getTier(sides.b.id);
+
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
       <header className="mb-6">
         <span className="chip !border-[#52d6c8]/35 !bg-[#52d6c8]/10 !text-[#52d6c8]">⚡ Engine Arena</span>
-        <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Sam Engine S1 vs the arcade</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-muted)]">Run an automated bot-vs-bot match from the normal opening or any legal FEN. Tune both search depths, then watch every move live.</p>
+        <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Any bot vs any bot</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-muted)]">
+          Build the matchup you want—from Pip vs Omen to Sam Engine vs Sam Engine. Give each side its own strength, search depth, style, and candidate breadth.
+        </p>
       </header>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="panel p-5 sm:p-6">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-[#52d6c8]/35 bg-[#52d6c8]/8 p-4">
-              <div className="flex items-center gap-3"><BotAvatar tierId="sam" size={58} /><div><p className="font-black">Sam Engine S1</p><p className="text-xs text-[var(--text-faint)]">Custom arcade engine profile</p></div></div>
-              <label className="mt-4 block"><span className="mb-1 flex justify-between text-xs font-bold"><span>Search depth</span><span className="text-[#52d6c8]">{samDepth}</span></span><input type="range" min={4} max={30} value={samDepth} onChange={(event) => setSamDepth(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
-              <label className="mt-3 block"><span className="mb-1 flex justify-between text-xs font-bold"><span>Skill</span><span className="text-[#52d6c8]">{samSkill} / 20</span></span><input type="range" min={0} max={20} value={samSkill} onChange={(event) => setSamSkill(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
-              <div className="mt-3 grid grid-cols-2 gap-2"><label><span className="label mb-1 block">Style</span><select className="input w-full !py-2 text-xs" value={samStyle} onChange={(event) => setSamStyle(event.target.value as ArenaConfig["samStyle"])}><option value="normal">Precision</option><option value="aggressive">Aggressive</option><option value="passive">Positional</option></select></label><label><span className="label mb-1 block">Candidate lines</span><select className="input w-full !py-2 text-xs" value={samMultipv} onChange={(event) => setSamMultipv(Number(event.target.value))}><option value={1}>1 line</option><option value={2}>2 lines</option><option value={3}>3 lines</option><option value={5}>5 lines</option></select></label></div>
-            </div>
-
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4">
-              <div className="flex items-center gap-3"><BotAvatar tierId={opponent.id} size={58} /><div><p className="font-black">{opponent.fullName}</p><p className="text-xs text-[var(--text-faint)]">{opponent.elo} profile · {opponent.personality}</p></div></div>
-              <label className="mt-4 block"><span className="label mb-1 block">Opponent</span><select className="input w-full !py-2 text-sm" value={opponentId} onChange={(event) => { const id = event.target.value as ArenaConfig["opponentId"]; setOpponentId(id); setOpponentDepth(getTier(id).depth); }}>{OPPONENTS.map((tier) => <option key={tier.id} value={tier.id}>{tier.fullName} · {tier.elo}</option>)}</select></label>
-              <label className="mt-4 block"><span className="mb-1 flex justify-between text-xs font-bold"><span>Opponent depth</span><span className="text-[var(--accent)]">{opponentDepth}</span></span><input type="range" min={3} max={24} value={opponentDepth} onChange={(event) => setOpponentDepth(Number(event.target.value))} className="w-full accent-[var(--accent)]" /></label>
-              <div className="mt-4"><span className="label mb-2 block">Sam plays</span><div className="grid grid-cols-2 gap-2">{(["w", "b"] as Color[]).map((color) => <button key={color} type="button" className={`btn !py-2 text-xs ${samColor === color ? "btn-primary" : ""}`} onClick={() => setSamColor(color)}>{color === "w" ? "White" : "Black"}</button>)}</div></div>
-            </div>
+            <ArenaSideCard color="w" side={sides.w} onChange={(side) => setSides((current) => ({ ...current, w: side }))} />
+            <ArenaSideCard color="b" side={sides.b} onChange={(side) => setSides((current) => ({ ...current, b: side }))} />
           </div>
 
-          <label className="mt-5 block"><span className="label mb-1 block">Starting position (FEN)</span><textarea className="input min-h-24 w-full resize-y font-mono !text-xs" value={fen} onChange={(event) => setFen(event.target.value)} /></label>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="btn text-xs"
+              onClick={() => setSides((current) => ({ w: current.b, b: current.w }))}
+            >
+              ⇄ Swap colours
+            </button>
+            <button type="button" className="btn text-xs" onClick={() => setSides({ w: sideFromTier("sam"), b: sideFromTier("omen") })}>
+              Restore featured match
+            </button>
+            <span className="text-xs font-semibold text-[var(--text-faint)]">{whiteTier.name} has White · {blackTier.name} has Black</span>
+          </div>
+
+          <label className="mt-5 block">
+            <span className="label mb-1 block">Starting position (FEN)</span>
+            <textarea className="input min-h-24 w-full resize-y font-mono !text-xs" value={fen} onChange={(event) => setFen(event.target.value)} />
+          </label>
           {!validation.ok && <p role="alert" className="mt-2 text-xs font-semibold text-[var(--bad)]">{validation.message}</p>}
-          <div className="mt-3 flex flex-wrap gap-2"><button type="button" className="btn text-xs" onClick={() => setFen(START_FEN)}>Standard position</button><a className="btn text-xs" href="/training/editor">Open visual editor</a></div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className="btn text-xs" onClick={() => setFen(START_FEN)}>Standard position</button>
+            <a className="btn text-xs" href="/training/editor">Open visual editor</a>
+          </div>
         </section>
 
         <aside className="panel self-start p-5">
           <h2 className="text-lg font-black">Match contract</h2>
-          <div className="mt-4 space-y-3 text-xs leading-5 text-[var(--text-muted)]"><p><strong className="text-[var(--text)]">Local and private.</strong> The match runs in a browser worker; the position is not uploaded.</p><p><strong className="text-[var(--text)]">Depth is exact.</strong> Each side searches to its chosen depth before moving.</p><p><strong className="text-[var(--text)]">No false benchmark claim.</strong> S1 uses a custom profile on the bundled Stockfish 18 core; strength depends on depth and device speed.</p></div>
-          <button type="button" disabled={!validation.ok} className="btn btn-primary btn-cta mt-6 w-full" onClick={() => validation.ok && setConfig({ fen, samColor, samDepth, samSkill, samMultipv, samStyle, opponentId, opponentDepth })}>Start engine match</button>
+          <div className="mt-4 space-y-3 text-xs leading-5 text-[var(--text-muted)]">
+            <p><strong className="text-[var(--text)]">Every pairing works.</strong> Either colour can use any arcade bot, including Sam Engine.</p>
+            <p><strong className="text-[var(--text)]">Local and private.</strong> The match runs in a browser worker; the position is not uploaded.</p>
+            <p><strong className="text-[var(--text)]">Exact search controls.</strong> Each side uses its chosen depth and skill before moving.</p>
+            <p><strong className="text-[var(--text)]">Deep means slow.</strong> Depths above 30 can take a long time, especially on phones.</p>
+            <p><strong className="text-[var(--text)]">Honest strength label.</strong> Sam uses a maximum-strength profile on the bundled Stockfish 18 core; results depend on depth and device speed.</p>
+          </div>
+          <button
+            type="button"
+            disabled={!validation.ok}
+            className="btn btn-primary btn-cta mt-6 w-full"
+            onClick={() => validation.ok && setConfig({ fen, white: sides.w, black: sides.b })}
+          >
+            Start {whiteTier.name} vs {blackTier.name}
+          </button>
         </aside>
       </div>
     </main>
+  );
+}
+
+function ArenaSideCard({ color, side, onChange }: { color: Color; side: ArenaSideConfig; onChange: (side: ArenaSideConfig) => void }) {
+  const tier = getTier(side.id);
+  const isSam = side.id === "sam";
+  const accent = isSam ? "#52d6c8" : tier.accent;
+
+  return (
+    <div className="rounded-2xl border bg-[var(--bg)] p-4" style={{ borderColor: `${accent}66` }}>
+      <div className="flex items-center gap-3">
+        <BotAvatar tierId={tier.id} size={58} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-black">{tier.fullName}</p>
+          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: accent }}>{color === "w" ? "White" : "Black"}</p>
+        </div>
+      </div>
+
+      <label className="mt-4 block">
+        <span className="label mb-1 block">Bot</span>
+        <select className="input w-full !py-2 text-sm" value={side.id} onChange={(event) => onChange(sideFromTier(event.target.value as BotTierId))}>
+          {BOT_TIERS.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.fullName} · {candidate.id === "sam" ? "Max" : candidate.elo}</option>)}
+        </select>
+      </label>
+
+      <label className="mt-4 block">
+        <span className="mb-1 flex justify-between text-xs font-bold"><span>Search depth</span><span style={{ color: accent }}>{side.depth}</span></span>
+        <input type="range" min={3} max={SAM_MAX_DEPTH} value={side.depth} onChange={(event) => onChange({ ...side, depth: Number(event.target.value) })} className="w-full" style={{ accentColor: accent }} />
+      </label>
+      <label className="mt-3 block">
+        <span className="mb-1 flex justify-between text-xs font-bold"><span>Skill</span><span style={{ color: accent }}>{side.skill} / 20</span></span>
+        <input type="range" min={0} max={20} value={side.skill} onChange={(event) => onChange({ ...side, skill: Number(event.target.value) })} className="w-full" style={{ accentColor: accent }} />
+      </label>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <label>
+          <span className="label mb-1 block">Style</span>
+          <select className="input w-full !py-2 text-xs" value={side.style} onChange={(event) => onChange({ ...side, style: event.target.value as BotPersonality })}>
+            {Object.entries(PERSONALITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
+        <label>
+          <span className="label mb-1 block">Candidate lines</span>
+          <select className="input w-full !py-2 text-xs" value={side.multipv} onChange={(event) => onChange({ ...side, multipv: Number(event.target.value) })}>
+            {[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{count} {count === 1 ? "line" : "lines"}</option>)}
+          </select>
+        </label>
+      </div>
+      <button type="button" className="mt-3 text-xs font-bold text-[var(--text-muted)] underline-offset-4 hover:underline" onClick={() => onChange(sideFromTier(side.id))}>
+        Restore {tier.name} defaults
+      </button>
+    </div>
   );
 }
 
@@ -114,7 +226,9 @@ function ArenaMatch({ config, onExit }: { config: ArenaConfig; onExit: () => voi
   const makeMove = game.makeMove;
   const { settings } = useSettings();
   const theme = getTheme(settings.boardTheme);
-  const opponent = getTier(config.opponentId);
+  const whiteTier = getTier(config.white.id);
+  const blackTier = getTier(config.black.id);
+  const [orientation, setOrientation] = useState<Color>("w");
   const [paused, setPaused] = useState(false);
   const [thinking, setThinking] = useState<Color | null>(null);
   const [evaluation, setEvaluation] = useState<{ cp: number | null; mate: number | null; depth: number } | null>(null);
@@ -126,26 +240,26 @@ function ArenaMatch({ config, onExit }: { config: ArenaConfig; onExit: () => voi
     searchedFen.current = snapshot.fen;
     let cancelled = false;
     const currentColor = snapshot.turn;
-    const samTurn = currentColor === config.samColor;
-    const depth = samTurn ? config.samDepth : config.opponentDepth;
-    const skill = samTurn ? config.samSkill : opponent.skill;
-    const multipv = samTurn ? Math.max(config.samMultipv, config.samStyle === "normal" ? 1 : 4) : opponent.multipv;
+    const side = currentColor === "w" ? config.white : config.black;
+    const tier = arenaTier(side);
+    const multipv = Math.max(side.multipv, side.style === "normal" ? 1 : 4);
     setThinking(currentColor);
     setError(null);
     (async () => {
       try {
         const engine = getEngine();
-        await engine.setSkillLevel(skill);
-        const result = await engine.go(snapshot.fen, { depth, multipv });
+        if (side.id === "sam") await engine.configureMaximumStrength(side.skill);
+        else await engine.setSkillLevel(side.skill);
+        const result = await engine.go(snapshot.fen, { depth: side.depth, multipv });
         if (cancelled) return;
         const line = result.lines[0];
         if (line) {
           const sign = currentColor === "w" ? 1 : -1;
           setEvaluation({ cp: line.cp == null ? null : line.cp * sign, mate: line.mate == null ? null : line.mate * sign, depth: line.depth });
         }
-        const uci = samTurn
-          ? choosePersonalityMove(snapshot.fen, result.lines, config.samStyle)
-          : chooseMove(result.lines, { ...opponent, depth: config.opponentDepth });
+        const uci = side.style === "normal"
+          ? chooseMove(result.lines, tier)
+          : choosePersonalityMove(snapshot.fen, result.lines, side.style);
         const moved = makeMove({ from: uci.slice(0, 2) as Square, to: uci.slice(2, 4) as Square, promotion: uci.length > 4 ? uci[4] as PieceSymbol : undefined });
         if (!moved) throw new Error("Engine returned an illegal move.");
       } catch (reason) {
@@ -159,34 +273,71 @@ function ArenaMatch({ config, onExit }: { config: ArenaConfig; onExit: () => voi
       }
     })();
     return () => { cancelled = true; };
-  }, [config, makeMove, opponent, paused, snapshot.fen, snapshot.isLive, snapshot.status.over, snapshot.turn]);
+  }, [config, makeMove, paused, snapshot.fen, snapshot.isLive, snapshot.status.over, snapshot.turn]);
 
-  const whiteId: BotTierId = config.samColor === "w" ? "sam" : config.opponentId;
-  const blackId: BotTierId = config.samColor === "b" ? "sam" : config.opponentId;
+  const togglePause = () => {
+    if (!paused) {
+      getEngine().stop();
+      searchedFen.current = null;
+      setThinking(null);
+    }
+    setPaused((value) => !value);
+  };
+
   const statusText = snapshot.status.over
     ? `${snapshot.status.result ?? "Game over"} · ${snapshot.status.reason ?? "Finished"}`
     : paused ? "Match paused" : `${snapshot.turn === "w" ? "White" : "Black"} ${thinking ? "is searching" : "to move"}`;
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><span className="text-xs font-black uppercase tracking-[0.14em] text-[#52d6c8]">Live Engine Arena</span><h1 className="mt-1 text-2xl font-black">Sam Engine S1 vs {opponent.name}</h1><p className="mt-1 text-xs text-[var(--text-muted)]">{statusText}</p></div><div className="flex gap-2"><button className="btn text-xs" onClick={() => setPaused((value) => !value)} disabled={snapshot.status.over}>{paused ? "Resume" : "Pause"}</button><button className="btn text-xs" onClick={onExit}>New setup</button></div></header>
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <span className="text-xs font-black uppercase tracking-[0.14em] text-[#52d6c8]">Live Engine Arena</span>
+          <h1 className="mt-1 text-2xl font-black">{whiteTier.name} vs {blackTier.name}</h1>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">{statusText}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn text-xs" onClick={() => setOrientation((value) => value === "w" ? "b" : "w")}>Flip board</button>
+          <button className="btn text-xs" onClick={togglePause} disabled={snapshot.status.over}>{paused ? "Resume" : "Pause"}</button>
+          <button className="btn text-xs" onClick={onExit}>New setup</button>
+        </div>
+      </header>
       <div className="grid gap-5 lg:grid-cols-[minmax(0,720px)_minmax(18rem,1fr)] lg:items-start">
         <section className="space-y-2">
-          <EnginePlayer id={blackId} color="b" active={thinking === "b"} depth={blackId === "sam" ? config.samDepth : config.opponentDepth} />
-          <Board snapshot={snapshot} orientation={config.samColor} theme={theme} pieceSet={settings.pieceSet} legalMovesFrom={game.legalMovesFrom} onMove={() => {}} interactive={false} showCoordinates={settings.showCoordinates} coordinateStyle={settings.coordinateStyle} highlightLastMove={settings.highlightLastMove} animate={settings.animate} animationSpeed={settings.animationSpeed} boardFrame={settings.boardFrame} pieceSizePercent={settings.pieceSize} squareColorOverride={settings.squareColorOverride} />
-          <EnginePlayer id={whiteId} color="w" active={thinking === "w"} depth={whiteId === "sam" ? config.samDepth : config.opponentDepth} />
+          <EnginePlayer side={orientation === "w" ? config.black : config.white} color={orientation === "w" ? "b" : "w"} active={thinking === (orientation === "w" ? "b" : "w")} />
+          <Board snapshot={snapshot} orientation={orientation} theme={theme} pieceSet={settings.pieceSet} legalMovesFrom={game.legalMovesFrom} onMove={() => {}} interactive={false} showCoordinates={settings.showCoordinates} coordinateStyle={settings.coordinateStyle} highlightLastMove={settings.highlightLastMove} animate={settings.animate} animationSpeed={settings.animationSpeed} boardFrame={settings.boardFrame} pieceSizePercent={settings.pieceSize} squareColorOverride={settings.squareColorOverride} />
+          <EnginePlayer side={orientation === "w" ? config.white : config.black} color={orientation === "w" ? "w" : "b"} active={thinking === (orientation === "w" ? "w" : "b")} />
         </section>
         <aside className="panel overflow-hidden">
-          <div className="border-b border-[var(--border)] p-4"><p className="text-xs font-black uppercase tracking-wider text-[var(--text-faint)]">Current evaluation</p><p className="mt-1 text-2xl font-black text-[var(--accent)]">{evaluation?.mate != null ? `Mate ${evaluation.mate}` : evaluation?.cp != null ? `${evaluation.cp >= 0 ? "+" : ""}${(evaluation.cp / 100).toFixed(2)}` : "—"}</p><p className="text-xs text-[var(--text-faint)]">White perspective · reached depth {evaluation?.depth ?? 0}</p></div>
+          <div className="border-b border-[var(--border)] p-4">
+            <p className="text-xs font-black uppercase tracking-wider text-[var(--text-faint)]">Current evaluation</p>
+            <p className="mt-1 text-2xl font-black text-[var(--accent)]">{evaluation?.mate != null ? `Mate ${evaluation.mate}` : evaluation?.cp != null ? `${evaluation.cp >= 0 ? "+" : ""}${(evaluation.cp / 100).toFixed(2)}` : "—"}</p>
+            <p className="text-xs text-[var(--text-faint)]">White perspective · reached depth {evaluation?.depth ?? 0}</p>
+          </div>
           {error && <p role="alert" className="m-4 rounded-xl border border-[var(--bad)]/30 bg-[var(--bad)]/10 p-3 text-xs font-semibold text-[var(--bad)]">{error}</p>}
-          <div className="max-h-[32rem] overflow-y-auto p-4"><h2 className="font-extrabold">Move log</h2><div className="mt-3 grid grid-cols-[2rem_1fr_1fr] gap-x-2 gap-y-1 text-sm">{Array.from({ length: Math.ceil(snapshot.moves.length / 2) }, (_, index) => <div key={index} className="contents"><span className="text-[var(--text-faint)]">{index + 1}.</span><span className="font-semibold">{snapshot.moves[index * 2]?.san ?? ""}</span><span className="font-semibold">{snapshot.moves[index * 2 + 1]?.san ?? ""}</span></div>)}</div>{snapshot.moves.length === 0 && <p className="mt-3 text-sm text-[var(--text-faint)]">The first engine is preparing its search.</p>}</div>
+          <div className="max-h-[32rem] overflow-y-auto p-4">
+            <h2 className="font-extrabold">Move log</h2>
+            <div className="mt-3 grid grid-cols-[2rem_1fr_1fr] gap-x-2 gap-y-1 text-sm">
+              {Array.from({ length: Math.ceil(snapshot.moves.length / 2) }, (_, index) => <div key={index} className="contents"><span className="text-[var(--text-faint)]">{index + 1}.</span><span className="font-semibold">{snapshot.moves[index * 2]?.san ?? ""}</span><span className="font-semibold">{snapshot.moves[index * 2 + 1]?.san ?? ""}</span></div>)}
+            </div>
+            {snapshot.moves.length === 0 && <p className="mt-3 text-sm text-[var(--text-faint)]">The first engine is preparing its search.</p>}
+          </div>
         </aside>
       </div>
     </main>
   );
 }
 
-function EnginePlayer({ id, color, active, depth }: { id: BotTierId; color: Color; active: boolean; depth: number }) {
-  const tier = getTier(id);
-  return <div className={`flex items-center gap-3 rounded-xl border px-3 py-2 transition ${active ? "border-[#52d6c8]/50 bg-[#52d6c8]/8" : "border-[var(--border)] bg-[var(--panel)]"}`}><BotAvatar tierId={id} size={38} rounded="full" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-extrabold">{tier.fullName}</p><p className="text-xs text-[var(--text-faint)]">{color === "w" ? "White" : "Black"} · depth {depth}</p></div>{active && <span className="chip !border-[#52d6c8]/30 !text-[#52d6c8]">Searching…</span>}</div>;
+function EnginePlayer({ side, color, active }: { side: ArenaSideConfig; color: Color; active: boolean }) {
+  const tier = getTier(side.id);
+  return (
+    <div className={`flex items-center gap-3 rounded-xl border px-3 py-2 transition ${active ? "border-[#52d6c8]/50 bg-[#52d6c8]/8" : "border-[var(--border)] bg-[var(--panel)]"}`}>
+      <BotAvatar tierId={side.id} size={38} rounded="full" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-extrabold">{tier.fullName}</p>
+        <p className="text-xs text-[var(--text-faint)]">{color === "w" ? "White" : "Black"} · depth {side.depth} · skill {side.skill}</p>
+      </div>
+      {active && <span className="chip !border-[#52d6c8]/30 !text-[#52d6c8]">Searching…</span>}
+    </div>
+  );
 }

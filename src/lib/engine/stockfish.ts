@@ -115,6 +115,7 @@ export class StockfishEngine {
   }
 
   async setOption(name: string, value: string | number) {
+    if (!this.booted) await this.init();
     this.send(`setoption name ${name} value ${value}`);
   }
 
@@ -122,7 +123,15 @@ export class StockfishEngine {
     await this.setOption("Skill Level", Math.max(0, Math.min(20, Math.round(level))));
   }
 
+  /** Configure the bundled core for Sam Engine's strongest browser profile. */
+  async configureMaximumStrength(skill = 20) {
+    await this.setOption("UCI_LimitStrength", "false");
+    await this.setOption("Skill Level", Math.max(0, Math.min(20, Math.round(skill))));
+    await this.setOption("Hash", 128);
+  }
+
   async newGame() {
+    if (!this.booted) await this.init();
     this.send("ucinewgame");
     this.send("isready");
     await this.waitFor("readyok");

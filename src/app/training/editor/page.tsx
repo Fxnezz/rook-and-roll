@@ -71,7 +71,7 @@ export default function BoardEditorPage() {
   const [turn, setTurn] = useState<Color>("w");
   const [castling, setCastling] = useState({ K: true, Q: true, k: true, q: true });
   const [epFile, setEpFile] = useState<string>("-");
-  const [engineDepth, setEngineDepth] = useState(22);
+  const [engineDepth, setEngineDepth] = useState(26);
   const [engineSkill, setEngineSkill] = useState(20);
   const [engineStyle, setEngineStyle] = useState<Exclude<BotPersonality, "random">>("normal");
 
@@ -281,10 +281,10 @@ export default function BoardEditorPage() {
 
           <div className="mt-4 rounded-xl border border-[#52d6c8]/30 bg-[#52d6c8]/8 p-3">
             <p className="text-xs font-black uppercase tracking-[0.12em] text-[#52d6c8]">Sam Engine settings</p>
-            <label className="mt-3 block"><span className="mb-1 flex justify-between text-xs font-bold"><span>Search depth</span><span>{engineDepth}</span></span><input type="range" min={4} max={30} value={engineDepth} onChange={(event) => setEngineDepth(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
+            <label className="mt-3 block"><span className="mb-1 flex justify-between text-xs font-bold"><span>Search depth</span><span>{engineDepth}</span></span><input type="range" min={4} max={40} value={engineDepth} onChange={(event) => setEngineDepth(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
             <label className="mt-3 block"><span className="mb-1 flex justify-between text-xs font-bold"><span>Skill level</span><span>{engineSkill} / 20</span></span><input type="range" min={0} max={20} value={engineSkill} onChange={(event) => setEngineSkill(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
             <label className="mt-3 block"><span className="label mb-1 block">Playing style</span><select className="input w-full !py-2 text-xs" value={engineStyle} onChange={(event) => setEngineStyle(event.target.value as Exclude<BotPersonality, "random">)}><option value="normal">Precision</option><option value="aggressive">Aggressive</option><option value="passive">Positional</option></select></label>
-            <p className="mt-2 text-[0.68rem] leading-5 text-[var(--text-faint)]">These choices are carried into Sam Engine matches opened below.</p>
+            <p className="mt-2 text-[0.68rem] leading-5 text-[var(--text-faint)]">These choices are carried into Sam Engine matches opened below. Depths above 30 can take much longer.</p>
           </div>
 
           <div className="mt-3 flex flex-col gap-2">

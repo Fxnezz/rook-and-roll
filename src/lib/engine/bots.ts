@@ -234,7 +234,7 @@ export const BOT_TIERS: BotTier[] = [
     elo: 3200,
     blurb: "An experimental maximum-strength arcade engine profile with configurable search depth, candidate breadth and playing style.",
     skill: 20,
-    depth: 22,
+    depth: 26,
     multipv: 1,
     temperature: 0,
     accent: "#52d6c8",

@@ -60,7 +60,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
   const [delayMode, setDelayMode] = useState<DelayMode>("increment");
   const [showRules, setShowRules] = useState(false);
   const [myRating, setMyRating] = useState<number | null>(null);
-  const [engineDepth, setEngineDepth] = useState(22);
+  const [engineDepth, setEngineDepth] = useState(26);
   const [engineSkill, setEngineSkill] = useState(20);
   const [engineMultipv, setEngineMultipv] = useState(1);
   const [enginePersonality, setEnginePersonality] = useState<BotPersonality>("normal");
@@ -73,7 +73,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
       const skill = Number(params.get("skill"));
       const multipv = Number(params.get("multipv"));
       const personality = params.get("style");
-      if (Number.isFinite(depth) && depth >= 4) setEngineDepth(Math.min(30, Math.round(depth)));
+      if (Number.isFinite(depth) && depth >= 4) setEngineDepth(Math.min(40, Math.round(depth)));
       if (Number.isFinite(skill) && skill >= 0) setEngineSkill(Math.min(20, Math.round(skill)));
       if (Number.isFinite(multipv) && multipv >= 1) setEngineMultipv(Math.min(5, Math.round(multipv)));
       if (personality === "normal" || personality === "aggressive" || personality === "passive") setEnginePersonality(personality);
@@ -244,11 +244,11 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
           {tierId === "sam" && (
             <section className="rounded-2xl border border-[#52d6c8]/35 bg-[#52d6c8]/8 p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><p className="text-xs font-black uppercase tracking-[0.14em] text-[#52d6c8]">Engine controls</p><h3 className="mt-1 text-lg font-black">Tune Sam Engine S1</h3><p className="mt-1 max-w-xl text-xs leading-5 text-[var(--text-muted)]">Higher depth is stronger but takes longer. Depth 22 is the recommended balance for browser play.</p></div>
-                <a href="/play/engine-lab" className="btn !py-2 text-xs">Open bot-vs-bot arena →</a>
+                <div><p className="text-xs font-black uppercase tracking-[0.14em] text-[#52d6c8]">Engine controls</p><h3 className="mt-1 text-lg font-black">Tune Sam Engine S1</h3><p className="mt-1 max-w-xl text-xs leading-5 text-[var(--text-muted)]">Sam now defaults to depth 26 and supports depth 40. Searches above 30 can take substantially longer, especially on phones.</p></div>
+                <a href="/play/engine-lab" className="btn !py-2 text-xs">Open any-bot arena →</a>
               </div>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <label className="block"><span className="mb-1 flex items-center justify-between text-xs font-bold"><span>Search depth</span><span className="text-[#52d6c8]">{engineDepth}</span></span><input type="range" min={4} max={30} step={1} value={engineDepth} onChange={(event) => setEngineDepth(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
+                <label className="block"><span className="mb-1 flex items-center justify-between text-xs font-bold"><span>Search depth</span><span className="text-[#52d6c8]">{engineDepth}</span></span><input type="range" min={4} max={40} step={1} value={engineDepth} onChange={(event) => setEngineDepth(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
                 <label className="block"><span className="mb-1 flex items-center justify-between text-xs font-bold"><span>Skill level</span><span className="text-[#52d6c8]">{engineSkill} / 20</span></span><input type="range" min={0} max={20} step={1} value={engineSkill} onChange={(event) => setEngineSkill(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
                 <label className="block"><span className="label mb-1 block">Playing style</span><select value={enginePersonality} onChange={(event) => setEnginePersonality(event.target.value as BotPersonality)} className="input w-full !py-2 text-sm"><option value="normal">Precision</option><option value="aggressive">Aggressive</option><option value="passive">Positional</option></select></label>
                 <label className="block"><span className="label mb-1 block">Candidate lines</span><select value={engineMultipv} onChange={(event) => setEngineMultipv(Number(event.target.value))} className="input w-full !py-2 text-sm"><option value={1}>1 · strongest move only</option><option value={2}>2 · style choice</option><option value={3}>3 · wider choice</option><option value={5}>5 · experimental</option></select></label>

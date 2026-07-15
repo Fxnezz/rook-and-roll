@@ -274,7 +274,8 @@ function BotGame({
     (async () => {
       await engine.init();
       await engine.newGame();
-      await engine.setSkillLevel(tier.skill);
+      if (tier.id === "sam") await engine.configureMaximumStrength(tier.skill);
+      else await engine.setSkillLevel(tier.skill);
     })();
     clock.reset();
     clock.start("w");
@@ -442,7 +443,9 @@ function BotGame({
     (async () => {
       setThinking(true);
       const engine = getEngine();
-      await engine.setSkillLevel(botOverride.skillOverride ?? tier.skill);
+      const effectiveSkill = botOverride.skillOverride ?? tier.skill;
+      if (tier.id === "sam") await engine.configureMaximumStrength(effectiveSkill);
+      else await engine.setSkillLevel(effectiveSkill);
       const t0 = performance.now();
       try {
         const wantsWiderPool = botOverride.blunderMode || botOverride.personality !== "normal";

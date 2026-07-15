@@ -28,7 +28,8 @@ export default function QualityOfLifePage() {
           <li>✦ Motion Studio adds profiles, transitions and effect controls.</li>
           <li>▦ Player Tools now focuses on goals, activity, collections and focus.</li>
           <li>⌘ Keyboard shortcuts can open the new QOL settings directly.</li>
-          <li>⚡ Sam Engine S1 adds adjustable depth, skill and playing style.</li>
+          <li>⚡ Sam Engine S1 now defaults to depth 26, reaches depth 40, and uses a maximum-strength browser profile.</li>
+          <li>🤖 Engine Arena now supports every bot-vs-bot pairing, including Pip vs Omen and Sam vs Sam.</li>
           <li>♟ Engine Arena supports custom-position bot-vs-bot matches.</li>
         </ul>
       </section>
