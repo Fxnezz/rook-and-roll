@@ -1,4 +1,5 @@
 import { WEBSITE_FEATURES } from "@/lib/qol/websiteFeatures";
+import { WEBSITE_INTELLIGENCE_FEATURES } from "@/lib/qol/websiteFeaturesV3";
 
 export interface QolFeatureGroup {
   id: string;
@@ -184,19 +185,21 @@ const PLAYER_QOL_FEATURES: readonly QolFeatureGroup[] = [
   {
     id: "feature-ledger",
     title: "Living What's New ledger",
-    summary: "See exactly what shipped, why it matters and how the 200-improvement count is composed.",
+    summary: "See exactly what shipped, why it matters and how the improvement count is composed.",
     category: "Reliability",
-    enhancements: ["Searchable feature list", "Category filters", "50-system and 200-improvement totals"],
+    enhancements: ["Searchable feature list", "Category filters", "Live system and improvement totals"],
   },
 ] as const;
 
 export const QOL_FEATURES: readonly QolFeatureGroup[] = [
   ...PLAYER_QOL_FEATURES,
   ...WEBSITE_FEATURES,
+  ...WEBSITE_INTELLIGENCE_FEATURES,
 ];
 
 export const QOL_ORIGINAL_IMPROVEMENT_COUNT = PLAYER_QOL_FEATURES.length * 4;
 export const QOL_WEBSITE_IMPROVEMENT_COUNT = WEBSITE_FEATURES.length * 4;
+export const QOL_INTELLIGENCE_IMPROVEMENT_COUNT = WEBSITE_INTELLIGENCE_FEATURES.length * 4;
 
 export const QOL_SYSTEM_COUNT = QOL_FEATURES.length;
 export const QOL_IMPROVEMENT_COUNT = QOL_FEATURES.reduce(

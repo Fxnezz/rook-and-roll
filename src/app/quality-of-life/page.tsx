@@ -14,7 +14,7 @@ export default function QualityOfLifePage() {
           <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">What changed in Sam&apos;s Arcade</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-muted)]">A short release history. Adjustable QOL features have moved into Settings so this page stays easy to scan.</p>
         </div>
-        <Link href="/" className="btn shrink-0">Back to arcade</Link>
+        <div className="flex flex-wrap gap-2"><Link href="/improvements" className="btn btn-primary shrink-0">View all 300 improvements</Link><Link href="/" className="btn shrink-0">Back to arcade</Link></div>
       </header>
 
       <section className="overflow-hidden rounded-2xl border border-[var(--accent)]/30 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_12%,var(--panel)),var(--panel))] p-5 sm:p-6">
@@ -22,9 +22,15 @@ export default function QualityOfLifePage() {
           <span className="text-xs font-black uppercase tracking-[0.14em] text-[var(--accent)]">Latest · July 2026</span>
           <span className="chip !border-[var(--good)]/30 !bg-[var(--good)]/10 !text-[var(--good)]">Live</span>
         </div>
-        <h2 className="mt-3 text-xl font-black">Immersive arcade graphics, bot families and variants</h2>
+        <h2 className="mt-3 text-xl font-black">Page Guide, accessibility and recovery upgrade</h2>
         <ul className="mt-3 grid gap-2 text-sm leading-6 text-[var(--text-muted)] sm:grid-cols-2">
           <li>◇ All adjustable website and QOL controls now live in Settings.</li>
+          <li>☰ Page Guide adds live outlines, section links, reading insights and recent-page navigation.</li>
+          <li>↗ Universal sharing supports native share, clean links and Markdown format.</li>
+          <li>◉ Distraction-free view hides shared chrome without resetting the current activity.</li>
+          <li>◐ New visual controls cover text scale, contrast, readable fonts, cursors and image comfort.</li>
+          <li>↻ Session drafts, unsaved-work warnings and support snapshots improve recovery.</li>
+          <li>⚡ Hidden-tab pausing, safe areas, touch feedback and clean printing improve every device.</li>
           <li>✦ Motion Studio adds profiles, transitions and effect controls.</li>
           <li>▦ Player Tools now focuses on goals, activity, collections and focus.</li>
           <li>⌘ Keyboard shortcuts can open the new QOL settings directly.</li>

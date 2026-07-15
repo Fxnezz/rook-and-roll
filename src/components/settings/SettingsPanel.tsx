@@ -104,7 +104,7 @@ const SEARCH_ITEMS: { label: string; tab: SettingsTab; keywords: string }[] = [
   { label: "Ambient scenes", tab: "motion", keywords: "aurora chess stars particles background environment" },
   { label: "Scroll reveals", tab: "motion", keywords: "entrance viewport reveal cards sections" },
   { label: "Celebration intensity", tab: "motion", keywords: "confetti win celebration effects" },
-  { label: "Website and page tools", tab: "qol", keywords: "breadcrumbs notes reading ruler low data battery session clock" },
+  { label: "Website and Page Guide tools", tab: "qol", keywords: "breadcrumbs notes reading ruler low data battery session clock outline share health contrast cursor drafts print haptics" },
   { label: "Interface density", tab: "qol", keywords: "compact comfortable spacious layout" },
   { label: "Keyboard shortcuts", tab: "qol", keywords: "keys command alt navigation" },
   { label: "Daily play target", tab: "qol", keywords: "goal games progress" },
@@ -530,7 +530,7 @@ export function SettingsPanel({ canModerate = false, initialTab = "motion" }: { 
           <h2 className="font-extrabold">Shortcut reference</h2>
           <div className="mt-3 grid gap-x-5 gap-y-2 text-xs sm:grid-cols-2">
             {[
-              ["Cmd / Ctrl K", "Command palette"], ["?", "Open QOL settings"], ["Alt H", "Home"], ["Alt G", "Games Hub"], ["Alt O", "Play online"], ["Alt B", "Chess bots"], ["Alt T", "Training"], ["Alt Q", "Open QOL settings"],
+              ["Cmd / Ctrl K", "Command palette"], ["?", "Open QOL settings"], ["Alt I", "Open Page Guide"], ["Alt H", "Home"], ["Alt G", "Games Hub"], ["Alt O", "Play online"], ["Alt B", "Chess bots"], ["Alt T", "Training"], ["Alt Q", "Open QOL settings"],
             ].map(([keys, action]) => <div key={keys} className="flex items-center justify-between gap-3 border-b border-[var(--border)] py-2"><span className="text-[var(--text-muted)]">{action}</span><kbd className="rounded-md border border-[var(--border)] bg-[var(--bg-elev)] px-2 py-1 font-mono text-[0.65rem] font-bold">{keys}</kbd></div>)}
           </div>
         </div>

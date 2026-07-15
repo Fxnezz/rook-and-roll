@@ -11,6 +11,7 @@ const EXPLORE_LINKS = [
   { href: "/play/bot", label: "Chess bots" },
   { href: "/puzzles", label: "Puzzles" },
   { href: "/training", label: "Training" },
+  { href: "/improvements", label: "300 improvements" },
 ];
 
 const PLAYER_LINKS = [

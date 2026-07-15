@@ -15,7 +15,7 @@ export function HomeQolRail() {
       <div className="mx-auto max-w-6xl px-4 py-6">
         <div className="mb-3 flex items-center justify-between gap-4">
           <div><p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--accent)]">Your arcade</p><h2 className="mt-1 text-xl font-black">Pick up exactly where you want.</h2></div>
-          <Link href="/quality-of-life" className="text-xs font-bold text-[var(--text-faint)] hover:text-[var(--accent)]">See all 200 improvements →</Link>
+          <Link href="/improvements" className="text-xs font-bold text-[var(--text-faint)] hover:text-[var(--accent)]">See all 300 improvements →</Link>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 qol-density-surface">
           {state.lastPlayed ? (

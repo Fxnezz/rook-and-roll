@@ -18,6 +18,7 @@ export type WebsiteContentWidth = "narrow" | "standard" | "wide";
 export type WebsiteLineHeight = "compact" | "comfortable" | "relaxed";
 export type WebsiteLetterSpacing = "normal" | "wide";
 export type WebsiteBreakReminder = 0 | 25 | 45 | 60;
+export type WebsiteTextScale = 90 | 100 | 110 | 120;
 
 export interface WebsitePreferences {
   navigationProgress: boolean;
@@ -43,6 +44,30 @@ export interface WebsitePreferences {
   batterySaver: boolean;
   routeAnnouncements: boolean;
   mobileDock: boolean;
+  pageGuide: boolean;
+  pageOutline: boolean;
+  readingInsights: boolean;
+  sectionDeepLinks: boolean;
+  shareToolkit: boolean;
+  smartBack: boolean;
+  routeRefresh: boolean;
+  pageHealthAudit: boolean;
+  textScale: WebsiteTextScale;
+  contrastBoost: boolean;
+  readableFont: boolean;
+  largeCursor: boolean;
+  dimDecorativeImages: boolean;
+  externalLinkClarity: boolean;
+  externalLinksNewTab: boolean;
+  restoreMainFocus: boolean;
+  keyboardGuide: boolean;
+  touchFeedback: boolean;
+  haptics: boolean;
+  safeAreaLayout: boolean;
+  formDraftRecovery: boolean;
+  unsavedWorkGuard: boolean;
+  idlePowerPause: boolean;
+  cleanPrint: boolean;
 }
 
 export const DEFAULT_WEBSITE_PREFERENCES: WebsitePreferences = {
@@ -69,6 +94,30 @@ export const DEFAULT_WEBSITE_PREFERENCES: WebsitePreferences = {
   batterySaver: true,
   routeAnnouncements: true,
   mobileDock: true,
+  pageGuide: true,
+  pageOutline: true,
+  readingInsights: true,
+  sectionDeepLinks: true,
+  shareToolkit: true,
+  smartBack: true,
+  routeRefresh: true,
+  pageHealthAudit: true,
+  textScale: 100,
+  contrastBoost: false,
+  readableFont: false,
+  largeCursor: false,
+  dimDecorativeImages: false,
+  externalLinkClarity: true,
+  externalLinksNewTab: false,
+  restoreMainFocus: true,
+  keyboardGuide: true,
+  touchFeedback: true,
+  haptics: false,
+  safeAreaLayout: true,
+  formDraftRecovery: true,
+  unsavedWorkGuard: true,
+  idlePowerPause: true,
+  cleanPrint: true,
 };
 
 export interface QolGameLink {

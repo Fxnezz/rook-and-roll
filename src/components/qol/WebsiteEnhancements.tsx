@@ -11,6 +11,7 @@ import {
   type WebsiteLetterSpacing,
   type WebsiteLineHeight,
   type WebsitePreferences,
+  type WebsiteTextScale,
 } from "@/lib/qol/useQol";
 
 type NetworkHint = {
@@ -127,6 +128,10 @@ export function WebsiteControls() {
         letterSpacing: "wide",
         underlineLinks: true,
         calmVisuals: true,
+        pageOutline: true,
+        readingInsights: true,
+        readableFont: true,
+        textScale: 110,
       });
     } else if (preset === "visibility") {
       updateWebsite({
@@ -136,6 +141,9 @@ export function WebsiteControls() {
         largeTargets: true,
         solidSurfaces: true,
         lineHeight: "relaxed",
+        contrastBoost: true,
+        largeCursor: true,
+        textScale: 110,
       });
     } else {
       updateWebsite({
@@ -145,6 +153,8 @@ export function WebsiteControls() {
         calmVisuals: true,
         readingRuler: false,
         focusSpotlight: false,
+        idlePowerPause: true,
+        dimDecorativeImages: true,
       });
     }
   };
@@ -208,8 +218,13 @@ export function WebsiteControls() {
           <ToggleRow checked={website.largeTargets} label="Large controls" detail="Increase shared controls toward touch-friendly sizing." onChange={(value) => set("largeTargets", value)} />
           <ToggleRow checked={website.solidSurfaces} label="Solid surfaces" detail="Remove translucent blur from navigation and panels." onChange={(value) => set("solidSurfaces", value)} />
           <ToggleRow checked={website.grayscale} label="Grayscale mode" detail="Temporarily remove colour without changing your theme." onChange={(value) => set("grayscale", value)} />
+          <ToggleRow checked={website.contrastBoost} label="Contrast boost" detail="Strengthen borders, secondary text and keyboard focus across shared surfaces." onChange={(value) => set("contrastBoost", value)} />
+          <ToggleRow checked={website.readableFont} label="Readable font mode" detail="Use a highly differentiated system font and calmer spacing for reading content." onChange={(value) => set("readableFont", value)} />
+          <ToggleRow checked={website.largeCursor} label="Large cursor" detail="Make pointer position easier to follow without changing text selection." onChange={(value) => set("largeCursor", value)} />
+          <ToggleRow checked={website.dimDecorativeImages} label="Quiet decorative images" detail="Reduce nonessential image intensity and restore it on hover or focus." onChange={(value) => set("dimDecorativeImages", value)} />
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <SelectRow<WebsiteTextScale> label="Website text size" value={website.textScale} onChange={(value) => set("textScale", Number(value) as WebsiteTextScale)} options={[{ value: 90, label: "90% · Compact" }, { value: 100, label: "100% · Standard" }, { value: 110, label: "110% · Larger" }, { value: 120, label: "120% · Largest" }]} />
           <SelectRow<WebsiteContentWidth> label="Reading width" value={website.contentWidth} onChange={(value) => set("contentWidth", value)} options={[{ value: "narrow", label: "Narrow" }, { value: "standard", label: "Standard" }, { value: "wide", label: "Wide" }]} />
           <SelectRow<WebsiteLineHeight> label="Line spacing" value={website.lineHeight} onChange={(value) => set("lineHeight", value)} options={[{ value: "compact", label: "Compact" }, { value: "comfortable", label: "Comfortable" }, { value: "relaxed", label: "Relaxed" }]} />
           <SelectRow<WebsiteLetterSpacing> label="Letter spacing" value={website.letterSpacing} onChange={(value) => set("letterSpacing", value)} options={[{ value: "normal", label: "Normal" }, { value: "wide", label: "Wide" }]} />
@@ -218,6 +233,44 @@ export function WebsiteControls() {
         <div className="mt-2 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] px-3">
           <ToggleRow checked={website.calmVisuals} label="Calm visual mode" detail="Simplify gradients, shadows and decorative pulses." onChange={(value) => set("calmVisuals", value)} />
           <ToggleRow checked={website.sessionClock} label="Session clock" detail="Count only the time this browser tab is actively visible." onChange={(value) => set("sessionClock", value)} />
+        </div>
+      </div>
+
+      <div>
+        <h2 className="font-extrabold">Page Guide and sharing</h2>
+        <p className="mt-1 text-xs leading-5 text-[var(--text-faint)]">A route-aware guide for sections, recent pages, sharing, focus and support checks.</p>
+        <div className="mt-2 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] px-3">
+          <ToggleRow checked={website.pageGuide} label="Universal Page Guide" detail="Keep the new page intelligence control available across public screens." onChange={(value) => set("pageGuide", value)} />
+          <ToggleRow checked={website.pageOutline} label="Live page outline" detail="Discover headings and highlight the section currently in view." onChange={(value) => set("pageOutline", value)} />
+          <ToggleRow checked={website.readingInsights} label="Reading insights" detail="Show word count, estimated time and live completion progress." onChange={(value) => set("readingInsights", value)} />
+          <ToggleRow checked={website.sectionDeepLinks} label="Section deep links" detail="Copy a durable URL to any discovered page heading." onChange={(value) => set("sectionDeepLinks", value)} />
+          <ToggleRow checked={website.shareToolkit} label="Share toolkit" detail="Use native sharing or copy the current page as a Markdown link." onChange={(value) => set("shareToolkit", value)} />
+          <ToggleRow checked={website.smartBack} label="Smart return action" detail="Go back with a safe Home fallback when no useful history exists." onChange={(value) => set("smartBack", value)} />
+          <ToggleRow checked={website.routeRefresh} label="Route refresh action" detail="Refresh dynamic server content without abandoning the current destination." onChange={(value) => set("routeRefresh", value)} />
+          <ToggleRow checked={website.pageHealthAudit} label="Live page health" detail="Count headings, links, controls, forms and image alternative text." onChange={(value) => set("pageHealthAudit", value)} />
+          <ToggleRow checked={website.keyboardGuide} label="Shortcut guide" detail="Show contextual keyboard hints inside the Page Guide." onChange={(value) => set("keyboardGuide", value)} />
+        </div>
+      </div>
+
+      <div>
+        <h2 className="font-extrabold">Navigation safety and recovery</h2>
+        <div className="mt-2 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] px-3">
+          <ToggleRow checked={website.externalLinkClarity} label="Mark external links" detail="Clearly identify destinations that leave Sam's Arcade." onChange={(value) => set("externalLinkClarity", value)} />
+          <ToggleRow checked={website.externalLinksNewTab} label="Open external links in a new tab" detail="Keep the current arcade page available when visiting another website." onChange={(value) => set("externalLinksNewTab", value)} />
+          <ToggleRow checked={website.restoreMainFocus} label="Restore content focus" detail="Move keyboard focus to the main content after route changes." onChange={(value) => set("restoreMainFocus", value)} />
+          <ToggleRow checked={website.formDraftRecovery} label="Session form recovery" detail="Save eligible unfinished text in this tab; private account routes are excluded." onChange={(value) => set("formDraftRecovery", value)} />
+          <ToggleRow checked={website.unsavedWorkGuard} label="Unsaved work warning" detail="Warn before closing a tab that still contains an eligible unfinished form." onChange={(value) => set("unsavedWorkGuard", value)} />
+        </div>
+      </div>
+
+      <div>
+        <h2 className="font-extrabold">Touch, mobile and power</h2>
+        <div className="mt-2 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] px-3">
+          <ToggleRow checked={website.touchFeedback} label="Touch feedback" detail="Use a consistent pressed state for buttons and links on touch screens." onChange={(value) => set("touchFeedback", value)} />
+          <ToggleRow checked={website.haptics} label="Light haptics" detail="Use a tiny vibration on supported devices when activating a control." onChange={(value) => set("haptics", value)} />
+          <ToggleRow checked={website.safeAreaLayout} label="Phone safe areas" detail="Respect cutouts, landscape edges and home indicators." onChange={(value) => set("safeAreaLayout", value)} />
+          <ToggleRow checked={website.idlePowerPause} label="Pause decoration in hidden tabs" detail="Stop nonessential animation when this browser tab is not visible." onChange={(value) => set("idlePowerPause", value)} />
+          <ToggleRow checked={website.cleanPrint} label="Clean print layout" detail="Print reference content without navigation, floating tools or dark backgrounds." onChange={(value) => set("cleanPrint", value)} />
         </div>
       </div>
 

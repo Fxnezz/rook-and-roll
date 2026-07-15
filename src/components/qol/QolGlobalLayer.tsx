@@ -7,6 +7,7 @@ import { SlideOver } from "@/components/ui/SlideOver";
 import { formatRelativeTime, useQol, type QolCenterView, type QolGame } from "@/lib/qol/useQol";
 import { QOL_STATIC_ROUTES } from "@/lib/qol/routes";
 import { WebsiteEnhancementLayer } from "@/components/qol/WebsiteEnhancements";
+import { WebsiteIntelligenceLayer } from "@/components/qol/WebsiteIntelligence";
 import { openSettingsPanel } from "@/lib/settings/openSettings";
 
 type CommandResult = {
@@ -499,6 +500,7 @@ export function QolGlobalLayer() {
       <QualityCenter />
       <ConnectionBanner />
       <WebsiteEnhancementLayer />
+      <WebsiteIntelligenceLayer />
     </>
   );
 }

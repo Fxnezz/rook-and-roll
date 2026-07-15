@@ -59,9 +59,9 @@ const PLAYER_PATHS = [
 ] as const;
 
 const LATEST_NOTES = [
-  "Arcade games now use richer tables, boards, cards and responsive effects.",
-  "Mobile quick dock puts the most-used destinations one tap away.",
-  "Loading, missing-page and recovery screens now guide the next action.",
+  "The new Page Guide adds live outlines, reading progress, sharing, focus view and support checks everywhere.",
+  "Settings now include text scaling, contrast, readable fonts, cursor, touch, draft recovery and power controls.",
+  "The shipped ledger now documents 75 substantial systems and 300 finished improvements.",
 ] as const;
 
 const GAME_SHELF = [
@@ -238,7 +238,7 @@ export default function Home() {
             ["73", "playable games"],
             ["26", "online modes"],
             ["25", "bot families"],
-            ["200+", "player improvements"],
+            ["300+", "player improvements"],
           ].map(([value, label]) => (
             <div key={label} className="px-3 py-5 text-center sm:py-6">
               <strong className="block text-2xl font-black tracking-tight text-[var(--accent)] sm:text-3xl">{value}</strong>
