@@ -34,12 +34,24 @@ export interface GoResult {
   lines: EngineLine[];
 }
 
+export interface ChessEngine {
+  readonly isSupported: boolean;
+  init(): Promise<void>;
+  setSkillLevel(level: number): Promise<void>;
+  configureMaximumStrength?(skill?: number): Promise<void>;
+  newGame(): Promise<void>;
+  go(fen: string, opts?: GoOptions): Promise<GoResult>;
+  evaluate(fen: string, opts?: GoOptions): Promise<{ cp: number | null; mate: number | null; bestmove: string }>;
+  stop(): void;
+  quit(): void;
+}
+
 type Pending = {
   resolve: (r: GoResult) => void;
   lines: Map<number, EngineLine>;
 };
 
-export class StockfishEngine {
+export class StockfishEngine implements ChessEngine {
   private worker: Worker | null = null;
   private pending: Pending | null = null;
   private booted = false;

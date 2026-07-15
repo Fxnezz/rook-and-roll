@@ -387,6 +387,24 @@ function SamEngine() {
   );
 }
 
+function SamCore() {
+  return (
+    <>
+      <path d="M8 64 Q11 45 32 45 Q53 45 56 64Z" fill="#251d45" stroke="#c8b8ff" strokeWidth="1" />
+      <path d="M19 42 L17 23 Q18 11 32 9 Q46 11 47 23 L45 42Z" fill="#201838" stroke="#bda8ff" strokeWidth="1.2" />
+      <path d="M23 17 Q32 10 41 17 L43 34 L36 42 H28 L21 34Z" fill="#3c2d67" />
+      <path d="M24 27 L30 24 L29 31 L23 30Z" fill="#d8ceff" />
+      <path d="M40 27 L34 24 L35 31 L41 30Z" fill="#d8ceff" />
+      <path d="M27 36 Q32 39 37 36" stroke="#9b7cff" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+      <g fill="none" stroke="#c8b8ff" strokeWidth="1.3">
+        <circle cx="32" cy="7" r="3" />
+        <path d="M32 4 V1 M29.5 5 L27.5 3 M34.5 5 L36.5 3" />
+      </g>
+      <path d="M15 55 H23 M41 55 H49" stroke="#9b7cff" strokeWidth="2" strokeLinecap="round" />
+    </>
+  );
+}
+
 const PORTRAITS: Record<BotTierId, () => React.ReactNode> = {
   pip: Pip,
   milo: Milo,
@@ -401,6 +419,7 @@ const PORTRAITS: Record<BotTierId, () => React.ReactNode> = {
   zephyr: Zephyr,
   titan: Titan,
   omen: Omen,
+  samcore: SamCore,
   sam: SamEngine,
 };
 

@@ -15,6 +15,7 @@ export type BotTierId =
   | "zephyr"
   | "titan"
   | "omen"
+  | "samcore"
   | "sam";
 
 export interface BotTier {
@@ -25,6 +26,8 @@ export interface BotTier {
   /** Country flag emoji shown next to the name. */
   flag: string;
   elo: number;
+  /** Optional honest display label for experimental or unrated engines. */
+  ratingLabel?: string;
   blurb: string;
   /** Stockfish Skill Level 0–20 */
   skill: number;
@@ -41,6 +44,10 @@ export interface BotTier {
   accent: string;
   /** Stylistic move bias, layered on top of skill/depth — see choosePersonalityMove. */
   personality: BotPersonality;
+  /** Non-Stockfish playing backend. Omitted bots use the bundled Stockfish core. */
+  engine?: "sam-core";
+  /** Per-engine depth ceiling used by setup controls. */
+  maxDepth?: number;
 }
 
 export const BOT_TIERS: BotTier[] = [
@@ -225,6 +232,23 @@ export const BOT_TIERS: BotTier[] = [
     temperature: 0,
     accent: "#b83a3a",
     personality: "normal",
+  },
+  {
+    id: "samcore",
+    name: "Sam Core",
+    fullName: "Sam Core X1",
+    flag: "🧠",
+    elo: 1750,
+    ratingLabel: "Experimental · unrated",
+    blurb: "A brand-new original browser engine: independent search, evaluation and move ordering with no Stockfish calls.",
+    skill: 20,
+    depth: 5,
+    multipv: 3,
+    temperature: 0,
+    accent: "#9b7cff",
+    personality: "normal",
+    engine: "sam-core",
+    maxDepth: 8,
   },
   {
     id: "sam",

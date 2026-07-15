@@ -26,7 +26,7 @@ const BOT_GROUPS = [
   { title: "Intermediate", detail: "850–1300", ids: ["beau", "cass", "rosa", "wren"] },
   { title: "Advanced", detail: "1450–1900", ids: ["dex", "ilsa", "vera", "zephyr"] },
   { title: "Master", detail: "2150+", ids: ["titan", "omen"] },
-  { title: "Engine Lab", detail: "Adjustable maximum strength", ids: ["sam"] },
+  { title: "Engine Lab", detail: "Original engine + maximum strength", ids: ["samcore", "sam"] },
 ] as const;
 
 const PERSONALITY_LABEL = {
@@ -68,12 +68,25 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("tier") === "sam") setTierId("sam");
-      const depth = Number(params.get("depth"));
-      const skill = Number(params.get("skill"));
-      const multipv = Number(params.get("multipv"));
+      const requestedTier = params.get("tier");
+      const requested = BOT_TIERS.find((tier) => tier.id === requestedTier);
+      if (requested) {
+        setTierId(requested.id);
+        if (requested.id === "sam" || requested.id === "samcore") {
+          setEngineDepth(requested.depth);
+          setEngineSkill(requested.skill);
+          setEngineMultipv(requested.multipv);
+          setEnginePersonality(requested.personality);
+        }
+      }
+      const depthParam = params.get("depth");
+      const skillParam = params.get("skill");
+      const multipvParam = params.get("multipv");
+      const depth = depthParam == null ? Number.NaN : Number(depthParam);
+      const skill = skillParam == null ? Number.NaN : Number(skillParam);
+      const multipv = multipvParam == null ? Number.NaN : Number(multipvParam);
       const personality = params.get("style");
-      if (Number.isFinite(depth) && depth >= 4) setEngineDepth(Math.min(40, Math.round(depth)));
+      if (Number.isFinite(depth) && depth >= (requested?.id === "samcore" ? 1 : 4)) setEngineDepth(Math.min(requested?.maxDepth ?? 40, Math.round(depth)));
       if (Number.isFinite(skill) && skill >= 0) setEngineSkill(Math.min(20, Math.round(skill)));
       if (Number.isFinite(multipv) && multipv >= 1) setEngineMultipv(Math.min(5, Math.round(multipv)));
       if (personality === "normal" || personality === "aggressive" || personality === "passive") setEnginePersonality(personality);
@@ -99,6 +112,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
     let closest: BotTierId = BOT_TIERS[0].id;
     let bestDiff = Infinity;
     for (const t of BOT_TIERS) {
+      if (t.ratingLabel) continue;
       const diff = Math.abs(t.elo - myRating);
       if (diff < bestDiff) {
         bestDiff = diff;
@@ -150,8 +164,19 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
       timeControlId: tcId,
       showEval,
       startFen,
-      ...(tierId === "sam" ? { engineDepth, engineSkill, engineMultipv, enginePersonality } : {}),
+      ...(tierId === "sam" || tierId === "samcore" ? { engineDepth, engineSkill, engineMultipv, enginePersonality } : {}),
     });
+  };
+
+  const selectTier = (id: BotTierId) => {
+    setTierId(id);
+    if (id === "sam" || id === "samcore") {
+      const tier = BOT_TIERS.find((candidate) => candidate.id === id)!;
+      setEngineDepth(tier.depth);
+      setEngineSkill(tier.skill);
+      setEngineMultipv(tier.multipv);
+      setEnginePersonality(tier.personality);
+    }
   };
 
   const grouped: Record<string, TimeControl[]> = {};
@@ -166,7 +191,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-black leading-tight tracking-tight">Choose your opponent</h1>
-          <p className="text-sm text-[var(--text-muted)]">14 opponents, including the adjustable Sam Engine S1</p>
+          <p className="text-sm text-[var(--text-muted)]">15 opponents, including original Sam Core X1 and maximum-strength Sam Engine S1</p>
         </div>
         <button
           onClick={() => setShowRules(true)}
@@ -187,14 +212,14 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
               <span className="text-xl" aria-label={`Country flag ${selectedTier.flag}`}>{selectedTier.flag}</span>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="chip !border-[var(--accent)]/30 !text-[var(--accent)]">{selectedTier.id === "sam" ? "Unrated maximum-strength profile" : `${selectedTier.elo} rating`}</span>
+              <span className="chip !border-[var(--accent)]/30 !text-[var(--accent)]">{selectedTier.ratingLabel ?? (selectedTier.id === "sam" ? "Unrated maximum-strength profile" : `${selectedTier.elo} rating`)}</span>
               <span className="chip">{PERSONALITY_LABEL[selectedTier.personality]}</span>
             </div>
             <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--text-muted)]">{selectedTier.blurb}</p>
           </div>
           <div className="hidden text-right sm:block">
             <IconRobot width={30} height={30} className="ml-auto text-[var(--accent)]" />
-            <p className="mt-2 text-xs font-bold uppercase tracking-wider text-[var(--text-faint)]">{selectedTier.id === "sam" ? "Sam Engine S1" : "Stockfish tuned"}</p>
+            <p className="mt-2 text-xs font-bold uppercase tracking-wider text-[var(--text-faint)]">{selectedTier.engine === "sam-core" ? "Original Sam Core" : selectedTier.id === "sam" ? "Sam Engine S1" : "Stockfish tuned"}</p>
           </div>
         </div>
 
@@ -214,7 +239,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
                     <button
                       key={tier.id}
                       type="button"
-                      onClick={() => setTierId(tier.id)}
+                      onClick={() => selectTier(tier.id)}
                       aria-pressed={active}
                       className={`relative flex min-w-0 items-center gap-3 rounded-xl border p-2.5 text-left transition sm:flex-col sm:p-3 sm:text-center ${
                         active
@@ -232,7 +257,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
                       <BotAvatar tierId={tier.id} size={58} rounded="lg" />
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-extrabold">{tier.name} <span aria-hidden="true">{tier.flag}</span></span>
-                        <span className="mt-0.5 block text-xs font-bold text-[var(--text-faint)]">{tier.elo}</span>
+                        <span className="mt-0.5 block text-xs font-bold text-[var(--text-faint)]">{tier.ratingLabel ? "Unrated" : tier.elo}</span>
                       </span>
                     </button>
                   );
@@ -241,15 +266,19 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
             </div>
           ))}
 
-          {tierId === "sam" && (
-            <section className="rounded-2xl border border-[#52d6c8]/35 bg-[#52d6c8]/8 p-4 sm:p-5">
+          {(tierId === "sam" || tierId === "samcore") && (
+            <section className={`rounded-2xl border p-4 sm:p-5 ${tierId === "samcore" ? "border-[#9b7cff]/35 bg-[#9b7cff]/8" : "border-[#52d6c8]/35 bg-[#52d6c8]/8"}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><p className="text-xs font-black uppercase tracking-[0.14em] text-[#52d6c8]">Engine controls</p><h3 className="mt-1 text-lg font-black">Tune Sam Engine S1</h3><p className="mt-1 max-w-xl text-xs leading-5 text-[var(--text-muted)]">Sam now defaults to depth 26 and supports depth 40. Searches above 30 can take substantially longer, especially on phones.</p></div>
+                <div>
+                  <p className={`text-xs font-black uppercase tracking-[0.14em] ${tierId === "samcore" ? "text-[#bda8ff]" : "text-[#52d6c8]"}`}>{tierId === "samcore" ? "Built from the ground up" : "Engine controls"}</p>
+                  <h3 className="mt-1 text-lg font-black">Tune {selectedTier.fullName}</h3>
+                  <p className="mt-1 max-w-xl text-xs leading-5 text-[var(--text-muted)]">{tierId === "samcore" ? "No Stockfish move selection. X1 runs original iterative search, tactical evaluation, transposition memory and move ordering. Its depth scale is 1–8." : "Sam defaults to depth 26 and supports depth 40. Searches above 30 can take substantially longer, especially on phones."}</p>
+                </div>
                 <a href="/play/engine-lab" className="btn !py-2 text-xs">Open any-bot arena →</a>
               </div>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <label className="block"><span className="mb-1 flex items-center justify-between text-xs font-bold"><span>Search depth</span><span className="text-[#52d6c8]">{engineDepth}</span></span><input type="range" min={4} max={40} step={1} value={engineDepth} onChange={(event) => setEngineDepth(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
-                <label className="block"><span className="mb-1 flex items-center justify-between text-xs font-bold"><span>Skill level</span><span className="text-[#52d6c8]">{engineSkill} / 20</span></span><input type="range" min={0} max={20} step={1} value={engineSkill} onChange={(event) => setEngineSkill(Number(event.target.value))} className="w-full accent-[#52d6c8]" /></label>
+                <label className="block"><span className="mb-1 flex items-center justify-between text-xs font-bold"><span>Search depth</span><span className={tierId === "samcore" ? "text-[#bda8ff]" : "text-[#52d6c8]"}>{engineDepth}</span></span><input type="range" min={tierId === "samcore" ? 1 : 4} max={selectedTier.maxDepth ?? 40} step={1} value={engineDepth} onChange={(event) => setEngineDepth(Number(event.target.value))} className={`w-full ${tierId === "samcore" ? "accent-[#9b7cff]" : "accent-[#52d6c8]"}`} /></label>
+                <label className="block"><span className="mb-1 flex items-center justify-between text-xs font-bold"><span>Skill level</span><span className={tierId === "samcore" ? "text-[#bda8ff]" : "text-[#52d6c8]"}>{engineSkill} / 20</span></span><input type="range" min={0} max={20} step={1} value={engineSkill} onChange={(event) => setEngineSkill(Number(event.target.value))} className={`w-full ${tierId === "samcore" ? "accent-[#9b7cff]" : "accent-[#52d6c8]"}`} /></label>
                 <label className="block"><span className="label mb-1 block">Playing style</span><select value={enginePersonality} onChange={(event) => setEnginePersonality(event.target.value as BotPersonality)} className="input w-full !py-2 text-sm"><option value="normal">Precision</option><option value="aggressive">Aggressive</option><option value="passive">Positional</option></select></label>
                 <label className="block"><span className="label mb-1 block">Candidate lines</span><select value={engineMultipv} onChange={(event) => setEngineMultipv(Number(event.target.value))} className="input w-full !py-2 text-sm"><option value={1}>1 · strongest move only</option><option value={2}>2 · style choice</option><option value={3}>3 · wider choice</option><option value={5}>5 · experimental</option></select></label>
               </div>

@@ -28,6 +28,7 @@ import { getTheme } from "@/lib/chess/themes";
 import { playSound, primeAudio, vibrateForMove } from "@/lib/chess/sound";
 import { announcePosition } from "@/lib/chess/announce";
 import { getEngine } from "@/lib/engine/stockfish";
+import { configurePlayingEngine, getPlayingEngine } from "@/lib/engine/playingEngine";
 import { getTier, chooseMove } from "@/lib/engine/bots";
 import { analyzeGame, type GameAnalysis } from "@/lib/engine/analysis";
 import { NAG_SYMBOLS, parseAnnotation, formatAnnotation, type NagSymbol } from "@/lib/chess/nag";
@@ -268,14 +269,13 @@ function BotGame({
 
   // Boot engine + start clock once.
   useEffect(() => {
-    const engine = getEngine();
+    const engine = getPlayingEngine(tier.id);
     primeAudio();
     playSound("gameStart");
     (async () => {
       await engine.init();
       await engine.newGame();
-      if (tier.id === "sam") await engine.configureMaximumStrength(tier.skill);
-      else await engine.setSkillLevel(tier.skill);
+      await configurePlayingEngine(engine, tier.id, tier.skill);
     })();
     clock.reset();
     clock.start("w");
@@ -442,10 +442,9 @@ function BotGame({
     let done = false;
     (async () => {
       setThinking(true);
-      const engine = getEngine();
+      const engine = getPlayingEngine(tier.id);
       const effectiveSkill = botOverride.skillOverride ?? tier.skill;
-      if (tier.id === "sam") await engine.configureMaximumStrength(effectiveSkill);
-      else await engine.setSkillLevel(effectiveSkill);
+      await configurePlayingEngine(engine, tier.id, effectiveSkill);
       const t0 = performance.now();
       try {
         const wantsWiderPool = botOverride.blunderMode || botOverride.personality !== "normal";

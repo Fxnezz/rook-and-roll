@@ -8,7 +8,8 @@ import { useChessGame, START_FEN } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
 import { BOT_TIERS, chooseMove, getTier, type BotTier, type BotTierId } from "@/lib/engine/bots";
-import { getEngine } from "@/lib/engine/stockfish";
+import { getPlayingEngine, configurePlayingEngine } from "@/lib/engine/playingEngine";
+import type { ChessEngine } from "@/lib/engine/stockfish";
 import { choosePersonalityMove, type BotPersonality } from "@/lib/cheats/botManipulation";
 
 type ArenaSideConfig = {
@@ -25,7 +26,7 @@ type ArenaConfig = {
   black: ArenaSideConfig;
 };
 
-const SAM_MAX_DEPTH = 40;
+const MAX_ENGINE_DEPTH = 40;
 
 const PERSONALITY_LABELS: Record<BotPersonality, string> = {
   normal: "Precision",
@@ -82,7 +83,7 @@ export function EngineArena() {
         w: {
           ...current.w,
           id: "sam",
-          ...(Number.isFinite(depth) ? { depth: clamp(depth, 4, SAM_MAX_DEPTH) } : {}),
+          ...(Number.isFinite(depth) ? { depth: clamp(depth, 4, MAX_ENGINE_DEPTH) } : {}),
           ...(Number.isFinite(skill) ? { skill: clamp(skill, 0, 20) } : {}),
           ...(style === "normal" || style === "aggressive" || style === "passive" || style === "random" ? { style } : {}),
         },
@@ -110,7 +111,7 @@ export function EngineArena() {
         <span className="chip !border-[#52d6c8]/35 !bg-[#52d6c8]/10 !text-[#52d6c8]">⚡ Engine Arena</span>
         <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Any bot vs any bot</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-muted)]">
-          Build the matchup you want—from Pip vs Omen to Sam Engine vs Sam Engine. Give each side its own strength, search depth, style, and candidate breadth.
+          Build the matchup you want—from Pip vs Omen to Sam Core vs Sam Engine. Give each side its own strength, search depth, style, and candidate breadth.
         </p>
       </header>
 
@@ -149,11 +150,11 @@ export function EngineArena() {
         <aside className="panel self-start p-5">
           <h2 className="text-lg font-black">Match contract</h2>
           <div className="mt-4 space-y-3 text-xs leading-5 text-[var(--text-muted)]">
-            <p><strong className="text-[var(--text)]">Every pairing works.</strong> Either colour can use any arcade bot, including Sam Engine.</p>
+            <p><strong className="text-[var(--text)]">Every pairing works.</strong> Either colour can use any arcade bot, including the original Sam Core X1.</p>
             <p><strong className="text-[var(--text)]">Local and private.</strong> The match runs in a browser worker; the position is not uploaded.</p>
-            <p><strong className="text-[var(--text)]">Exact search controls.</strong> Each side uses its chosen depth and skill before moving.</p>
+            <p><strong className="text-[var(--text)]">Independent controls.</strong> Each side uses its chosen depth target, skill and style before moving.</p>
             <p><strong className="text-[var(--text)]">Deep means slow.</strong> Depths above 30 can take a long time, especially on phones.</p>
-            <p><strong className="text-[var(--text)]">Honest strength label.</strong> Sam uses a maximum-strength profile on the bundled Stockfish 18 core; results depend on depth and device speed.</p>
+            <p><strong className="text-[var(--text)]">Two real engine families.</strong> Sam Engine uses Stockfish 18; Sam Core is an original TypeScript engine with its own search and evaluation.</p>
           </div>
           <button
             type="button"
@@ -173,6 +174,7 @@ function ArenaSideCard({ color, side, onChange }: { color: Color; side: ArenaSid
   const tier = getTier(side.id);
   const isSam = side.id === "sam";
   const accent = isSam ? "#52d6c8" : tier.accent;
+  const maxDepth = tier.maxDepth ?? MAX_ENGINE_DEPTH;
 
   return (
     <div className="rounded-2xl border bg-[var(--bg)] p-4" style={{ borderColor: `${accent}66` }}>
@@ -187,13 +189,13 @@ function ArenaSideCard({ color, side, onChange }: { color: Color; side: ArenaSid
       <label className="mt-4 block">
         <span className="label mb-1 block">Bot</span>
         <select className="input w-full !py-2 text-sm" value={side.id} onChange={(event) => onChange(sideFromTier(event.target.value as BotTierId))}>
-          {BOT_TIERS.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.fullName} · {candidate.id === "sam" ? "Max" : candidate.elo}</option>)}
+          {BOT_TIERS.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.fullName} · {candidate.ratingLabel ?? (candidate.id === "sam" ? "Max" : candidate.elo)}</option>)}
         </select>
       </label>
 
       <label className="mt-4 block">
         <span className="mb-1 flex justify-between text-xs font-bold"><span>Search depth</span><span style={{ color: accent }}>{side.depth}</span></span>
-        <input type="range" min={3} max={SAM_MAX_DEPTH} value={side.depth} onChange={(event) => onChange({ ...side, depth: Number(event.target.value) })} className="w-full" style={{ accentColor: accent }} />
+        <input type="range" min={1} max={maxDepth} value={side.depth} onChange={(event) => onChange({ ...side, depth: Number(event.target.value) })} className="w-full" style={{ accentColor: accent }} />
       </label>
       <label className="mt-3 block">
         <span className="mb-1 flex justify-between text-xs font-bold"><span>Skill</span><span style={{ color: accent }}>{side.skill} / 20</span></span>
@@ -216,6 +218,7 @@ function ArenaSideCard({ color, side, onChange }: { color: Color; side: ArenaSid
       <button type="button" className="mt-3 text-xs font-bold text-[var(--text-muted)] underline-offset-4 hover:underline" onClick={() => onChange(sideFromTier(side.id))}>
         Restore {tier.name} defaults
       </button>
+      {tier.engine === "sam-core" && <p className="mt-2 text-[0.68rem] leading-5 text-[var(--text-faint)]">Original engine depth scale: 1–8. A safety clock may finish the last complete depth early.</p>}
     </div>
   );
 }
@@ -234,6 +237,7 @@ function ArenaMatch({ config, onExit }: { config: ArenaConfig; onExit: () => voi
   const [evaluation, setEvaluation] = useState<{ cp: number | null; mate: number | null; depth: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const searchedFen = useRef<string | null>(null);
+  const activeEngine = useRef<ChessEngine | null>(null);
 
   useEffect(() => {
     if (paused || snapshot.status.over || !snapshot.isLive || searchedFen.current === snapshot.fen) return;
@@ -243,13 +247,13 @@ function ArenaMatch({ config, onExit }: { config: ArenaConfig; onExit: () => voi
     const side = currentColor === "w" ? config.white : config.black;
     const tier = arenaTier(side);
     const multipv = Math.max(side.multipv, side.style === "normal" ? 1 : 4);
+    const engine = getPlayingEngine(side.id);
+    activeEngine.current = engine;
     setThinking(currentColor);
     setError(null);
     (async () => {
       try {
-        const engine = getEngine();
-        if (side.id === "sam") await engine.configureMaximumStrength(side.skill);
-        else await engine.setSkillLevel(side.skill);
+        await configurePlayingEngine(engine, side.id, side.skill);
         const result = await engine.go(snapshot.fen, { depth: side.depth, multipv });
         if (cancelled) return;
         const line = result.lines[0];
@@ -269,6 +273,7 @@ function ArenaMatch({ config, onExit }: { config: ArenaConfig; onExit: () => voi
           setPaused(true);
         }
       } finally {
+        if (activeEngine.current === engine) activeEngine.current = null;
         if (!cancelled) setThinking(null);
       }
     })();
@@ -277,7 +282,8 @@ function ArenaMatch({ config, onExit }: { config: ArenaConfig; onExit: () => voi
 
   const togglePause = () => {
     if (!paused) {
-      getEngine().stop();
+      activeEngine.current?.stop();
+      activeEngine.current = null;
       searchedFen.current = null;
       setThinking(null);
     }
