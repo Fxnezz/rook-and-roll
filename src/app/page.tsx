@@ -22,8 +22,47 @@ const QUICK_LINKS = [
   { href: "/puzzles", label: "Puzzles", detail: "Daily tactics", icon: IconPuzzle },
   { href: "/analysis", label: "Analysis", detail: "Review any game", icon: IconSparkles },
   { href: "/training", label: "Training", detail: "Build real skills", icon: IconTraining },
-  { href: "/play", label: "Games Hub", detail: "72 games", icon: IconGrid },
+  { href: "/play", label: "Games Hub", detail: "73 games", icon: IconGrid },
 ];
+
+const PLAYER_PATHS = [
+  {
+    eyebrow: "Compete",
+    title: "Find your next chess game.",
+    detail: "Fast matchmaking, flexible time controls, spectating and rematches in a focused live arena.",
+    href: "/play/online",
+    action: "Enter online play",
+    icon: IconUsers,
+    tone: "good",
+    metric: "Live chess",
+  },
+  {
+    eyebrow: "Experiment",
+    title: "Build the exact opponent you want.",
+    detail: "Challenge 25 bot families, tune strength branches, or stage bot-vs-bot engine exhibitions.",
+    href: "/play/engine-lab",
+    action: "Open the engine lab",
+    icon: IconRobot,
+    tone: "accent",
+    metric: "65 bot levels",
+  },
+  {
+    eyebrow: "Explore",
+    title: "Switch games without switching apps.",
+    detail: "Deep strategy, party games, cards, word puzzles and polished arcade classics share one library.",
+    href: "/play",
+    action: "Browse every game",
+    icon: IconGrid,
+    tone: "info",
+    metric: "73 games",
+  },
+] as const;
+
+const LATEST_NOTES = [
+  "Arcade games now use richer tables, boards, cards and responsive effects.",
+  "Mobile quick dock puts the most-used destinations one tap away.",
+  "Loading, missing-page and recovery screens now guide the next action.",
+] as const;
 
 const GAME_SHELF = [
   { name: "Othello", mark: "●○" },
@@ -193,9 +232,51 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="home-proof-strip border-b border-[var(--border)]" aria-label="Sam's Arcade highlights">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 divide-x divide-y divide-[var(--border)] px-4 sm:grid-cols-4 sm:divide-y-0">
+          {[
+            ["73", "playable games"],
+            ["26", "online modes"],
+            ["25", "bot families"],
+            ["200+", "player improvements"],
+          ].map(([value, label]) => (
+            <div key={label} className="px-3 py-5 text-center sm:py-6">
+              <strong className="block text-2xl font-black tracking-tight text-[var(--accent)] sm:text-3xl">{value}</strong>
+              <span className="mt-1 block text-[0.68rem] font-black uppercase tracking-[0.13em] text-[var(--text-faint)]">{label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <HomeQolRail />
 
       <section className="mx-auto max-w-6xl px-4 py-16 sm:py-20" data-motion-reveal>
+        <div className="mb-8 max-w-2xl">
+          <span className="chip mb-4"><IconSparkles width={14} height={14} /> One arcade, three ways in</span>
+          <h2 className="text-3xl font-black tracking-[-0.03em] sm:text-5xl">Whatever mood you&apos;re in, there&apos;s a strong next move.</h2>
+          <p className="mt-4 text-base leading-7 text-[var(--text-muted)] sm:text-lg">Jump straight into competition, shape a custom challenge, or roam the full games library.</p>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {PLAYER_PATHS.map((path, index) => (
+            <Link key={path.href} href={path.href} className={`home-path-card home-path-${path.tone} motion-card group`}>
+              <div className="flex items-start justify-between gap-4">
+                <span className="home-path-icon"><path.icon width={23} height={23} /></span>
+                <span className="chip !bg-[var(--bg)]/50">{path.metric}</span>
+              </div>
+              <div className="mt-12">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--path-color)]">0{index + 1} · {path.eyebrow}</p>
+                <h3 className="mt-3 text-2xl font-black leading-tight tracking-tight">{path.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-[var(--text-muted)]">{path.detail}</p>
+              </div>
+              <span className="mt-7 flex items-center gap-2 text-sm font-black text-[var(--path-color)]">{path.action} <IconChevronRight width={17} height={17} /></span>
+              <span className="home-path-orbit" aria-hidden="true" />
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-y border-[var(--border)] bg-[var(--bg-elev)]/20" data-motion-reveal>
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
         <div className="panel overflow-hidden">
           <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[0.75fr_1.25fr] lg:items-center">
             <div>
@@ -205,7 +286,7 @@ export default function Home() {
                 Switch from serious strategy to cards, words, puzzles, or a quick arcade run without leaving Sam&apos;s Arcade.
               </p>
               <div className="mt-6 flex items-center gap-5 text-sm font-bold text-[var(--text-muted)]">
-                <span><strong className="text-[var(--accent)]">72</strong> games</span>
+                <span><strong className="text-[var(--accent)]">73</strong> games</span>
                 <span><strong className="text-[var(--info)]">26</strong> online</span>
                 <span><strong className="text-[var(--good)]">2</strong> originals</span>
               </div>
@@ -225,6 +306,26 @@ export default function Home() {
               ))}
             </div>
           </div>
+        </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16" data-motion-reveal>
+        <div className="grid gap-6 rounded-[1.5rem] border border-[var(--border)] bg-[var(--panel)] p-5 sm:p-7 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
+          <div>
+            <span className="chip mb-3 !border-[var(--good)]/25 !bg-[var(--good)]/10 !text-[var(--good)]">Latest release</span>
+            <h2 className="text-2xl font-black tracking-tight">The arcade keeps getting better.</h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">The full history stays compact in Patch Notes. Player-controlled changes live in Settings.</p>
+            <Link href="/quality-of-life" className="mt-5 inline-flex items-center gap-2 text-sm font-black text-[var(--accent)] hover:underline">Read patch notes <IconChevronRight width={16} height={16} /></Link>
+          </div>
+          <ul className="grid gap-2" aria-label="Latest improvements">
+            {LATEST_NOTES.map((note) => (
+              <li key={note} className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg)]/60 px-4 py-3 text-sm leading-6">
+                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[var(--good)]/15 text-[0.65rem] font-black text-[var(--good)]">✓</span>
+                {note}
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
     </div>

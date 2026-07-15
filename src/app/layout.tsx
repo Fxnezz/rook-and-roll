@@ -7,6 +7,7 @@ import { isMaintenance, getBroadcast } from "@/lib/admin/config";
 import { auth } from "@/lib/auth/auth";
 import { MaintenanceScreen } from "@/components/ui/MaintenanceScreen";
 import { BroadcastBanner } from "@/components/ui/BroadcastBanner";
+import { SiteFooter } from "@/components/ui/SiteFooter";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -85,6 +86,7 @@ export default async function RootLayout({
               </a>
               <Header />
               <main id="main-content" tabIndex={-1} className="flex-1 md:pl-[232px]">{children}</main>
+              <SiteFooter />
             </>
           )}
         </Providers>

@@ -865,6 +865,147 @@ main {
 .home-quick-link:hover > span:first-child { transform: rotate(-4deg) scale(1.08); box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 18%, transparent); }
 .home-quick-link > span:first-child { transition: transform var(--motion-duration) var(--ease-spring), box-shadow var(--motion-duration) ease; }
 
+.home-proof-strip {
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 5%, transparent), transparent),
+    color-mix(in srgb, var(--bg-elev) 46%, transparent);
+}
+
+.home-path-card {
+  --path-color: var(--accent);
+  position: relative;
+  display: flex;
+  min-height: 27rem;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  padding: 1.4rem;
+  background:
+    radial-gradient(circle at 90% 8%, color-mix(in srgb, var(--path-color) 20%, transparent), transparent 28%),
+    linear-gradient(155deg, color-mix(in srgb, var(--panel) 94%, white), var(--panel));
+  box-shadow: var(--shadow-sm);
+  isolation: isolate;
+  transition: border-color var(--motion-duration) var(--ease-out), transform var(--motion-duration) var(--ease-spring), box-shadow var(--motion-duration) var(--ease-out);
+}
+.home-path-good { --path-color: var(--good); }
+.home-path-info { --path-color: var(--info); }
+.home-path-card:hover {
+  border-color: color-mix(in srgb, var(--path-color) 58%, var(--border));
+  transform: translateY(-6px);
+  box-shadow: 0 24px 55px color-mix(in srgb, var(--path-color) 10%, rgba(0,0,0,0.42));
+}
+.home-path-icon {
+  display: grid;
+  width: 3.1rem;
+  height: 3.1rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--path-color) 30%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--path-color) 12%, var(--bg));
+  color: var(--path-color);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--path-color) 12%, transparent);
+  transition: transform var(--motion-duration) var(--ease-spring);
+}
+.home-path-card:hover .home-path-icon { transform: rotate(-7deg) scale(1.08); }
+.home-path-card > span:nth-last-child(2) { margin-top: auto; }
+.home-path-card > span:nth-last-child(2) svg { transition: transform 180ms var(--ease-out); }
+.home-path-card:hover > span:nth-last-child(2) svg { transform: translateX(4px); }
+.home-path-orbit {
+  position: absolute;
+  z-index: -1;
+  width: 12rem;
+  height: 12rem;
+  right: -5rem;
+  bottom: -5rem;
+  border: 1px solid color-mix(in srgb, var(--path-color) 25%, transparent);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1.7rem color-mix(in srgb, var(--path-color) 4%, transparent), 0 0 0 3.4rem color-mix(in srgb, var(--path-color) 3%, transparent);
+  transition: transform 700ms var(--ease-smooth);
+}
+.home-path-card:hover .home-path-orbit { transform: scale(1.16) rotate(18deg); }
+
+/* Persistent mobile destinations, hidden automatically on immersive boards. */
+.mobile-command-dock {
+  padding-bottom: max(0.375rem, env(safe-area-inset-bottom));
+}
+.mobile-command-item {
+  display: flex;
+  min-width: 0;
+  min-height: 3.45rem;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-radius: 0.8rem;
+  color: var(--text-faint);
+  font-size: 0.61rem;
+  font-weight: 800;
+  transition: color 160ms ease, background 160ms ease, transform 160ms var(--ease-spring);
+}
+.mobile-command-item:active { transform: scale(0.94); }
+.mobile-command-item-active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, var(--bg-elev));
+}
+@media (max-width: 767px) {
+  body:has(.mobile-command-dock) main { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+  body:has(.mobile-command-dock) .website-page-dock { bottom: calc(5.7rem + env(safe-area-inset-bottom)); }
+}
+
+/* Site footer and universal recovery states. */
+.site-footer {
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 25rem),
+    color-mix(in srgb, var(--bg) 94%, black);
+}
+.site-footer-link {
+  width: fit-content;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition: color 150ms ease, transform 150ms var(--ease-out);
+}
+.site-footer-link:hover { color: var(--accent); transform: translateX(2px); }
+
+@keyframes loading-sweep {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(120%); }
+}
+@keyframes loading-rook-pulse {
+  0%, 100% { transform: translateY(0) rotate(0); box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 24%, transparent); }
+  50% { transform: translateY(-3px) rotate(-3deg); box-shadow: 0 0 0 9px transparent; }
+}
+.loading-stage { position: relative; box-shadow: var(--shadow); }
+.loading-rook { animation: loading-rook-pulse 1.8s ease-in-out infinite; }
+.loading-shimmer { position: relative; overflow: hidden; }
+.loading-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 10%, color-mix(in srgb, var(--text) 7%, transparent) 45%, transparent 80%);
+  animation: loading-sweep 1.5s ease-in-out infinite;
+}
+.recovery-card { position: relative; }
+.recovery-card::before {
+  content: "";
+  position: absolute;
+  width: 18rem;
+  height: 18rem;
+  top: -11rem;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bad) 13%, transparent);
+  filter: blur(30px);
+  pointer-events: none;
+}
+.not-found-board {
+  background:
+    radial-gradient(circle at center, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
+    var(--bg);
+}
+
 /* Respect reduced-motion — both the OS preference and our own toggle. */
 [data-motion="reduced"] *,
 [data-motion="reduced"] *::before,

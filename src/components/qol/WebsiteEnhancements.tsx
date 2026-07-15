@@ -195,6 +195,7 @@ export function WebsiteControls() {
           <ToggleRow checked={website.pageTools} label="Page toolkit" detail="Keep copy-link, fullscreen, print and note actions nearby." onChange={(value) => set("pageTools", value)} />
           <ToggleRow checked={website.pageNotes} label="Private page notes" detail="Autosave one local note for each route." onChange={(value) => set("pageNotes", value)} />
           <ToggleRow checked={website.routeAnnouncements} label="Page announcements" detail="Announce completed route changes to assistive technology." onChange={(value) => set("routeAnnouncements", value)} />
+          <ToggleRow checked={website.mobileDock} label="Mobile quick dock" detail="Keep Home, Games, Bots and Puzzles one tap away on smaller screens." onChange={(value) => set("mobileDock", value)} />
         </div>
       </div>
 

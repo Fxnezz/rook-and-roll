@@ -11,6 +11,7 @@ import {
   IconGrid,
   IconPuzzle,
   IconRobot,
+  IconRook,
   IconSettings,
   IconShield,
   IconSparkles,
@@ -51,6 +52,13 @@ const NAV = [
   { href: "/training", label: "Training", icon: IconTraining },
   { href: "/analysis", label: "Analysis", icon: IconSparkles },
   { href: "/leaderboard", label: "Leaderboard", icon: IconTrophy },
+];
+
+const MOBILE_NAV = [
+  { href: "/", label: "Home", icon: IconRook },
+  { href: "/play", label: "Games", icon: IconGrid },
+  { href: "/play/bot", label: "Bots", icon: IconRobot },
+  { href: "/puzzles", label: "Puzzles", icon: IconPuzzle },
 ];
 
 function isNavActive(pathname: string, href: string): boolean {
@@ -102,6 +110,18 @@ export function Header() {
   const { state: qol, openPalette } = useQol();
   const visibleNav = NAV.filter((item) => !qol.hiddenNav.includes(item.href));
   const isShieldOwner = isAdminOwnerEmail(session?.user?.email);
+  const currentRoute = pathname === "/"
+    ? "Home"
+    : NAV.find((item) => isNavActive(pathname, item.href))?.label
+      ?? pathname.split("/").filter(Boolean).at(-1)?.replaceAll("-", " ")
+      ?? "Sam's Arcade";
+  const showMobileDock = qol.website.mobileDock
+    && !pathname.startsWith("/play/")
+    && !pathname.startsWith("/watch/")
+    && !pathname.startsWith("/admin")
+    && !pathname.startsWith("/mod/")
+    && pathname !== "/login"
+    && pathname !== "/signup";
 
   const openSettings = (tab: SettingsTab = "motion") => {
     setSettingsTab(tab);
@@ -136,7 +156,17 @@ export function Header() {
           <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[0.58rem] text-[var(--text-faint)]">⌘K</kbd>
         </button>
 
+        <Link href="/play" className="group mb-4 flex items-center gap-3 rounded-xl border border-[var(--accent)]/25 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_14%,var(--panel)),var(--panel))] p-3 transition hover:border-[var(--accent)]/55 hover:shadow-[0_12px_32px_color-mix(in_srgb,var(--accent)_10%,transparent)]">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] shadow-[0_8px_20px_color-mix(in_srgb,var(--accent)_20%,transparent)]"><IconGrid width={19} height={19} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-black">Open the arcade</span>
+            <span className="block text-[0.68rem] font-semibold text-[var(--text-faint)]">73 games · 26 online</span>
+          </span>
+          <span className="text-[var(--accent)] transition-transform group-hover:translate-x-0.5">›</span>
+        </Link>
+
         <nav aria-label="Primary navigation" className="min-h-0 flex-1 overflow-y-auto flex flex-col gap-1">
+          <p className="mb-1 px-3 text-[0.6rem] font-black uppercase tracking-[0.16em] text-[var(--text-faint)]">Play and improve</p>
           {visibleNav.map((item) => {
             const active = isNavActive(pathname, item.href);
             return (
@@ -233,6 +263,7 @@ export function Header() {
             <Link href="/" className="min-w-0 transition-transform duration-200 active:scale-95">
               <Wordmark />
             </Link>
+            <span className="hidden min-w-0 border-l border-[var(--border)] pl-2 text-xs font-black capitalize text-[var(--text-muted)] min-[430px]:block">{currentRoute}</span>
           </div>
           <div className="flex items-center gap-0.5">
             <button className="btn btn-ghost !p-2" onClick={openPalette} aria-label="Find games and pages">
@@ -259,6 +290,24 @@ export function Header() {
           </div>
         </div>
       </header>
+
+      {showMobileDock && (
+        <nav className="mobile-command-dock fixed inset-x-2 bottom-2 z-50 grid grid-cols-5 rounded-2xl border border-[var(--border-strong)] bg-[var(--bg)]/94 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.5)] backdrop-blur-xl md:hidden" aria-label="Mobile quick navigation">
+          {MOBILE_NAV.map((item) => {
+            const active = item.href === "/" ? pathname === "/" : isNavActive(pathname, item.href);
+            return (
+              <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={`mobile-command-item ${active ? "mobile-command-item-active" : ""}`}>
+                <item.icon width={18} height={18} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+          <button type="button" onClick={openPalette} className="mobile-command-item" aria-label="Search games and pages">
+            <SearchIcon />
+            <span>Search</span>
+          </button>
+        </nav>
+      )}
 
       <SlideOver open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings Control Center" size="wide">
         {settingsLoaded && <SettingsPanel key={settingsTab} canModerate={isShieldOwner} initialTab={settingsTab} />}

@@ -118,10 +118,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.isAdmin = owner;
 
         if (session.user.id) {
-          const dbUser = await prisma.user.findUnique({ where: { id: session.user.id }, select: { sessionVersion: true } });
-          const currentVersion = dbUser?.sessionVersion ?? 0;
-          if (dbUser && currentVersion !== (token.sessionVersion as number | undefined)) {
-            // Stale token — this device was signed out remotely via "sign out of all other devices".
+          try {
+            const dbUser = await prisma.user.findUnique({ where: { id: session.user.id }, select: { sessionVersion: true } });
+            const currentVersion = dbUser?.sessionVersion ?? 0;
+            if (dbUser && currentVersion !== (token.sessionVersion as number | undefined)) {
+              // Stale token — this device was signed out remotely via "sign out of all other devices".
+              session.user.id = "";
+            }
+          } catch {
+            // Fail closed during a short database outage. Public pages stay usable,
+            // authenticated API calls degrade to signed-out responses, and the next
+            // successful request restores the session without corrupting the token.
             session.user.id = "";
           }
         }

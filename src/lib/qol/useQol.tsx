@@ -42,6 +42,7 @@ export interface WebsitePreferences {
   autoDataSaver: boolean;
   batterySaver: boolean;
   routeAnnouncements: boolean;
+  mobileDock: boolean;
 }
 
 export const DEFAULT_WEBSITE_PREFERENCES: WebsitePreferences = {
@@ -67,6 +68,7 @@ export const DEFAULT_WEBSITE_PREFERENCES: WebsitePreferences = {
   autoDataSaver: true,
   batterySaver: true,
   routeAnnouncements: true,
+  mobileDock: true,
 };
 
 export interface QolGameLink {
