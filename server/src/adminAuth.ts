@@ -1,4 +1,5 @@
 import { jwtVerify } from "jose";
+import { OWNER_EMAIL } from "./ownerAccount.js";
 
 /**
  * Verifies the short-lived admin token minted by the Next.js app
@@ -15,7 +16,7 @@ export async function verifyAdminToken(token: string | undefined): Promise<boole
   if (!k || !token) return false;
   try {
     const { payload } = await jwtVerify(token, k, { audience: "rr-admin" });
-    return payload.role === "admin";
+    return payload.role === "admin" && payload.email === OWNER_EMAIL;
   } catch {
     return false;
   }

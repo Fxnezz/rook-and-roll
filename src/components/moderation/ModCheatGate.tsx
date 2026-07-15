@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { ADMIN_KEY_SEQUENCE, ADMIN_KEY_SEQUENCE_RESET_MS } from "@/lib/admin/keySequence";
+import { isAdminOwnerEmail } from "@/lib/admin/owner";
 
 /**
  * Same Konami-code shortcut as the bot page's cheat panel and the admin
@@ -19,7 +20,7 @@ import { ADMIN_KEY_SEQUENCE, ADMIN_KEY_SEQUENCE_RESET_MS } from "@/lib/admin/key
  */
 export function ModCheatGate({ panelOpen, onOpen }: { panelOpen: boolean; onOpen: () => void }) {
   const { data: session } = useSession();
-  const isModerator = Boolean(session?.user?.isModerator);
+  const isModerator = isAdminOwnerEmail(session?.user?.email);
   const [revealed, setRevealed] = useState(false);
   const posRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { prisma, isDbConfigured } from "@/lib/db/prisma";
+import { isAdminOwnerEmail } from "@/lib/admin/owner";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ const NEW_ACCOUNT_DAYS = 7;
  */
 export async function GET(req: Request) {
   const session = await auth();
-  if (!session?.user?.isModerator) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  if (!isAdminOwnerEmail(session?.user?.email)) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   if (!isDbConfigured) return NextResponse.json({ error: "Not available" }, { status: 503 });
 
   const username = new URL(req.url).searchParams.get("username")?.trim();

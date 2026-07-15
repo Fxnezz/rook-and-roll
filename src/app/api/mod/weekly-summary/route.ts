@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { prisma, isDbConfigured } from "@/lib/db/prisma";
+import { isAdminOwnerEmail } from "@/lib/admin/owner";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,8 @@ export const runtime = "nodejs";
  */
 export async function POST(req: Request) {
   const session = await auth();
-  if (!session?.user?.isModerator) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const owner = session?.user;
+  if (!owner || !isAdminOwnerEmail(owner.email)) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   if (!isDbConfigured) return NextResponse.json({ error: "Not available" }, { status: 503 });
 
   let body: { actionsSinceLast?: number };
@@ -28,7 +30,7 @@ export async function POST(req: Request) {
 
   await prisma.notification.create({
     data: {
-      userId: session.user.id,
+      userId: owner.id,
       title: "Weekly moderation summary",
       body: `You took ${count} moderation action${count === 1 ? "" : "s"} (mutes, warnings, pauses, flags) in the past week. Thanks for helping keep games friendly.`,
       fromAdmin: false,

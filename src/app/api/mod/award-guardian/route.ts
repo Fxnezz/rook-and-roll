@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { prisma, isDbConfigured } from "@/lib/db/prisma";
+import { isAdminOwnerEmail } from "@/lib/admin/owner";
 
 export const runtime = "nodejs";
 
@@ -13,16 +14,17 @@ export const runtime = "nodejs";
  */
 export async function POST() {
   const session = await auth();
-  if (!session?.user?.isModerator) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const owner = session?.user;
+  if (!owner || !isAdminOwnerEmail(owner.email)) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   if (!isDbConfigured) return NextResponse.json({ error: "Not available" }, { status: 503 });
 
   const existing = await prisma.userAchievement.findFirst({
-    where: { userId: session.user.id, achievementId: "community_guardian" },
+    where: { userId: owner.id, achievementId: "community_guardian" },
   });
   if (existing) return NextResponse.json({ ok: true, awarded: false });
 
   await prisma.userAchievement.create({
-    data: { userId: session.user.id, achievementId: "community_guardian" },
+    data: { userId: owner.id, achievementId: "community_guardian" },
   });
   return NextResponse.json({ ok: true, awarded: true });
 }

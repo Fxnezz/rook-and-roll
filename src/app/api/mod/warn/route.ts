@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { prisma, isDbConfigured } from "@/lib/db/prisma";
+import { isAdminOwnerEmail } from "@/lib/admin/owner";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,8 @@ export const runtime = "nodejs";
  */
 export async function POST(req: Request) {
   const session = await auth();
-  if (!session?.user?.isModerator) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const owner = session?.user;
+  if (!owner || !isAdminOwnerEmail(owner.email)) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   if (!isDbConfigured) return NextResponse.json({ error: "Not available" }, { status: 503 });
 
   let body: { targetUsername?: string; reason?: string };
@@ -33,7 +35,7 @@ export async function POST(req: Request) {
 
   const target = await prisma.user.findUnique({ where: { username }, select: { id: true } });
   if (!target) return NextResponse.json({ ok: true, persisted: false });
-  if (target.id === session.user.id) {
+  if (target.id === owner.id) {
     return NextResponse.json({ error: "You can't warn yourself." }, { status: 400 });
   }
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma, isDbConfigured } from "@/lib/db/prisma";
 import { DbNotice } from "@/components/ui/DbNotice";
+import { requireAdminOwner } from "@/lib/admin/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +27,13 @@ function bucketByDay(dates: Date[], days: number) {
 }
 
 export default async function AdminAnalyticsPage() {
+  await requireAdminOwner();
   if (!isDbConfigured) return <DbNotice />;
 
-  const since14 = new Date(Date.now() - 14 * DAY);
-  const since30 = new Date(Date.now() - 30 * DAY);
-  const since1 = new Date(Date.now() - DAY);
+  const now = new Date();
+  const since14 = new Date(now.getTime() - 14 * DAY);
+  const since30 = new Date(now.getTime() - 30 * DAY);
+  const since1 = new Date(now.getTime() - DAY);
 
   const [users, signups, games, ratings, categories, dau, mau] = await Promise.all([
     prisma.user.count(),

@@ -13,6 +13,7 @@ import {
 } from "@/lib/online/protocol";
 import { IconShield, IconRefresh } from "@/components/ui/icons";
 import { usePinnedPlayers } from "@/lib/moderation/usePinnedPlayers";
+import { isAdminOwnerEmail } from "@/lib/admin/owner";
 
 type S = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -29,7 +30,7 @@ export default function ModLivePage() {
   const [connected, setConnected] = useState(false);
   const { isPinned, toggle } = usePinnedPlayers();
 
-  const isModerator = Boolean(session?.user?.isModerator);
+  const isModerator = isAdminOwnerEmail(session?.user?.email);
 
   useEffect(() => {
     if (!isModerator) return;

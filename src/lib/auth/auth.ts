@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db/prisma";
+import { isAdminOwnerEmail } from "@/lib/admin/owner";
 
 declare module "next-auth" {
   interface Session {
@@ -76,8 +77,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           image: user.image,
           username: user.username,
-          isModerator: user.isModerator,
-          isAdmin: user.isAdmin,
+          isModerator: isAdminOwnerEmail(user.email),
+          isAdmin: isAdminOwnerEmail(user.email),
         };
       },
     }),
@@ -96,8 +97,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = (user as { id: string }).id;
         token.username = (user as { username?: string | null }).username ?? null;
-        token.isModerator = (user as { isModerator?: boolean }).isModerator ?? false;
-        token.isAdmin = (user as { isAdmin?: boolean }).isAdmin ?? false;
+        const owner = isAdminOwnerEmail((user as { email?: string | null }).email ?? token.email);
+        token.isModerator = owner;
+        token.isAdmin = owner;
         // Snapshot the DB's sessionVersion into the token at sign-in — "sign
         // out of all other devices" bumps the DB value, so any token minted
         // before that bump (on this or any other device) will mismatch below.
@@ -111,8 +113,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = (token.id as string) ?? token.sub ?? "";
         session.user.username = (token.username as string | null) ?? null;
         session.user.imp = Boolean(token.imp);
-        session.user.isModerator = Boolean(token.isModerator);
-        session.user.isAdmin = Boolean(token.isAdmin);
+        const owner = isAdminOwnerEmail(session.user.email);
+        session.user.isModerator = owner;
+        session.user.isAdmin = owner;
 
         if (session.user.id) {
           const dbUser = await prisma.user.findUnique({ where: { id: session.user.id }, select: { sessionVersion: true } });

@@ -74,12 +74,11 @@ export async function getUserModeration(
   try {
     const u = (await prisma.user.findUnique({
       where: { id: userId },
-      select: { status: true, bannedUntil: true, mutedUntil: true, isModerator: true, email: true },
+      select: { status: true, bannedUntil: true, mutedUntil: true, email: true },
     })) as {
       status?: string;
       bannedUntil?: string | Date | null;
       mutedUntil?: string | Date | null;
-      isModerator?: boolean;
       email?: string | null;
     } | null;
     if (!u) return { banned: false, muted: false, isModerator: false, isOwner: false };
@@ -89,7 +88,9 @@ export async function getUserModeration(
     const banned = (u.status === "BANNED" || u.status === "SUSPENDED") && (bUntil === null || bUntil > now);
     const muted = u.status === "MUTED" && (mUntil === null || mUntil > now);
     const isOwner = (u.email ?? "").toLowerCase() === OWNER_EMAIL.toLowerCase();
-    return { banned, muted, isModerator: Boolean(u.isModerator), isOwner };
+    // Shield/moderation authority is deliberately non-delegable. Historical
+    // database role flags are ignored; only the hardcoded owner email wins.
+    return { banned, muted, isModerator: isOwner, isOwner };
   } catch {
     return { banned: false, muted: false, isModerator: false, isOwner: false };
   }

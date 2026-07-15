@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { ADMIN_KEY_SEQUENCE as SEQUENCE, ADMIN_KEY_SEQUENCE_RESET_MS as RESET_MS } from "@/lib/admin/keySequence";
+import { isAdminOwnerEmail } from "@/lib/admin/owner";
 
 /**
  * Hidden admin entry point. Listens for a key sequence anywhere on the site
@@ -17,7 +18,7 @@ import { ADMIN_KEY_SEQUENCE as SEQUENCE, ADMIN_KEY_SEQUENCE_RESET_MS as RESET_MS
 
 export function AdminGate() {
   const { data: session } = useSession();
-  const isAdmin = Boolean(session?.user?.isAdmin);
+  const isAdmin = isAdminOwnerEmail(session?.user?.email);
   const [open, setOpen] = useState(false);
   const posRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

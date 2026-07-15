@@ -73,9 +73,9 @@ model User {
   moderationReason String?
   bannedUntil      DateTime? // null while BANNED = permanent
   mutedUntil       DateTime? // can play but not chat until this passes
-  /** In-game moderator: can mute/warn/report from inside their own games. Distinct from the separate JWT admin god-mode. */
+  /** Legacy compatibility flag. Shield authority is derived from the exact owner email in application code. */
   isModerator      Boolean    @default(false)
-  /** Per-account /admin dashboard access. Independent of isModerator — see src/app/admin/admins/page.tsx for the owner-protected add/remove UI. */
+  /** Legacy compatibility flag. It cannot grant /admin access; see src/lib/admin/owner.ts. */
   isAdmin          Boolean    @default(false)
 
   // Notification & privacy preferences (src/app/account/page.tsx). Server-synced

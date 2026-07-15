@@ -1,13 +1,11 @@
 import "server-only";
 import { SignJWT, jwtVerify } from "jose";
+import { ADMIN_OWNER_EMAIL, isAdminOwnerEmail } from "@/lib/admin/owner";
 
 /**
- * Admin authentication is now account-based: `/admin` is gated by the
- * signed-in NextAuth session's `isAdmin` flag (checked in src/middleware.ts
- * and src/app/admin/layout.tsx), not a shared password. This file only keeps
- * the short-lived JWT mint/verify used to hand the realtime Socket.IO server
- * proof that a request came from a verified admin session — Socket.IO can't
- * read the Next.js session cookie directly, so a fresh token bridges the two.
+ * `/admin` is gated by the exact owner email in the proxy, DAL, and route
+ * handlers. This file keeps the short-lived JWT used to prove that same owner
+ * identity to Socket.IO, which cannot read the NextAuth cookie directly.
  */
 
 const AUDIENCE = "rr-admin";
@@ -19,9 +17,9 @@ function key(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-/** Mint a short-lived token for the realtime server's admin:hello handshake. Only ever called after guardAdmin() has confirmed the caller's session is isAdmin. */
+/** Mint a short-lived token after guardAdmin() confirms the exact owner. */
 export async function mintAdminToken(): Promise<string> {
-  return new SignJWT({ role: "admin" })
+  return new SignJWT({ role: "admin", email: ADMIN_OWNER_EMAIL })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${TTL_SECONDS}s`)
@@ -33,7 +31,7 @@ export async function verifyAdminToken(token: string | undefined | null): Promis
   if (!token) return false;
   try {
     const { payload } = await jwtVerify(token, key(), { audience: AUDIENCE });
-    return payload.role === "admin";
+    return payload.role === "admin" && isAdminOwnerEmail(typeof payload.email === "string" ? payload.email : null);
   } catch {
     return false;
   }

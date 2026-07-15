@@ -23,6 +23,7 @@ import { UserMenu } from "./UserMenu";
 import { NotificationBell } from "./NotificationBell";
 import { ActiveGameIndicator } from "./ActiveGameIndicator";
 import { useQol } from "@/lib/qol/useQol";
+import { isAdminOwnerEmail } from "@/lib/admin/owner";
 
 const SettingsPanel = dynamic(
   () => import("@/components/settings/SettingsPanel").then((mod) => mod.SettingsPanel),
@@ -33,6 +34,11 @@ const SettingsPanel = dynamic(
       </div>
     ),
   },
+);
+
+const ShieldCenter = dynamic(
+  () => import("@/components/admin/ShieldCenter").then((mod) => mod.ShieldCenter),
+  { ssr: false },
 );
 
 const NAV = [
@@ -88,10 +94,12 @@ export function Header() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [shieldOpen, setShieldOpen] = useState(false);
   const pathname = usePathname();
   const { data: session } = useSession();
   const { state: qol, online, openPalette, openCenter } = useQol();
   const visibleNav = NAV.filter((item) => !qol.hiddenNav.includes(item.href));
+  const isShieldOwner = isAdminOwnerEmail(session?.user?.email);
 
   const openSettings = () => {
     setSettingsLoaded(true);
@@ -152,16 +160,18 @@ export function Header() {
 
         <div className="mt-auto border-t border-[var(--border)] pt-3">
           <ActiveGameIndicator />
-          {session?.user?.isModerator && (
-            <Link
-              href="/mod/live"
+          {isShieldOwner && (
+            <button
+              type="button"
+              onClick={() => setShieldOpen(true)}
               className="mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-elev)] text-[var(--text-faint)]">
+              <span className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)]/12 text-[var(--accent)]">
                 <IconShield width={17} height={17} />
+                <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent)] px-0.5 text-[8px] font-black text-[var(--accent-contrast)]">50</span>
               </span>
-              Moderation
-            </Link>
+              Shield Center
+            </button>
           )}
           <button
             className="group mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
@@ -215,10 +225,11 @@ export function Header() {
             <button className="btn btn-ghost !p-2" onClick={openPalette} aria-label="Find games and pages">
               <SearchIcon />
             </button>
-            {session?.user?.isModerator && (
-              <Link href="/mod/live" className="btn btn-ghost !p-2" aria-label="Live games (moderator)" title="Live games">
+            {isShieldOwner && (
+              <button type="button" onClick={() => setShieldOpen(true)} className="btn btn-ghost relative !p-2" aria-label="Open owner Shield Center with 50 moderation tools" title="Shield Center · 50 tools">
                 <IconShield width={16} height={16} />
-              </Link>
+                <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent)] px-0.5 text-[8px] font-black text-[var(--accent-contrast)]">50</span>
+              </button>
             )}
             <ActiveGameIndicator />
             <NotificationBell />
@@ -237,8 +248,10 @@ export function Header() {
       </header>
 
       <SlideOver open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
-        {settingsLoaded && <SettingsPanel canModerate={Boolean(session?.user?.isModerator)} />}
+        {settingsLoaded && <SettingsPanel canModerate={isShieldOwner} />}
       </SlideOver>
+
+      {isShieldOwner && <ShieldCenter open={shieldOpen} onClose={() => setShieldOpen(false)} />}
 
       <SlideOver
         open={menuOpen}
@@ -302,6 +315,20 @@ export function Header() {
               </Link>
             </div>
           </div>
+        )}
+        {isShieldOwner && (
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              setShieldOpen(true);
+            }}
+            className="mx-3 mt-2 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-xl border border-[var(--accent)]/25 bg-[var(--accent)]/10 px-4 py-3 text-left text-sm font-bold text-[var(--accent)]"
+          >
+            <IconShield width={18} height={18} />
+            <span className="flex-1">Shield Center</span>
+            <span className="rounded-full bg-[var(--accent)] px-2 py-0.5 text-[10px] text-[var(--accent-contrast)]">50 tools</span>
+          </button>
         )}
       </SlideOver>
     </>
