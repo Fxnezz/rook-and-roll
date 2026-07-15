@@ -8,6 +8,7 @@ import { useSettings } from "@/lib/chess/useSettings";
 import { formatRelativeTime, useQol, type QolCenterView, type QolGame } from "@/lib/qol/useQol";
 import { QOL_STATIC_ROUTES } from "@/lib/qol/routes";
 import { QOL_IMPROVEMENT_COUNT, QOL_SYSTEM_COUNT } from "@/lib/qol/features";
+import { WebsiteControls, WebsiteEnhancementLayer } from "@/components/qol/WebsiteEnhancements";
 
 type CommandResult = {
   href: string;
@@ -19,6 +20,7 @@ type CommandResult = {
 
 const CENTER_TABS: Array<{ id: QolCenterView; label: string }> = [
   { id: "overview", label: "Overview" },
+  { id: "website", label: "Website" },
   { id: "activity", label: "Activity" },
   { id: "collections", label: "Collections" },
   { id: "focus", label: "Focus" },
@@ -391,7 +393,7 @@ function QualityCenter() {
               <button type="button" className="btn !justify-start !py-3 text-xs" onClick={() => pinRoute({ href: pathname, label: currentLabel, emoji: currentGame?.emoji, kind: currentGame ? "game" : "route" })}>{isPinned(pathname) ? "★ Unpin page" : "☆ Pin page"}</button>
               <button type="button" className="btn !justify-start !py-3 text-xs" onClick={() => navigator.clipboard.writeText(window.location.href)}>⧉ Copy link</button>
               {currentGame && <button type="button" className="btn !justify-start !py-3 text-xs" onClick={() => toggleFavorite(currentGame)}>{state.favorites[currentGame.links[0]?.href] ? "♥ Unfavorite" : "♡ Favorite game"}</button>}
-              <Link href="/quality-of-life" onClick={closeCenter} className="btn !justify-start !py-3 text-xs">100 What&apos;s New</Link>
+              <Link href="/quality-of-life" onClick={closeCenter} className="btn !justify-start !py-3 text-xs">200 What&apos;s New</Link>
             </section>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 text-center">
               <p className="text-2xl font-black text-[var(--accent)]">{QOL_IMPROVEMENT_COUNT}</p>
@@ -399,6 +401,8 @@ function QualityCenter() {
             </div>
           </>
         )}
+
+        {centerView === "website" && <WebsiteControls />}
 
         {centerView === "activity" && (
           <section>
@@ -603,6 +607,7 @@ export function QolGlobalLayer() {
       <CommandPalette />
       <QualityCenter />
       <ConnectionBanner />
+      <WebsiteEnhancementLayer />
     </>
   );
 }

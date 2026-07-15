@@ -13,7 +13,61 @@ import {
 import { usePathname } from "next/navigation";
 
 export type QolDensity = "compact" | "comfortable" | "spacious";
-export type QolCenterView = "overview" | "activity" | "collections" | "focus" | "customize" | "shortcuts";
+export type QolCenterView = "overview" | "website" | "activity" | "collections" | "focus" | "customize" | "shortcuts";
+export type WebsiteContentWidth = "narrow" | "standard" | "wide";
+export type WebsiteLineHeight = "compact" | "comfortable" | "relaxed";
+export type WebsiteLetterSpacing = "normal" | "wide";
+export type WebsiteBreakReminder = 0 | 25 | 45 | 60;
+
+export interface WebsitePreferences {
+  navigationProgress: boolean;
+  restoreScroll: boolean;
+  backToTop: boolean;
+  breadcrumbs: boolean;
+  pageTools: boolean;
+  pageNotes: boolean;
+  readingRuler: boolean;
+  focusSpotlight: boolean;
+  underlineLinks: boolean;
+  largeTargets: boolean;
+  solidSurfaces: boolean;
+  grayscale: boolean;
+  contentWidth: WebsiteContentWidth;
+  lineHeight: WebsiteLineHeight;
+  letterSpacing: WebsiteLetterSpacing;
+  calmVisuals: boolean;
+  sessionClock: boolean;
+  breakReminder: WebsiteBreakReminder;
+  lowDataMode: boolean;
+  autoDataSaver: boolean;
+  batterySaver: boolean;
+  routeAnnouncements: boolean;
+}
+
+export const DEFAULT_WEBSITE_PREFERENCES: WebsitePreferences = {
+  navigationProgress: true,
+  restoreScroll: true,
+  backToTop: true,
+  breadcrumbs: false,
+  pageTools: true,
+  pageNotes: true,
+  readingRuler: false,
+  focusSpotlight: false,
+  underlineLinks: false,
+  largeTargets: false,
+  solidSurfaces: false,
+  grayscale: false,
+  contentWidth: "standard",
+  lineHeight: "comfortable",
+  letterSpacing: "normal",
+  calmVisuals: false,
+  sessionClock: false,
+  breakReminder: 0,
+  lowDataMode: false,
+  autoDataSaver: true,
+  batterySaver: true,
+  routeAnnouncements: true,
+};
 
 export interface QolGameLink {
   href: string;
@@ -78,6 +132,8 @@ export interface QolPersistedState {
   commandUses: number;
   focusUses: number;
   lastSurpriseHref: string | null;
+  website: WebsitePreferences;
+  pageNotes: Record<string, string>;
 }
 
 interface QolContextValue {
@@ -115,6 +171,10 @@ interface QolContextValue {
   openCenter: (view?: QolCenterView) => void;
   closeCenter: () => void;
   setLastSurprise: (href: string) => void;
+  updateWebsite: (patch: Partial<WebsitePreferences>) => void;
+  setPageNote: (pathname: string, note: string) => void;
+  clearPageNote: (pathname: string) => void;
+  resetWebsitePreferences: () => void;
   importState: (value: unknown) => boolean;
   resetState: () => void;
 }
@@ -163,6 +223,8 @@ function defaultState(): QolPersistedState {
     commandUses: 0,
     focusUses: 0,
     lastSurpriseHref: null,
+    website: { ...DEFAULT_WEBSITE_PREFERENCES },
+    pageNotes: {},
   };
 }
 
@@ -195,6 +257,8 @@ function normalizeState(value: unknown): QolPersistedState | null {
     searchHistory: Array.isArray(source.searchHistory) ? source.searchHistory.slice(0, 8) : [],
     dailyGoal: { ...base.dailyGoal, ...(source.dailyGoal ?? {}) },
     focus: { ...base.focus, ...(source.focus ?? {}) },
+    website: { ...base.website, ...(source.website ?? {}) },
+    pageNotes: source.pageNotes && typeof source.pageNotes === "object" ? source.pageNotes : {},
     density: density === "compact" || density === "spacious" ? density : "comfortable",
     hiddenNav: Array.isArray(source.hiddenNav) ? source.hiddenNav : [],
     shortcutsEnabled: typeof source.shortcutsEnabled === "boolean" ? source.shortcutsEnabled : true,
@@ -482,6 +546,29 @@ export function QolProvider({ children }: { children: ReactNode }) {
   }, []);
   const closeCenter = useCallback(() => setCenterOpen(false), []);
   const setLastSurprise = useCallback((href: string) => setState((current) => ({ ...current, lastSurpriseHref: href })), []);
+  const updateWebsite = useCallback((patch: Partial<WebsitePreferences>) => {
+    setState((current) => ({ ...current, website: { ...current.website, ...patch } }));
+  }, []);
+  const setPageNote = useCallback((notePathname: string, note: string) => {
+    const normalizedPathname = notePathname.startsWith("/") ? notePathname : "/";
+    setState((current) => ({
+      ...current,
+      pageNotes: {
+        ...current.pageNotes,
+        [normalizedPathname]: note.slice(0, 2000),
+      },
+    }));
+  }, []);
+  const clearPageNote = useCallback((notePathname: string) => {
+    setState((current) => {
+      const pageNotes = { ...current.pageNotes };
+      delete pageNotes[notePathname];
+      return { ...current, pageNotes };
+    });
+  }, []);
+  const resetWebsitePreferences = useCallback(() => {
+    setState((current) => ({ ...current, website: { ...DEFAULT_WEBSITE_PREFERENCES } }));
+  }, []);
 
   const importState = useCallback((value: unknown) => {
     const normalized = normalizeState(value);
@@ -536,6 +623,10 @@ export function QolProvider({ children }: { children: ReactNode }) {
     openCenter,
     closeCenter,
     setLastSurprise,
+    updateWebsite,
+    setPageNote,
+    clearPageNote,
+    resetWebsitePreferences,
     importState,
     resetState,
   }), [
@@ -544,6 +635,7 @@ export function QolProvider({ children }: { children: ReactNode }) {
     centerView,
     clearRecent,
     clearSearchHistory,
+    clearPageNote,
     closeCenter,
     closePalette,
     createCollection,
@@ -561,6 +653,7 @@ export function QolProvider({ children }: { children: ReactNode }) {
     pinRoute,
     ready,
     registerGames,
+    resetWebsitePreferences,
     resetState,
     restoreNavigation,
     resumeFocus,
@@ -568,6 +661,7 @@ export function QolProvider({ children }: { children: ReactNode }) {
     setDensity,
     setInterfaceFocus,
     setLastSurprise,
+    setPageNote,
     setNavHidden,
     setShortcutsEnabled,
     startFocus,
@@ -575,6 +669,7 @@ export function QolProvider({ children }: { children: ReactNode }) {
     stopFocus,
     toggleCollectionGame,
     toggleFavorite,
+    updateWebsite,
   ]);
 
   return <QolContext.Provider value={value}>{children}</QolContext.Provider>;

@@ -5,7 +5,7 @@ import { QOL_FEATURES, QOL_IMPROVEMENT_COUNT, QOL_SYSTEM_COUNT, type QolFeatureG
 
 type Category = "All" | QolFeatureGroup["category"];
 
-const CATEGORIES: Category[] = ["All", "Navigate", "Discover", "Organize", "Focus", "Access", "Reliability"];
+const CATEGORIES: Category[] = ["All", "Navigate", "Discover", "Organize", "Focus", "Access", "Comfort", "Personalize", "Performance", "Reliability"];
 
 export function QolLedger() {
   const [query, setQuery] = useState("");
@@ -31,8 +31,8 @@ export function QolLedger() {
           <span className="chip mb-5 !border-[var(--good)]/30 !bg-[var(--good)]/10 !text-[var(--good)]">✓ Shipped and active</span>
           <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <h1 className="max-w-3xl text-4xl font-black tracking-[-0.04em] sm:text-6xl">100 quality-of-life improvements.</h1>
-              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--text-muted)]">Not a list of renamed buttons: {QOL_SYSTEM_COUNT} substantial player systems, each finished with three supporting refinements.</p>
+              <h1 className="max-w-3xl text-4xl font-black tracking-[-0.04em] sm:text-6xl">{QOL_IMPROVEMENT_COUNT} quality-of-life improvements.</h1>
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--text-muted)]">Not a list of renamed buttons: {QOL_SYSTEM_COUNT} substantial player and website systems, each finished with three supporting refinements.</p>
             </div>
             <dl className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-6 py-4 text-center"><dt className="text-xs font-bold uppercase tracking-wider text-[var(--text-faint)]">Systems</dt><dd className="mt-1 text-4xl font-black text-[var(--accent)]">{QOL_SYSTEM_COUNT}</dd></div>
@@ -82,7 +82,7 @@ export function QolLedger() {
           })}
         </div>
 
-        {!visible.length && <div className="panel grid min-h-56 place-items-center p-8 text-center"><div><p className="text-xl font-extrabold">No improvement matches that search.</p><button type="button" className="btn btn-primary mt-4" onClick={() => { setQuery(""); setCategory("All"); }}>Show all 100</button></div></div>}
+        {!visible.length && <div className="panel grid min-h-56 place-items-center p-8 text-center"><div><p className="text-xl font-extrabold">No improvement matches that search.</p><button type="button" className="btn btn-primary mt-4" onClick={() => { setQuery(""); setCategory("All"); }}>Show all {QOL_IMPROVEMENT_COUNT}</button></div></div>}
       </div>
     </div>
   );

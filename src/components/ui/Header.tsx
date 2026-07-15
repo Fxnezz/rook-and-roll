@@ -178,7 +178,7 @@ export function Header() {
             onClick={() => openCenter()}
           >
             <span className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-elev)] text-[var(--accent)]">
-              100
+              200
               <span className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full ring-2 ring-[var(--bg)] ${online ? "bg-[var(--good)]" : "bg-[var(--danger)]"}`} />
             </span>
             QOL Center
@@ -267,7 +267,7 @@ export function Header() {
                 openCenter();
               }}
             >
-              <span className="font-black text-[var(--accent)]">100</span> QOL Center
+              <span className="font-black text-[var(--accent)]">200</span> QOL Center
             </button>
             <button
               className="flex items-center justify-center gap-2 px-3 py-3.5 text-sm font-semibold text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"

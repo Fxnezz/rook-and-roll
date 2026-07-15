@@ -1,8 +1,10 @@
+import { WEBSITE_FEATURES } from "@/lib/qol/websiteFeatures";
+
 export interface QolFeatureGroup {
   id: string;
   title: string;
   summary: string;
-  category: "Navigate" | "Discover" | "Organize" | "Focus" | "Access" | "Reliability";
+  category: "Navigate" | "Discover" | "Organize" | "Focus" | "Access" | "Reliability" | "Comfort" | "Personalize" | "Performance";
   enhancements: readonly [string, string, string];
 }
 
@@ -10,7 +12,7 @@ export interface QolFeatureGroup {
  * The user's requested accounting model: one substantial system plus three
  * supporting refinements. 25 groups × 4 shipped improvements = 100.
  */
-export const QOL_FEATURES: readonly QolFeatureGroup[] = [
+const PLAYER_QOL_FEATURES: readonly QolFeatureGroup[] = [
   {
     id: "command-palette",
     title: "Global command palette",
@@ -181,12 +183,20 @@ export const QOL_FEATURES: readonly QolFeatureGroup[] = [
   },
   {
     id: "feature-ledger",
-    title: "100-feature What's New ledger",
-    summary: "See exactly what shipped, why it matters and how the 100-improvement count is composed.",
+    title: "Living What's New ledger",
+    summary: "See exactly what shipped, why it matters and how the 200-improvement count is composed.",
     category: "Reliability",
-    enhancements: ["Searchable feature list", "Category filters", "25-system and 100-improvement totals"],
+    enhancements: ["Searchable feature list", "Category filters", "50-system and 200-improvement totals"],
   },
 ] as const;
+
+export const QOL_FEATURES: readonly QolFeatureGroup[] = [
+  ...PLAYER_QOL_FEATURES,
+  ...WEBSITE_FEATURES,
+];
+
+export const QOL_ORIGINAL_IMPROVEMENT_COUNT = PLAYER_QOL_FEATURES.length * 4;
+export const QOL_WEBSITE_IMPROVEMENT_COUNT = WEBSITE_FEATURES.length * 4;
 
 export const QOL_SYSTEM_COUNT = QOL_FEATURES.length;
 export const QOL_IMPROVEMENT_COUNT = QOL_FEATURES.reduce(
