@@ -11,7 +11,14 @@ const CHESS_GAMES: GameCard[] = [
       { href: "/play/online", label: "Play Online" },
       { href: "/play/bot", label: "vs Bot" },
       { href: "/play/engine-lab", label: "Engine Arena" },
+      { href: "/play/variants", label: "Variant Workshop" },
     ],
+  },
+  {
+    title: "Variant Workshop",
+    blurb: "Chess960 plus original fantasy chess with Dragons, Wizards, custom armies, and a local variant bot.",
+    emoji: "🐉",
+    links: [{ href: "/play/variants", label: "Forge a Game" }],
   },
   {
     title: "Pass & Play",

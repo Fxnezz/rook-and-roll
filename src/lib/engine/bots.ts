@@ -15,8 +15,30 @@ export type BotTierId =
   | "zephyr"
   | "titan"
   | "omen"
+  | "maia3"
+  | "lc0"
+  | "lozza9"
+  | "komodo"
+  | "ethereal"
+  | "berserk"
+  | "seer"
+  | "velvet"
+  | "caissa"
+  | "dragon"
   | "samcore"
   | "sam";
+
+export type BotLevelId = "academy" | "club" | "master" | "elite";
+
+export interface BotLevelPreset {
+  id: BotLevelId;
+  label: string;
+  elo: number;
+  skill: number;
+  depth: number;
+  multipv: number;
+  temperature: number;
+}
 
 export interface BotTier {
   id: BotTierId;
@@ -48,7 +70,18 @@ export interface BotTier {
   engine?: "sam-core";
   /** Per-engine depth ceiling used by setup controls. */
   maxDepth?: number;
+  /** Selectable sub-bots that preserve the family's style at different strengths. */
+  levels?: BotLevelPreset[];
+  /** Honest engine-family label shown in setup. */
+  lineage?: string;
 }
+
+const FAMILY_LEVELS = (ratings: [number, number, number, number]): BotLevelPreset[] => [
+  { id: "academy", label: "Academy", elo: ratings[0], skill: 5, depth: 6, multipv: 5, temperature: 1.05 },
+  { id: "club", label: "Club", elo: ratings[1], skill: 11, depth: 10, multipv: 4, temperature: 0.48 },
+  { id: "master", label: "Master", elo: ratings[2], skill: 17, depth: 15, multipv: 3, temperature: 0.16 },
+  { id: "elite", label: "Elite", elo: ratings[3], skill: 20, depth: 21, multipv: 2, temperature: 0.02 },
+];
 
 export const BOT_TIERS: BotTier[] = [
   {
@@ -234,6 +267,166 @@ export const BOT_TIERS: BotTier[] = [
     personality: "normal",
   },
   {
+    id: "maia3",
+    name: "Maia 3",
+    fullName: "Maia 3 Human Lab",
+    flag: "🧬",
+    elo: 2450,
+    blurb: "A human-pattern arcade profile that values natural plans, practical pressure, and believable mistakes.",
+    skill: 18,
+    depth: 16,
+    multipv: 5,
+    temperature: 0.2,
+    accent: "#da72d2",
+    personality: "normal",
+    levels: FAMILY_LEVELS([700, 1250, 1850, 2450]),
+    lineage: "Human-style arcade profile",
+  },
+  {
+    id: "lc0",
+    name: "LC0",
+    fullName: "LCZero Neural Lab",
+    flag: "🌐",
+    elo: 2900,
+    blurb: "A neural-inspired positional profile that prefers initiative, long-term compensation, and active piece play.",
+    skill: 20,
+    depth: 22,
+    multipv: 3,
+    temperature: 0.03,
+    accent: "#5c9dff",
+    personality: "passive",
+    levels: FAMILY_LEVELS([900, 1500, 2200, 2900]),
+    lineage: "Neural-style arcade profile",
+  },
+  {
+    id: "lozza9",
+    name: "Lozza 9",
+    fullName: "Lozza 9 Web Tactician",
+    flag: "🕸️",
+    elo: 2650,
+    blurb: "A fast web-engine tribute profile with direct calculation, forcing moves, and sharp tactical choices.",
+    skill: 20,
+    depth: 20,
+    multipv: 3,
+    temperature: 0.05,
+    accent: "#ff8a52",
+    personality: "aggressive",
+    levels: FAMILY_LEVELS([800, 1400, 2050, 2650]),
+    lineage: "Tactical arcade profile",
+  },
+  {
+    id: "komodo",
+    name: "Komodo",
+    fullName: "Komodo Strategy Lab",
+    flag: "🐉",
+    elo: 2850,
+    blurb: "A patient strategic profile built around king safety, prophylaxis, and squeezing small advantages.",
+    skill: 20,
+    depth: 22,
+    multipv: 3,
+    temperature: 0.03,
+    accent: "#6dc96d",
+    personality: "passive",
+    levels: FAMILY_LEVELS([850, 1450, 2150, 2850]),
+    lineage: "Strategic arcade profile",
+  },
+  {
+    id: "ethereal",
+    name: "Ethereal",
+    fullName: "Ethereal Calculation Lab",
+    flag: "🔮",
+    elo: 2800,
+    blurb: "A clean calculating profile that balances tactical accuracy with calm positional conversion.",
+    skill: 20,
+    depth: 22,
+    multipv: 2,
+    temperature: 0.02,
+    accent: "#9b7cff",
+    personality: "normal",
+    levels: FAMILY_LEVELS([850, 1450, 2100, 2800]),
+    lineage: "Balanced arcade profile",
+  },
+  {
+    id: "berserk",
+    name: "Berserk",
+    fullName: "Berserk Attack Lab",
+    flag: "🔥",
+    elo: 2750,
+    blurb: "A fearless attacking profile that hunts open kings, sacrifices material, and keeps the initiative.",
+    skill: 20,
+    depth: 21,
+    multipv: 4,
+    temperature: 0.04,
+    accent: "#ff5e5e",
+    personality: "aggressive",
+    levels: FAMILY_LEVELS([750, 1350, 2050, 2750]),
+    lineage: "Attacking arcade profile",
+  },
+  {
+    id: "seer",
+    name: "Seer",
+    fullName: "Seer Deep Vision",
+    flag: "👁️",
+    elo: 2700,
+    blurb: "A quiet prediction profile that reduces counterplay before turning long-range plans into tactics.",
+    skill: 20,
+    depth: 21,
+    multipv: 3,
+    temperature: 0.04,
+    accent: "#51c5b7",
+    personality: "passive",
+    levels: FAMILY_LEVELS([800, 1400, 2050, 2700]),
+    lineage: "Prophylactic arcade profile",
+  },
+  {
+    id: "velvet",
+    name: "Velvet",
+    fullName: "Velvet Endgame Lab",
+    flag: "♜",
+    elo: 2600,
+    blurb: "A smooth technical profile that simplifies at the right moment and specializes in endgame conversion.",
+    skill: 20,
+    depth: 20,
+    multipv: 3,
+    temperature: 0.05,
+    accent: "#d695c8",
+    personality: "passive",
+    levels: FAMILY_LEVELS([750, 1300, 1950, 2600]),
+    lineage: "Technical arcade profile",
+  },
+  {
+    id: "caissa",
+    name: "Caissa",
+    fullName: "Caissa Classical Lab",
+    flag: "🏛️",
+    elo: 2750,
+    blurb: "A classical all-rounder with principled development, central control, and precise tactical timing.",
+    skill: 20,
+    depth: 21,
+    multipv: 3,
+    temperature: 0.03,
+    accent: "#e6bd55",
+    personality: "normal",
+    levels: FAMILY_LEVELS([800, 1400, 2100, 2750]),
+    lineage: "Classical arcade profile",
+  },
+  {
+    id: "dragon",
+    name: "Dragon",
+    fullName: "Dragonfire Engine Lab",
+    flag: "🐲",
+    elo: 2800,
+    blurb: "A dynamic profile tuned for opposite-side attacks, tactical storms, and dangerous imbalances.",
+    skill: 20,
+    depth: 22,
+    multipv: 4,
+    temperature: 0.03,
+    accent: "#e15c35",
+    personality: "aggressive",
+    levels: FAMILY_LEVELS([850, 1450, 2150, 2800]),
+    lineage: "Dynamic arcade profile",
+  },
+  {
     id: "samcore",
     name: "Sam Core",
     fullName: "Sam Core X1",
@@ -248,7 +441,8 @@ export const BOT_TIERS: BotTier[] = [
     accent: "#9b7cff",
     personality: "normal",
     engine: "sam-core",
-    maxDepth: 8,
+    maxDepth: 10,
+    lineage: "Original Sam Core engine",
   },
   {
     id: "sam",
@@ -263,8 +457,20 @@ export const BOT_TIERS: BotTier[] = [
     temperature: 0,
     accent: "#52d6c8",
     personality: "normal",
+    lineage: "Maximum-strength Stockfish 18 profile",
   },
 ];
+
+export function getLevelPreset(tier: BotTier, levelId: BotLevelId | undefined): BotLevelPreset | null {
+  if (!tier.levels?.length) return null;
+  return tier.levels.find((level) => level.id === levelId) ?? tier.levels[tier.levels.length - 1];
+}
+
+export function applyLevelPreset(tier: BotTier, levelId: BotLevelId | undefined): BotTier {
+  const level = getLevelPreset(tier, levelId);
+  if (!level) return tier;
+  return { ...tier, ...level, id: tier.id, name: tier.name, fullName: `${tier.name} ${level.label}` };
+}
 
 export function getTier(id: BotTierId): BotTier {
   return BOT_TIERS.find((t) => t.id === id) ?? BOT_TIERS[4];

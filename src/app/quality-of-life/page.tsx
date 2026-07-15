@@ -22,7 +22,7 @@ export default function QualityOfLifePage() {
           <span className="text-xs font-black uppercase tracking-[0.14em] text-[var(--accent)]">Latest · July 2026</span>
           <span className="chip !border-[var(--good)]/30 !bg-[var(--good)]/10 !text-[var(--good)]">Live</span>
         </div>
-        <h2 className="mt-3 text-xl font-black">Unified settings and smoother motion</h2>
+        <h2 className="mt-3 text-xl font-black">Bot families and the Variant Workshop</h2>
         <ul className="mt-3 grid gap-2 text-sm leading-6 text-[var(--text-muted)] sm:grid-cols-2">
           <li>◇ All adjustable website and QOL controls now live in Settings.</li>
           <li>✦ Motion Studio adds profiles, transitions and effect controls.</li>
@@ -33,6 +33,10 @@ export default function QualityOfLifePage() {
           <li>🧠 Sam Core X1 is a new original chess engine with independent search and evaluation—no Stockfish move calls.</li>
           <li>✨ Motion Studio 2 adds ambient worlds, cursor lighting, scroll reveals, perspective cards, particles, richer route transitions, and redesigned surfaces.</li>
           <li>♟ Engine Arena supports custom-position bot-vs-bot matches.</li>
+          <li>🧬 Ten engine-style bot families add 40 Academy-to-Elite sub-bots.</li>
+          <li>🧠 Sam Core gains deeper search, check extensions, late-move reductions, richer evaluation, and a larger opening book.</li>
+          <li>🐉 Variant Workshop adds playable Chess960, Dragon Chess, Archon Guard, Knightmare, and asymmetric Custom Forge armies.</li>
+          <li>⚒ Dragons, Archbishops, Chancellors, and Wizards have original artwork and complete movement rules.</li>
         </ul>
       </section>
 

@@ -405,7 +405,22 @@ function SamCore() {
   );
 }
 
-const PORTRAITS: Record<BotTierId, () => React.ReactNode> = {
+function EngineFamily() {
+  return (
+    <>
+      <path d="M9 64 Q12 45 32 45 Q52 45 55 64Z" fill="#17202c" stroke="rgba(255,255,255,.55)" strokeWidth="1" />
+      <path d="M19 43 L17 23 Q18 12 32 10 Q46 12 47 23 L45 43Z" fill="#202b39" stroke="rgba(255,255,255,.75)" strokeWidth="1.2" />
+      <path d="M22 19 L32 13 L42 19 L43 35 L36 42 H28 L21 35Z" fill="#2f3d4f" />
+      <path d="M24 27 L30 24 L29 31 L23 30Z" fill="#dffcff" />
+      <path d="M40 27 L34 24 L35 31 L41 30Z" fill="#dffcff" />
+      <path d="M27 36 H37" stroke="#dffcff" strokeWidth="1.7" strokeLinecap="round" />
+      <circle cx="32" cy="7" r="3.5" fill="#17202c" stroke="#fff" strokeWidth="1.2" />
+      <path d="M32 1 V4 M26.5 3.5 L29 5 M37.5 3.5 L35 5" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" />
+    </>
+  );
+}
+
+const PORTRAITS: Partial<Record<BotTierId, () => React.ReactNode>> = {
   pip: Pip,
   milo: Milo,
   nell: Nell,
@@ -436,7 +451,7 @@ export function BotAvatar({
   className?: string;
 }) {
   const tier = getTier(tierId);
-  const Portrait = PORTRAITS[tier.id] ?? PORTRAITS.cass;
+  const Portrait = PORTRAITS[tier.id] ?? EngineFamily;
   return (
     <span
       className={className}

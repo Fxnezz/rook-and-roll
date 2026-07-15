@@ -7,7 +7,7 @@ import { BotAvatar } from "@/components/bot/BotAvatar";
 import { useChessGame, START_FEN } from "@/lib/chess/useChessGame";
 import { useSettings } from "@/lib/chess/useSettings";
 import { getTheme } from "@/lib/chess/themes";
-import { BOT_TIERS, chooseMove, getTier, type BotTier, type BotTierId } from "@/lib/engine/bots";
+import { applyLevelPreset, BOT_TIERS, chooseMove, getTier, type BotLevelId, type BotTier, type BotTierId } from "@/lib/engine/bots";
 import { getPlayingEngine, configurePlayingEngine } from "@/lib/engine/playingEngine";
 import type { ChessEngine } from "@/lib/engine/stockfish";
 import { choosePersonalityMove, type BotPersonality } from "@/lib/cheats/botManipulation";
@@ -18,6 +18,7 @@ type ArenaSideConfig = {
   skill: number;
   multipv: number;
   style: BotPersonality;
+  levelId?: BotLevelId;
 };
 
 type ArenaConfig = {
@@ -39,20 +40,22 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Math.round(value)));
 }
 
-function sideFromTier(id: BotTierId): ArenaSideConfig {
-  const tier = getTier(id);
+function sideFromTier(id: BotTierId, levelId: BotLevelId = "elite"): ArenaSideConfig {
+  const base = getTier(id);
+  const tier = applyLevelPreset(base, levelId);
   return {
     id: tier.id,
     depth: tier.depth,
     skill: tier.skill,
     multipv: tier.multipv,
     style: tier.personality,
+    ...(base.levels?.length ? { levelId } : {}),
   };
 }
 
 function arenaTier(side: ArenaSideConfig): BotTier {
   return {
-    ...getTier(side.id),
+    ...applyLevelPreset(getTier(side.id), side.levelId),
     depth: side.depth,
     skill: side.skill,
     multipv: side.multipv,
@@ -111,7 +114,7 @@ export function EngineArena() {
         <span className="chip !border-[#52d6c8]/35 !bg-[#52d6c8]/10 !text-[#52d6c8]">⚡ Engine Arena</span>
         <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Any bot vs any bot</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-muted)]">
-          Build the matchup you want—from Pip vs Omen to Sam Core vs Sam Engine. Give each side its own strength, search depth, style, and candidate breadth.
+          Build the matchup you want—from Maia Academy vs Dragon Elite to Sam Core vs Sam Engine. Give each side its own family level, strength, search depth, style, and candidate breadth.
         </p>
       </header>
 
@@ -171,7 +174,8 @@ export function EngineArena() {
 }
 
 function ArenaSideCard({ color, side, onChange }: { color: Color; side: ArenaSideConfig; onChange: (side: ArenaSideConfig) => void }) {
-  const tier = getTier(side.id);
+  const baseTier = getTier(side.id);
+  const tier = applyLevelPreset(baseTier, side.levelId);
   const isSam = side.id === "sam";
   const accent = isSam ? "#52d6c8" : tier.accent;
   const maxDepth = tier.maxDepth ?? MAX_ENGINE_DEPTH;
@@ -192,6 +196,15 @@ function ArenaSideCard({ color, side, onChange }: { color: Color; side: ArenaSid
           {BOT_TIERS.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.fullName} · {candidate.ratingLabel ?? (candidate.id === "sam" ? "Max" : candidate.elo)}</option>)}
         </select>
       </label>
+
+      {baseTier.levels?.length ? (
+        <label className="mt-3 block">
+          <span className="label mb-1 block">Sub-bot level</span>
+          <select className="input w-full !py-2 text-sm" value={side.levelId ?? "elite"} onChange={(event) => onChange(sideFromTier(side.id, event.target.value as BotLevelId))}>
+            {baseTier.levels.map((level) => <option key={level.id} value={level.id}>{level.label} · {level.elo} rating</option>)}
+          </select>
+        </label>
+      ) : null}
 
       <label className="mt-4 block">
         <span className="mb-1 flex justify-between text-xs font-bold"><span>Search depth</span><span style={{ color: accent }}>{side.depth}</span></span>
@@ -215,10 +228,10 @@ function ArenaSideCard({ color, side, onChange }: { color: Color; side: ArenaSid
           </select>
         </label>
       </div>
-      <button type="button" className="mt-3 text-xs font-bold text-[var(--text-muted)] underline-offset-4 hover:underline" onClick={() => onChange(sideFromTier(side.id))}>
+      <button type="button" className="mt-3 text-xs font-bold text-[var(--text-muted)] underline-offset-4 hover:underline" onClick={() => onChange(sideFromTier(side.id, side.levelId))}>
         Restore {tier.name} defaults
       </button>
-      {tier.engine === "sam-core" && <p className="mt-2 text-[0.68rem] leading-5 text-[var(--text-faint)]">Original engine depth scale: 1–8. A safety clock may finish the last complete depth early.</p>}
+      {tier.engine === "sam-core" && <p className="mt-2 text-[0.68rem] leading-5 text-[var(--text-faint)]">Original engine depth scale: 1–10. A safety clock may finish the last complete depth early.</p>}
     </div>
   );
 }
@@ -335,7 +348,7 @@ function ArenaMatch({ config, onExit }: { config: ArenaConfig; onExit: () => voi
 }
 
 function EnginePlayer({ side, color, active }: { side: ArenaSideConfig; color: Color; active: boolean }) {
-  const tier = getTier(side.id);
+  const tier = applyLevelPreset(getTier(side.id), side.levelId);
   return (
     <div className={`flex items-center gap-3 rounded-xl border px-3 py-2 transition ${active ? "border-[#52d6c8]/50 bg-[#52d6c8]/8" : "border-[var(--border)] bg-[var(--panel)]"}`}>
       <BotAvatar tierId={side.id} size={38} rounded="full" />

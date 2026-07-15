@@ -35,9 +35,28 @@ type RootLine = { move: string; score: number; pv: string[] };
 class SearchTimeout extends Error {}
 
 const START_KEY = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -";
-const OPENING_BOOK: Record<string, string[]> = {
-  [START_KEY]: ["e2e4", "d2d4", "g1f3", "c2c4"],
-};
+function buildOpeningBook() {
+  const book: Record<string, string[]> = { [START_KEY]: ["e2e4", "d2d4", "g1f3", "c2c4"] };
+  const add = (moves: string[], replies: string[]) => {
+    const game = new Chess();
+    for (const move of moves) game.move({ from: move.slice(0, 2) as never, to: move.slice(2, 4) as never, promotion: move[4] as PieceSymbol | undefined });
+    book[positionKey(game)] = replies;
+  };
+  add(["e2e4"], ["e7e5", "c7c5", "e7e6", "c7c6"]);
+  add(["d2d4"], ["g8f6", "d7d5", "e7e6"]);
+  add(["c2c4"], ["e7e5", "g8f6", "c7c5"]);
+  add(["g1f3"], ["d7d5", "g8f6", "c7c5"]);
+  add(["e2e4", "e7e5"], ["g1f3", "f1c4", "b1c3"]);
+  add(["e2e4", "c7c5"], ["g1f3", "b1c3", "c2c3"]);
+  add(["d2d4", "g8f6"], ["c2c4", "g1f3", "c1f4"]);
+  add(["d2d4", "d7d5"], ["c2c4", "g1f3", "c1f4"]);
+  add(["e2e4", "e7e5", "g1f3"], ["b8c6", "g8f6"]);
+  add(["e2e4", "c7c5", "g1f3"], ["d7d6", "b8c6", "e7e6"]);
+  add(["d2d4", "g8f6", "c2c4"], ["e7e6", "g7g6", "c7c5"]);
+  return book;
+}
+
+const OPENING_BOOK = buildOpeningBook();
 
 function uci(move: Move) {
   return `${move.from}${move.to}${move.promotion ?? ""}`;
@@ -82,6 +101,7 @@ function evaluateWhite(game: Chess) {
   const bishops: Record<Color, number> = { w: 0, b: 0 };
   const rooks: { color: Color; file: number }[] = [];
   const kings: Partial<Record<Color, { row: number; file: number }>> = {};
+  const pieces: Record<Color, { type: PieceSymbol; row: number; file: number }[]> = { w: [], b: [] };
   let nonPawnMaterial = 0;
 
   for (let row = 0; row < 8; row++) {
@@ -93,6 +113,7 @@ function evaluateWhite(game: Chess) {
       if (piece.type === "b") bishops[piece.color] += 1;
       if (piece.type === "r") rooks.push({ color: piece.color, file });
       if (piece.type === "k") kings[piece.color] = { row, file };
+      pieces[piece.color].push({ type: piece.type, row, file });
     }
   }
 
@@ -128,6 +149,20 @@ function evaluateWhite(game: Chess) {
     }
     if (bishops[color] >= 2) score += sign * 28;
 
+    // Connected pawns, space, development, and coordinated pieces make Sam
+    // Core much less material-greedy than the first version.
+    for (const pawn of ownPawns) {
+      const connected = ownPawns.some((other) => Math.abs(other.file - pawn.file) === 1 && Math.abs(other.row - pawn.row) <= 1);
+      if (connected) score += sign * 5;
+      const advance = color === "w" ? 6 - pawn.row : pawn.row - 1;
+      if (pawn.file >= 2 && pawn.file <= 5 && advance >= 2) score += sign * (4 + advance * 2);
+    }
+    const homeRow = color === "w" ? 7 : 0;
+    const developedMinors = pieces[color].filter((piece) => (piece.type === "n" || piece.type === "b") && piece.row !== homeRow).length;
+    score += sign * developedMinors * 9;
+    const queen = pieces[color].find((piece) => piece.type === "q");
+    if (queen && queen.row !== homeRow && developedMinors < 2 && !endgame) score -= sign * 16;
+
     const king = kings[color];
     if (king && !endgame) {
       const shieldRow = king.row + (color === "w" ? -1 : 1);
@@ -139,6 +174,7 @@ function evaluateWhite(game: Chess) {
         }
       }
       score += sign * shield * 12;
+      if (king.file === 2 || king.file === 6) score += sign * 18;
     }
   }
 
@@ -147,6 +183,8 @@ function evaluateWhite(game: Chess) {
     const ownPawn = pawns[rook.color].some((pawn) => pawn.file === rook.file);
     const enemyPawn = pawns[rook.color === "w" ? "b" : "w"].some((pawn) => pawn.file === rook.file);
     if (!ownPawn) score += sign * (enemyPawn ? 12 : 24);
+    const seventhRow = rook.color === "w" ? 1 : 6;
+    if (pieces[rook.color].some((piece) => piece.type === "r" && piece.file === rook.file && piece.row === seventhRow)) score += sign * 18;
   }
 
   return score + (game.turn() === "w" ? 10 : -10);
@@ -240,9 +278,22 @@ function negamax(game: Chess, depth: number, alpha: number, beta: number, ply: n
   let bestScore = -INF;
   let bestMove: string | undefined;
   const moves = orderedMoves(game, cached?.bestMove, ply, context);
-  for (const move of moves) {
+  for (let index = 0; index < moves.length; index++) {
+    const move = moves[index];
     game.move({ from: move.from, to: move.to, promotion: move.promotion });
-    const score = -negamax(game, depth - 1, -beta, -alpha, ply + 1, context);
+    const forcing = move.isCapture() || move.isPromotion() || game.isCheck();
+    const extension = game.isCheck() && depth >= 2 && ply < 8 ? 1 : 0;
+    const fullDepth = depth - 1 + extension;
+    let score: number;
+    if (index === 0) {
+      score = -negamax(game, fullDepth, -beta, -alpha, ply + 1, context);
+    } else {
+      const reduction = !forcing && depth >= 4 && index >= 4 ? 1 : 0;
+      score = -negamax(game, Math.max(0, fullDepth - reduction), -alpha - 1, -alpha, ply + 1, context);
+      if (score > alpha && (reduction > 0 || score < beta)) {
+        score = -negamax(game, fullDepth, -beta, -alpha, ply + 1, context);
+      }
+    }
     game.undo();
     if (score > bestScore) {
       bestScore = score;
@@ -256,6 +307,7 @@ function negamax(game: Chess, depth: number, alpha: number, beta: number, ply: n
   }
 
   const flag: TableEntry["flag"] = bestScore <= originalAlpha ? "upper" : bestScore >= beta ? "lower" : "exact";
+  if (context.table.size > 180_000) context.table.clear();
   context.table.set(key, { depth, score: bestScore, flag, bestMove });
   return bestScore;
 }
@@ -318,15 +370,15 @@ function bookResult(fen: string, multipv: number): GoResult | null {
 }
 
 export function searchSamCore(fen: string, options: SearchOptions): GoResult {
-  const targetDepth = Math.max(1, Math.min(8, Math.round(options.depth)));
+  const targetDepth = Math.max(1, Math.min(10, Math.round(options.depth)));
   const skill = Math.max(0, Math.min(20, Math.round(options.skill)));
-  const effectiveDepth = Math.max(1, targetDepth - Math.floor((20 - skill) / 5));
+  const effectiveDepth = Math.max(1, targetDepth - Math.floor((20 - skill) / 6));
   const multipv = Math.max(1, Math.min(5, Math.round(options.multipv)));
   const book = bookResult(fen, multipv);
   if (book) return book;
 
   const startedAt = performance.now();
-  const budget = options.movetime ?? Math.min(5000, 250 + effectiveDepth * 425);
+  const budget = options.movetime ?? Math.min(8500, 300 + effectiveDepth * 650);
   const context: SearchContext = {
     startedAt,
     deadline: startedAt + Math.max(100, budget),

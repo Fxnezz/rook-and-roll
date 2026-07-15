@@ -29,7 +29,7 @@ import { playSound, primeAudio, vibrateForMove } from "@/lib/chess/sound";
 import { announcePosition } from "@/lib/chess/announce";
 import { getEngine } from "@/lib/engine/stockfish";
 import { configurePlayingEngine, getPlayingEngine } from "@/lib/engine/playingEngine";
-import { getTier, chooseMove } from "@/lib/engine/bots";
+import { applyLevelPreset, getTier, chooseMove } from "@/lib/engine/bots";
 import { analyzeGame, type GameAnalysis } from "@/lib/engine/analysis";
 import { NAG_SYMBOLS, parseAnnotation, formatAnnotation, type NagSymbol } from "@/lib/chess/nag";
 import { IconFlag, IconPlus, IconSparkles } from "@/components/ui/icons";
@@ -112,7 +112,7 @@ function BotGame({
   const { settings } = useSettings();
   const theme = getTheme(settings.boardTheme);
   const tier = useMemo(() => {
-    const base = getTier(config.tierId);
+    const base = applyLevelPreset(getTier(config.tierId), config.botLevelId);
     return {
       ...base,
       depth: config.engineDepth ?? base.depth,
@@ -120,7 +120,7 @@ function BotGame({
       multipv: config.engineMultipv ?? base.multipv,
       personality: config.enginePersonality ?? base.personality,
     };
-  }, [config.engineDepth, config.engineMultipv, config.enginePersonality, config.engineSkill, config.tierId]);
+  }, [config.botLevelId, config.engineDepth, config.engineMultipv, config.enginePersonality, config.engineSkill, config.tierId]);
   const tc = getTimeControl(config.timeControlId);
 
   // A plain useState (not derived from config) so the "swap sides" cheat can flip

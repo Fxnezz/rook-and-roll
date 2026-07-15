@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Color } from "chess.js";
-import { BOT_TIERS, type BotTierId } from "@/lib/engine/bots";
+import { applyLevelPreset, BOT_TIERS, type BotLevelId, type BotTierId } from "@/lib/engine/bots";
 import {
   TIME_CONTROLS,
   type TimeControl,
@@ -26,6 +26,7 @@ const BOT_GROUPS = [
   { title: "Intermediate", detail: "850–1300", ids: ["beau", "cass", "rosa", "wren"] },
   { title: "Advanced", detail: "1450–1900", ids: ["dex", "ilsa", "vera", "zephyr"] },
   { title: "Master", detail: "2150+", ids: ["titan", "omen"] },
+  { title: "Engine Families", detail: "10 profiles · 4 levels each", ids: ["maia3", "lc0", "lozza9", "komodo", "ethereal", "berserk", "seer", "velvet", "caissa", "dragon"] },
   { title: "Engine Lab", detail: "Original engine + maximum strength", ids: ["samcore", "sam"] },
 ] as const;
 
@@ -47,6 +48,7 @@ export interface BotConfig {
   engineSkill?: number;
   engineMultipv?: number;
   enginePersonality?: BotPersonality;
+  botLevelId?: BotLevelId;
 }
 
 export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
@@ -64,6 +66,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
   const [engineSkill, setEngineSkill] = useState(20);
   const [engineMultipv, setEngineMultipv] = useState(1);
   const [enginePersonality, setEnginePersonality] = useState<BotPersonality>("normal");
+  const [botLevelId, setBotLevelId] = useState<BotLevelId>("elite");
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -72,6 +75,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
       const requested = BOT_TIERS.find((tier) => tier.id === requestedTier);
       if (requested) {
         setTierId(requested.id);
+        if (requested.levels?.length) setBotLevelId("elite");
         if (requested.id === "sam" || requested.id === "samcore") {
           setEngineDepth(requested.depth);
           setEngineSkill(requested.skill);
@@ -158,20 +162,27 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
     const botColor: Color = color === "w" ? "b" : "w";
     const deepLinkedFen = new URLSearchParams(window.location.search).get("fen") ?? undefined;
     const startFen = deepLinkedFen ?? oddsStartFen(botColor, oddsId) ?? undefined;
+    const baseTier = BOT_TIERS.find((tier) => tier.id === tierId) ?? BOT_TIERS[4];
+    const playingTier = applyLevelPreset(baseTier, botLevelId);
     onStart({
       tierId,
       color,
       timeControlId: tcId,
       showEval,
       startFen,
-      ...(tierId === "sam" || tierId === "samcore" ? { engineDepth, engineSkill, engineMultipv, enginePersonality } : {}),
+      ...(baseTier.levels?.length
+        ? { botLevelId, engineDepth: playingTier.depth, engineSkill: playingTier.skill, engineMultipv: playingTier.multipv, enginePersonality: playingTier.personality }
+        : tierId === "sam" || tierId === "samcore"
+          ? { engineDepth, engineSkill, engineMultipv, enginePersonality }
+          : {}),
     });
   };
 
   const selectTier = (id: BotTierId) => {
     setTierId(id);
+    const tier = BOT_TIERS.find((candidate) => candidate.id === id)!;
+    if (tier.levels?.length) setBotLevelId("elite");
     if (id === "sam" || id === "samcore") {
-      const tier = BOT_TIERS.find((candidate) => candidate.id === id)!;
       setEngineDepth(tier.depth);
       setEngineSkill(tier.skill);
       setEngineMultipv(tier.multipv);
@@ -181,7 +192,8 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
 
   const grouped: Record<string, TimeControl[]> = {};
   for (const tc of TIME_CONTROLS) (grouped[tc.category] ??= []).push(tc);
-  const selectedTier = BOT_TIERS.find((tier) => tier.id === tierId) ?? BOT_TIERS[4];
+  const selectedBaseTier = BOT_TIERS.find((tier) => tier.id === tierId) ?? BOT_TIERS[4];
+  const selectedTier = applyLevelPreset(selectedBaseTier, botLevelId);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
@@ -191,7 +203,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-black leading-tight tracking-tight">Choose your opponent</h1>
-          <p className="text-sm text-[var(--text-muted)]">15 opponents, including original Sam Core X1 and maximum-strength Sam Engine S1</p>
+          <p className="text-sm text-[var(--text-muted)]">25 bot families · 40 new level branches · original Sam Core</p>
         </div>
         <button
           onClick={() => setShowRules(true)}
@@ -219,7 +231,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
           </div>
           <div className="hidden text-right sm:block">
             <IconRobot width={30} height={30} className="ml-auto text-[var(--accent)]" />
-            <p className="mt-2 text-xs font-bold uppercase tracking-wider text-[var(--text-faint)]">{selectedTier.engine === "sam-core" ? "Original Sam Core" : selectedTier.id === "sam" ? "Sam Engine S1" : "Stockfish tuned"}</p>
+            <p className="mt-2 text-xs font-bold uppercase tracking-wider text-[var(--text-faint)]">{selectedTier.lineage ?? (selectedTier.engine === "sam-core" ? "Original Sam Core" : selectedTier.id === "sam" ? "Sam Engine S1" : "Stockfish tuned")}</p>
           </div>
         </div>
 
@@ -266,13 +278,38 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
             </div>
           ))}
 
+          {selectedBaseTier.levels?.length ? (
+            <section className="rounded-2xl border border-[var(--accent)]/30 bg-[var(--accent)]/8 p-4 sm:p-5">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--accent)]">Sub-bot ladder</p>
+                  <h3 className="mt-1 text-lg font-black">Choose the {selectedBaseTier.name} level</h3>
+                  <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">The personality stays the same while calculation, mistake rate, depth, and rating scale up.</p>
+                </div>
+                <span className="chip">Arcade profile · not an official engine build</span>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {selectedBaseTier.levels.map((level) => {
+                  const active = botLevelId === level.id;
+                  return (
+                    <button key={level.id} type="button" onClick={() => setBotLevelId(level.id)} aria-pressed={active} className={`rounded-xl border p-3 text-left transition ${active ? "border-[var(--accent)] bg-[var(--bg-elev-2)] shadow-[0_0_0_1px_var(--accent)]" : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]"}`}>
+                      <span className="block text-sm font-black">{level.label}</span>
+                      <span className="mt-1 block text-xs font-bold text-[var(--accent)]">{level.elo} rating</span>
+                      <span className="mt-1 block text-[0.68rem] text-[var(--text-faint)]">Depth {level.depth} · skill {level.skill}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
           {(tierId === "sam" || tierId === "samcore") && (
             <section className={`rounded-2xl border p-4 sm:p-5 ${tierId === "samcore" ? "border-[#9b7cff]/35 bg-[#9b7cff]/8" : "border-[#52d6c8]/35 bg-[#52d6c8]/8"}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className={`text-xs font-black uppercase tracking-[0.14em] ${tierId === "samcore" ? "text-[#bda8ff]" : "text-[#52d6c8]"}`}>{tierId === "samcore" ? "Built from the ground up" : "Engine controls"}</p>
                   <h3 className="mt-1 text-lg font-black">Tune {selectedTier.fullName}</h3>
-                  <p className="mt-1 max-w-xl text-xs leading-5 text-[var(--text-muted)]">{tierId === "samcore" ? "No Stockfish move selection. X1 runs original iterative search, tactical evaluation, transposition memory and move ordering. Its depth scale is 1–8." : "Sam defaults to depth 26 and supports depth 40. Searches above 30 can take substantially longer, especially on phones."}</p>
+                  <p className="mt-1 max-w-xl text-xs leading-5 text-[var(--text-muted)]">{tierId === "samcore" ? "No Stockfish move selection. X1 now runs principal-variation search, late-move reductions, check extensions, a wider opening book, deeper positional evaluation, and a 1–10 depth scale." : "Sam defaults to depth 26 and supports depth 40. Searches above 30 can take substantially longer, especially on phones."}</p>
                 </div>
                 <a href="/play/engine-lab" className="btn !py-2 text-xs">Open any-bot arena →</a>
               </div>
@@ -442,6 +479,8 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
       <button className="btn btn-primary btn-cta mt-6 w-full" onClick={start}>
         Play {selectedTier.name}
       </button>
+
+      <a href="/play/variants" className="btn mt-3 w-full">🐉 Open Chess960 &amp; Variant Workshop</a>
 
       {showRules && <ChessRulesModal onClose={() => setShowRules(false)} />}
     </div>

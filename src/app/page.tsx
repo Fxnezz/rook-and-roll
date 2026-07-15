@@ -165,7 +165,7 @@ export default function Home() {
                   </span>
                   <span className="text-left">
                     <span className="block text-lg leading-tight">Play a Bot</span>
-                    <span className="block text-xs font-semibold text-[var(--text-faint)]">15 opponents · beginner to engine lab</span>
+                    <span className="block text-xs font-semibold text-[var(--text-faint)]">25 bot families · 40 level branches · engine lab</span>
                   </span>
                 </span>
                 <span className="flex shrink-0 -space-x-2" aria-hidden="true">
