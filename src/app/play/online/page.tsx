@@ -91,6 +91,7 @@ function useGuestIdentity(): { userId: string; username: string } {
 export default function OnlinePage() {
   const { data: session } = useSession();
   const { settings } = useSettings();
+  const searchParams = useSearchParams();
   const theme = getTheme(settings.boardTheme);
   const game = useChessGame();
   const { snapshot } = game;
@@ -101,21 +102,31 @@ export default function OnlinePage() {
   const [rated, setRated] = useState(false);
   const isCustomTc = tc.id.startsWith("custom:");
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("rr.customTimeControl.online.v1");
-      if (raw) {
-        const parsed = JSON.parse(raw) as { minutes?: number; increment?: number };
-        if (typeof parsed.minutes === "number") setCustomMinutes(clampCustomMinutes(parsed.minutes));
-        if (typeof parsed.increment === "number") setCustomIncrement(clampCustomIncrementSec(parsed.increment));
+    const frame = requestAnimationFrame(() => {
+      try {
+        const raw = localStorage.getItem("rr.customTimeControl.online.v1");
+        if (raw) {
+          const parsed = JSON.parse(raw) as { minutes?: number; increment?: number };
+          if (typeof parsed.minutes === "number") setCustomMinutes(clampCustomMinutes(parsed.minutes));
+          if (typeof parsed.increment === "number") setCustomIncrement(clampCustomIncrementSec(parsed.increment));
+        }
+        const requestedTc = searchParams.get("tc");
+        const lastTcId = localStorage.getItem("rr.lastTimeControl.online.v1");
+        if (requestedTc && (TIME_CONTROLS.some((item) => item.id === requestedTc) || requestedTc.startsWith("custom:"))) {
+          setTc(getTimeControl(requestedTc));
+        } else if (lastTcId) {
+          setTc(getTimeControl(lastTcId));
+        }
+        const requestedRated = searchParams.get("rated");
+        const lastRated = localStorage.getItem("rr.lastRated.online.v1");
+        if (requestedRated != null) setRated(requestedRated === "true");
+        else if (lastRated != null) setRated(lastRated === "true");
+      } catch {
+        /* ignore */
       }
-      const lastTcId = localStorage.getItem("rr.lastTimeControl.online.v1");
-      if (lastTcId) setTc(getTimeControl(lastTcId));
-      const lastRated = localStorage.getItem("rr.lastRated.online.v1");
-      if (lastRated != null) setRated(lastRated === "true");
-    } catch {
-      /* ignore */
-    }
-  }, []);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [searchParams]);
   // Remember the lobby's last choices so returning players don't have to reselect every time.
   useEffect(() => {
     try {
@@ -226,7 +237,6 @@ export default function OnlinePage() {
   }, []);
 
   // Arriving from an accepted friend challenge: join that room directly instead of the lobby.
-  const searchParams = useSearchParams();
   const directRoom = searchParams.get("room");
   const joinedDirectRoom = useRef(false);
   useEffect(() => {

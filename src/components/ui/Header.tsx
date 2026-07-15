@@ -44,6 +44,7 @@ const ShieldCenter = dynamic(
 );
 
 const NAV = [
+  { href: "/chess", label: "Chess Home", icon: IconRook },
   { href: "/play/online", label: "Play Chess", icon: IconChess },
   { href: "/play/bot", label: "Bots", icon: IconRobot },
   { href: "/play/local", label: "Pass & Play", icon: IconUsers },
@@ -56,8 +57,8 @@ const NAV = [
 
 const MOBILE_NAV = [
   { href: "/", label: "Home", icon: IconRook },
+  { href: "/chess", label: "Chess", icon: IconChess },
   { href: "/play", label: "Games", icon: IconGrid },
-  { href: "/play/bot", label: "Bots", icon: IconRobot },
   { href: "/puzzles", label: "Puzzles", icon: IconPuzzle },
 ];
 

@@ -9,6 +9,7 @@ export interface QolStaticRoute {
 
 export const QOL_STATIC_ROUTES: readonly QolStaticRoute[] = [
   { href: "/", label: "Home", description: "Sam's Arcade home", emoji: "⌂", shortcut: "Alt H" },
+  { href: "/chess", label: "Chess Home", description: "Personal play, progress, review and training dashboard", emoji: "♜", sidebar: true },
   { href: "/play/online", label: "Play Chess", description: "Live chess matchmaking", emoji: "♟", sidebar: true, shortcut: "Alt O" },
   { href: "/play/bot", label: "Chess Bots", description: "Personality-driven opponents", emoji: "🤖", sidebar: true, shortcut: "Alt B" },
   { href: "/play/local", label: "Pass & Play", description: "Two players on one screen", emoji: "♜", sidebar: true },

@@ -6,6 +6,7 @@ import { Logo } from "@/components/ui/Logo";
 import { openSettingsPanel } from "@/lib/settings/openSettings";
 
 const EXPLORE_LINKS = [
+  { href: "/chess", label: "Chess Home" },
   { href: "/play", label: "All games" },
   { href: "/play/bot", label: "Chess bots" },
   { href: "/puzzles", label: "Puzzles" },
