@@ -112,7 +112,7 @@ export function ReplayViewer({
   );
 
   return (
-    <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+    <div className="print-area flex flex-col gap-5 lg:flex-row lg:items-start">
       <div className="flex w-full flex-col gap-2 lg:max-w-[min(72vh,640px)]">
         {label(orientation === "w" ? blackName : whiteName)}
         <Board
@@ -145,8 +145,15 @@ export function ReplayViewer({
             canBack={canBack}
             canForward={canForward}
           />
+          <button
+            className="btn !ml-auto !text-xs"
+            onClick={() => window.print()}
+            title="Print the board and move list"
+          >
+            Print
+          </button>
           <a
-            className="btn ml-auto !text-xs"
+            className="btn !text-xs"
             href={`/play/bot?fen=${encodeURIComponent(snapshot.fen)}`}
             title="Open the position you're viewing as a bot game"
           >

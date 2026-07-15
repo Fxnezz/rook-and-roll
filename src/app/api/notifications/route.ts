@@ -15,23 +15,29 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const beforeParam = url.searchParams.get("before");
   const before = beforeParam ? new Date(beforeParam) : null;
+  const type = url.searchParams.get("type");
+  const now = new Date();
+  const notSnoozed = { OR: [{ snoozedUntil: null }, { snoozedUntil: { lt: now } }] };
 
-  const [page, unread] = await Promise.all([
+  const [page, unread, me] = await Promise.all([
     prisma.notification.findMany({
       where: {
         userId: session.user.id,
+        ...notSnoozed,
+        ...(type ? { type: type as never } : {}),
         ...(before && !Number.isNaN(before.getTime()) ? { createdAt: { lt: before } } : {}),
       },
       orderBy: { createdAt: "desc" },
       take: PAGE_SIZE + 1,
     }),
     // Total unread is independent of pagination — always reflects the whole inbox.
-    prisma.notification.count({ where: { userId: session.user.id, readAt: null } }),
+    prisma.notification.count({ where: { userId: session.user.id, readAt: null, ...notSnoozed } }),
+    prisma.user.findUnique({ where: { id: session.user.id }, select: { doNotDisturb: true } }),
   ]);
 
   const hasMore = page.length > PAGE_SIZE;
   const notifications = hasMore ? page.slice(0, PAGE_SIZE) : page;
-  return NextResponse.json({ notifications, unread, hasMore });
+  return NextResponse.json({ notifications, unread, hasMore, doNotDisturb: me?.doNotDisturb ?? false });
 }
 
 /** Mark all as read. */

@@ -5,13 +5,15 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Wordmark } from "./Logo";
-import { IconSettings, IconShield } from "./icons";
+import { IconSettings, IconShield, IconVolume, IconVolumeOff } from "./icons";
 import { SlideOver } from "./SlideOver";
 import { UserMenu } from "./UserMenu";
 import { NotificationBell } from "./NotificationBell";
 import { ActiveGameIndicator } from "./ActiveGameIndicator";
+import { Breadcrumbs } from "./Breadcrumbs";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { NAV, isNavActive } from "./nav";
+import { useSettings } from "@/lib/chess/useSettings";
 
 function HamburgerIcon({ open }: { open: boolean }) {
   return (
@@ -43,12 +45,19 @@ export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { settings, update } = useSettings();
 
   // close the mobile menu on navigation
   useEffect(() => setMenuOpen(false), [pathname]);
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--bg)]/80 backdrop-blur">
+      <a
+        href="#settings-trigger"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-[var(--accent)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--accent-contrast)]"
+      >
+        Skip to settings
+      </a>
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4">
         <div className="flex items-center gap-4">
           {/* Mobile menu button */}
@@ -72,8 +81,20 @@ export function Header() {
             </Link>
           )}
           <ActiveGameIndicator />
+          <button
+            className="btn btn-ghost relative !p-2"
+            onClick={() => update({ soundEnabled: !settings.soundEnabled })}
+            aria-label={settings.soundEnabled ? "Mute all sound" : "Unmute sound"}
+            title={settings.soundEnabled ? "Mute all sound" : "Unmute sound"}
+          >
+            {settings.soundEnabled ? <IconVolume width={16} height={16} /> : <IconVolumeOff width={16} height={16} />}
+            {!settings.soundEnabled && settings.soundMutedIndicator && (
+              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[var(--bad)]" aria-hidden="true" />
+            )}
+          </button>
           <NotificationBell />
           <button
+            id="settings-trigger"
             className="group btn btn-ghost !p-2"
             onClick={() => setSettingsOpen(true)}
             aria-label="Settings"
@@ -85,6 +106,7 @@ export function Header() {
           <UserMenu />
         </div>
       </div>
+      <Breadcrumbs />
 
       <SlideOver open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
         <SettingsPanel canModerate={Boolean(session?.user?.isModerator)} />

@@ -5,6 +5,20 @@ import type { GameStatus } from "@/lib/chess/useChessGame";
 import { IconRook } from "@/components/ui/icons";
 import { BotAvatar } from "@/components/bot/BotAvatar";
 import type { BotTierId } from "@/lib/engine/bots";
+import type { GameAnalysis } from "@/lib/engine/analysis";
+import type { Color } from "chess.js";
+
+/** Picks the player's single costliest mistake/blunder from an already-computed
+ * analysis (never triggers a fresh engine run — only shown when analysis already
+ * ran, e.g. via the "auto-analyze on game end" setting). */
+function pickTip(analysis: GameAnalysis | null | undefined, yourColor: Color | undefined): string | null {
+  if (!analysis || !yourColor) return null;
+  const yours = analysis.moves.filter((m) => m.color === yourColor && (m.quality === "blunder" || m.quality === "mistake"));
+  if (yours.length === 0) return null;
+  const worst = yours.reduce((a, b) => (b.cpLoss > a.cpLoss ? b : a));
+  const moveNum = Math.ceil(worst.ply / 2);
+  return `Your costliest slip was ${worst.san} on move ${moveNum} (${worst.quality}) — worth a look in the review.`;
+}
 
 export function GameOverModal({
   status,
@@ -15,6 +29,8 @@ export function GameOverModal({
   onRematch,
   series,
   botTierId,
+  analysis,
+  yourColor,
 }: {
   status: GameStatus;
   onNewGame: () => void;
@@ -28,7 +44,12 @@ export function GameOverModal({
   series?: { wins: number; losses: number; draws: number };
   /** Bot games only — swaps the generic rook icon for the opponent's own portrait. */
   botTierId?: BotTierId;
+  /** Already-computed analysis (e.g. from auto-analyze), used to surface a one-line coaching tip. Never triggers analysis itself. */
+  analysis?: GameAnalysis | null;
+  /** Which side you played — needed to pick a tip from your own moves. */
+  yourColor?: Color;
 }) {
+  const tip = pickTip(analysis, yourColor);
   if (!status.over) return null;
   const headline =
     status.result === "1/2-1/2"
@@ -68,6 +89,9 @@ export function GameOverModal({
           <p className="mt-2 text-xs text-[var(--text-faint)]">
             Series: {series.wins}W {series.losses}L {series.draws}D
           </p>
+        )}
+        {tip && (
+          <p className="mt-3 rounded-md bg-[var(--bg-elev)] p-2 text-left text-xs text-[var(--text-muted)]">💡 {tip}</p>
         )}
         <div className="mt-5 flex gap-2">
           <button className="btn flex-1" onClick={onReview}>

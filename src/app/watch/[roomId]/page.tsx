@@ -407,6 +407,7 @@ export default function WatchPage({ params }: { params: Promise<{ roomId: string
                   isModerator={showModUI}
                   onModMute={() => !targetMuted && toggleMute()}
                   onModWarn={() => sendWarn("Please follow the chat guidelines.")}
+                  isSpectatorView
                 />
               )}
             </div>

@@ -194,3 +194,28 @@ export const IconTarget = (p: SVGProps<SVGSVGElement>) => (
     <circle cx="12" cy="12" r="1" fill="currentColor" />
   </svg>
 );
+export const IconSearch = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="M21 21l-4.3-4.3" />
+  </svg>
+);
+export const IconShuffle = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M3 6h3.5a4 4 0 0 1 3.3 1.8L14 15a4 4 0 0 0 3.3 1.8H20M3 18h3.5a4 4 0 0 0 3.3-1.8L11 12" />
+    <path d="M17.5 4l3 3-3 3M17.5 21l3-3-3-3" />
+  </svg>
+);
+export const IconList = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M8 6h13M8 12h13M8 18h13" />
+    <path d="M3 6h.01M3 12h.01M3 18h.01" />
+  </svg>
+);
+export const IconHistory = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M3 3v5h5" />
+    <path d="M3.05 13a9 9 0 1 0 .5-4.5L3 8" />
+    <path d="M12 7v5l4 2" />
+  </svg>
+);

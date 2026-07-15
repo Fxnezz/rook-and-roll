@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { ensureOpenings } from "@/lib/openings/heal";
 import { getTier, type BotTierId } from "@/lib/engine/bots";
@@ -61,6 +62,13 @@ export interface OpponentStat {
   avgOpponentRating: number | null;
 }
 
+export interface BotRecordStat {
+  botTier: BotTierId;
+  wins: number;
+  losses: number;
+  draws: number;
+}
+
 export interface ProfileExtras {
   colorStats: { white: ColorStats; black: ColorStats };
   categoryStats: CategoryStat[];
@@ -78,6 +86,10 @@ export interface ProfileExtras {
   toughestLoss: RatedGameHighlight | null;
   /** Per-opponent record, most-played first (recent games window). */
   opponentsTable: OpponentStat[];
+  /** Per-bot-tier win/loss/draw record, full history (not windowed). */
+  botRecords: BotRecordStat[];
+  /** Sum of per-ply think time across bot/local games only — online rated games don't record this, so this is a partial "time played" figure, not a true lifetime total. */
+  partialTimePlayedMs: number;
 }
 
 const emptyColorStats = (): ColorStats => ({ wins: 0, losses: 0, draws: 0 });
@@ -125,8 +137,19 @@ export async function computeProfileExtras(userId: string): Promise<ProfileExtra
   heatmapStart.setHours(0, 0, 0, 0);
   heatmapStart.setDate(heatmapStart.getDate() - 89);
 
-  const [whiteGroups, blackGroups, terminationGroups, longestGame, fastestCheckmate, recentGames, heatmapGames, openingGames] =
-    await Promise.all([
+  const [
+    whiteGroups,
+    blackGroups,
+    terminationGroups,
+    longestGame,
+    fastestCheckmate,
+    recentGames,
+    heatmapGames,
+    openingGames,
+    botGroupsWhite,
+    botGroupsBlack,
+    moveTimeGames,
+  ] = await Promise.all([
       prisma.game.groupBy({
         by: ["result", "category"],
         where: { whiteId: userId, NOT: { result: "ABORTED" } },
@@ -184,6 +207,23 @@ export async function computeProfileExtras(userId: string): Promise<ProfileExtra
           whiteRatingBefore: true,
           blackRatingBefore: true,
         },
+      }),
+      // Full-history (unbounded) per-bot-tier record — separate from the 300-game windowed opponentsTable.
+      prisma.game.groupBy({
+        by: ["botTier", "result"],
+        where: { whiteId: userId, opponentType: "BOT", NOT: { result: "ABORTED" } },
+        _count: true,
+      }),
+      prisma.game.groupBy({
+        by: ["botTier", "result"],
+        where: { blackId: userId, opponentType: "BOT", NOT: { result: "ABORTED" } },
+        _count: true,
+      }),
+      // moveTimes is only ever populated for bot/local games — this is an honest partial
+      // "time played" figure, not a true lifetime total (online games aren't included).
+      prisma.game.findMany({
+        where: { OR: orFilter, moveTimes: { not: Prisma.JsonNull } },
+        select: { moveTimes: true },
       }),
     ]);
 
@@ -326,6 +366,28 @@ export async function computeProfileExtras(userId: string): Promise<ProfileExtra
     .sort((a, b) => b.games - a.games)
     .slice(0, 6);
 
+  const botMap = new Map<string, BotRecordStat>();
+  const bumpBot = (tier: string | null, result: string, asWhite: boolean, count: number) => {
+    if (!tier) return;
+    const entry = botMap.get(tier) ?? { botTier: tier as BotTierId, wins: 0, losses: 0, draws: 0 };
+    if (result === "DRAW") entry.draws += count;
+    else if ((result === "WHITE_WINS") === asWhite) entry.wins += count;
+    else entry.losses += count;
+    botMap.set(tier, entry);
+  };
+  for (const g of botGroupsWhite) bumpBot(g.botTier, g.result, true, g._count);
+  for (const g of botGroupsBlack) bumpBot(g.botTier, g.result, false, g._count);
+  const botRecords = Array.from(botMap.values()).sort((a, b) => b.wins + b.losses + b.draws - (a.wins + a.losses + a.draws));
+
+  let partialTimePlayedMs = 0;
+  for (const g of moveTimeGames) {
+    if (Array.isArray(g.moveTimes)) {
+      for (const t of g.moveTimes) {
+        if (typeof t === "number") partialTimePlayedMs += t;
+      }
+    }
+  }
+
   return {
     colorStats,
     categoryStats,
@@ -339,5 +401,7 @@ export async function computeProfileExtras(userId: string): Promise<ProfileExtra
     bestWin,
     toughestLoss,
     opponentsTable,
+    botRecords,
+    partialTimePlayedMs,
   };
 }

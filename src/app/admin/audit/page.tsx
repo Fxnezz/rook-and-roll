@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 interface Entry {
   id: string;
@@ -15,8 +16,9 @@ interface Entry {
 }
 
 export default function AdminAuditPage() {
+  const searchParams = useSearchParams();
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [action, setAction] = useState("");
+  const [action, setAction] = useState(searchParams.get("action") ?? "");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async (a: string) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   useSettings,
   type AnimationSpeed,
@@ -9,11 +9,14 @@ import {
   type CoordinateStyle,
   type UiTextScale,
   type DefaultGameTab,
+  type HighlightStyle,
+  type UiFontFamily,
+  type MoveAnnounceVerbosity,
 } from "@/lib/chess/useSettings";
-import { playSound, setSoundPack, type SoundName, type SoundPack } from "@/lib/chess/sound";
+import { playSound, setSoundPack, setNotifySoundPack, type SoundName, type SoundPack } from "@/lib/chess/sound";
 import { BOARD_THEMES } from "@/lib/chess/themes";
 import { PIECE_SETS, Piece } from "@/lib/pieces";
-import { IconPalette, IconVolume, IconVolumeOff, IconSparkles, IconMotion, IconRefresh, IconCheck, IconShield, IconDownload } from "../ui/icons";
+import { IconPalette, IconVolume, IconVolumeOff, IconSparkles, IconMotion, IconRefresh, IconCheck, IconShield, IconDownload, IconSearch } from "../ui/icons";
 
 const SOUND_PACKS: { id: SoundPack; label: string }[] = [
   { id: "classic", label: "Classic" },
@@ -63,6 +66,30 @@ const ARROW_SWATCHES = ["#f2b544", "#e5604d", "#5aa8e0", "#5bbf7a", "#c98bd8"];
 const COORDINATE_STYLES: { id: CoordinateStyle; label: string }[] = [
   { id: "inside", label: "Inside" },
   { id: "outside", label: "Outside" },
+];
+
+const HIGHLIGHT_STYLES: { id: HighlightStyle; label: string }[] = [
+  { id: "solid", label: "Solid" },
+  { id: "pulse", label: "Pulse" },
+];
+
+const UI_FONT_FAMILIES: { id: UiFontFamily; label: string }[] = [
+  { id: "system", label: "System" },
+  { id: "serif", label: "Serif" },
+  { id: "mono", label: "Mono" },
+];
+
+const MOVE_ANNOUNCE_VERBOSITY: { id: MoveAnnounceVerbosity; label: string }[] = [
+  { id: "minimal", label: "Minimal" },
+  { id: "standard", label: "Standard" },
+  { id: "detailed", label: "Detailed" },
+];
+
+const TOAST_POSITIONS: { id: "bottom-center" | "top-center" | "bottom-right" | "top-right"; label: string }[] = [
+  { id: "bottom-center", label: "Bottom" },
+  { id: "top-center", label: "Top" },
+  { id: "bottom-right", label: "Bottom-right" },
+  { id: "top-right", label: "Top-right" },
 ];
 
 const UI_TEXT_SCALES: { id: UiTextScale; label: string }[] = [
@@ -171,6 +198,16 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
   const { settings, update, reset } = useSettings();
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [importErr, setImportErr] = useState<string | null>(null);
+  const [settingsQuery, setSettingsQuery] = useState("");
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    const q = settingsQuery.trim().toLowerCase();
+    Object.values(sectionRefs.current).forEach((el) => {
+      if (!el) return;
+      el.style.display = !q || (el.textContent ?? "").toLowerCase().includes(q) ? "" : "none";
+    });
+  }, [settingsQuery]);
 
   const exportSettings = () => {
     const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" });
@@ -209,8 +246,34 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
 
   return (
     <div className="flex flex-col gap-6 p-4">
+      <div className="relative">
+        <IconSearch width={14} height={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
+        <input
+          className="input !pl-8 text-xs"
+          placeholder="Search settings…"
+          value={settingsQuery}
+          onChange={(e) => setSettingsQuery(e.target.value)}
+        />
+      </div>
+      <div ref={(el) => { sectionRefs.current.appearance = el; }}>
       <Section icon={<IconPalette width={14} height={14} />} title="Appearance" i={0}>
-        <span className="mb-2 mt-3 block text-xs font-semibold text-[var(--text-muted)]">Board theme</span>
+        <Toggle
+          label="Confetti celebrations"
+          description="Show confetti on arcade wins and other celebratory moments"
+          checked={settings.confettiEnabled}
+          onChange={(v) => update({ confettiEnabled: v })}
+        />
+        <Toggle
+          label="Compact UI"
+          description="Tighter padding and spacing across panels, for fitting more on screen"
+          checked={settings.compactUi}
+          onChange={(v) => update({ compactUi: v })}
+        />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Toast position</span>
+        <Segmented options={TOAST_POSITIONS} value={settings.toastPosition} onChange={(v) => update({ toastPosition: v })} />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Board theme</span>
         <div className="grid grid-cols-2 gap-2">
           {BOARD_THEMES.map((t) => {
             const active = settings.boardTheme === t.id;
@@ -341,8 +404,34 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
             </label>
           </div>
         )}
-      </Section>
 
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Last-move highlight</span>
+        <Segmented options={HIGHLIGHT_STYLES} value={settings.highlightStyle} onChange={(v) => update({ highlightStyle: v })} />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Coordinate label color</span>
+        <div className="flex items-center gap-2">
+          <button
+            aria-label="Coordinate color: theme default"
+            onClick={() => update({ coordinateColor: null })}
+            className="hover-lift flex h-7 items-center rounded-full border border-[var(--border)] px-2 text-xs transition-transform"
+            style={{
+              boxShadow: !settings.coordinateColor ? "0 0 0 2px var(--panel), 0 0 0 4px var(--accent)" : "none",
+            }}
+          >
+            Auto
+          </button>
+          <input
+            type="color"
+            value={settings.coordinateColor ?? "#000000"}
+            onChange={(e) => update({ coordinateColor: e.target.value })}
+            className="h-7 w-7 cursor-pointer rounded-full border border-[var(--border)] bg-transparent p-0"
+            aria-label="Custom coordinate label color"
+          />
+        </div>
+      </Section>
+      </div>
+
+      <div ref={(el) => { sectionRefs.current.sound = el; }}>
       <div className="h-px bg-[var(--border)]" />
 
       <Section icon={settings.soundEnabled ? <IconVolume width={14} height={14} /> : <IconVolumeOff width={14} height={14} />} title="Sound" i={1}>
@@ -397,6 +486,29 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
           onChange={(v) => update({ chatSound: v })}
         />
 
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Notification sound</span>
+        <Segmented
+          options={SOUND_PACKS}
+          value={settings.notifySoundPack}
+          onChange={(v) => {
+            setNotifySoundPack(v);
+            update({ notifySoundPack: v });
+            playSound("notify");
+          }}
+        />
+
+        <Toggle
+          label="Desktop notifications"
+          description="Show an OS-level notification when a new alert arrives while this tab is in the background"
+          checked={settings.desktopNotifications}
+          onChange={(v) => {
+            update({ desktopNotifications: v });
+            if (v && typeof Notification !== "undefined" && Notification.permission === "default") {
+              Notification.requestPermission();
+            }
+          }}
+        />
+
         <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Preview sounds</span>
         <div className="flex flex-wrap gap-1.5">
           {SOUND_PREVIEWS.map((s) => (
@@ -410,10 +522,24 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
           ))}
         </div>
       </Section>
+      </div>
 
+      <div ref={(el) => { sectionRefs.current.gameplay = el; }}>
       <div className="h-px bg-[var(--border)]" />
 
       <Section icon={<IconSparkles width={14} height={14} />} title="Gameplay" i={2}>
+        <Toggle
+          label="Bot banter"
+          description="Show a short speech-bubble line from the bot on captures, checks, and checkmates"
+          checked={settings.botBanter}
+          onChange={(v) => update({ botBanter: v })}
+        />
+        <Toggle
+          label="Adaptive bot difficulty"
+          description="Nudge bot skill up or down a notch on rematch, based on your recent win/loss streak against it"
+          checked={settings.adaptiveBotDifficulty}
+          onChange={(v) => update({ adaptiveBotDifficulty: v })}
+        />
         <Toggle label="Show coordinates" checked={settings.showCoordinates} onChange={(v) => update({ showCoordinates: v })} />
         <Toggle label="Show legal moves" checked={settings.showLegalMoves} onChange={(v) => update({ showLegalMoves: v })} />
         <Toggle label="Highlight last move" checked={settings.highlightLastMove} onChange={(v) => update({ highlightLastMove: v })} />
@@ -498,6 +624,12 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
           checked={settings.unlimitedTakebacks}
           onChange={(v) => update({ unlimitedTakebacks: v })}
         />
+        <Toggle
+          label="Practice mode (arcade & mini-games)"
+          description="Scores from Snake, Tetris, and every other mini-game won't be recorded as a personal best or submitted to leaderboards while this is on."
+          checked={settings.arcadePracticeMode}
+          onChange={(v) => update({ arcadePracticeMode: v })}
+        />
 
         <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Low-time warning threshold</span>
         <Slider
@@ -523,7 +655,9 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
           onChange={(v) => update({ defaultGameTab: v })}
         />
       </Section>
+      </div>
 
+      <div ref={(el) => { sectionRefs.current.accessibility = el; }}>
       <div className="h-px bg-[var(--border)]" />
 
       <Section icon={<IconMotion width={14} height={14} />} title="Accessibility" i={3}>
@@ -573,10 +707,68 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
           checked={settings.flashOnSound}
           onChange={(v) => update({ flashOnSound: v })}
         />
+        <Toggle
+          label="Muted-sound indicator"
+          description="Show a small red dot on the header mute button when sound is off"
+          checked={settings.soundMutedIndicator}
+          onChange={(v) => update({ soundMutedIndicator: v })}
+        />
+        <Toggle
+          label="Infinite scroll"
+          description="Auto-load more items when you scroll near the bottom of a list, instead of clicking Load more"
+          checked={settings.infiniteScrollLists}
+          onChange={(v) => update({ infiniteScrollLists: v })}
+        />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">UI font</span>
+        <Segmented options={UI_FONT_FAMILIES} value={settings.uiFontFamily} onChange={(v) => update({ uiFontFamily: v })} />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Line height</span>
+        <Slider value={settings.uiLineHeight} min={1.2} max={2} step={0.1} onChange={(v) => update({ uiLineHeight: v })} />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Move announcement detail</span>
+        <Segmented options={MOVE_ANNOUNCE_VERBOSITY} value={settings.moveAnnounceVerbosity} onChange={(v) => update({ moveAnnounceVerbosity: v })} />
+
+        <Toggle
+          label="Reduce transparency"
+          description="Replace blurred/translucent panels with solid backgrounds"
+          checked={settings.reduceTransparency}
+          onChange={(v) => update({ reduceTransparency: v })}
+        />
+        <Toggle
+          label="Underline links"
+          description="Always underline inline links, not just on hover"
+          checked={settings.underlineLinks}
+          onChange={(v) => update({ underlineLinks: v })}
+        />
+        <Toggle
+          label="Larger touch targets"
+          description="Increases the minimum size of buttons and inputs"
+          checked={settings.largeTouchTargets}
+          onChange={(v) => update({ largeTouchTargets: v })}
+        />
+        <Toggle
+          label="Reduce blinking indicators"
+          description="Stops in-app blinking indicators (e.g. the bot-thinking dots) from animating"
+          checked={settings.reducedCaretBlink}
+          onChange={(v) => update({ reducedCaretBlink: v })}
+        />
+
+        <span className="mb-2 mt-4 block text-xs font-semibold text-[var(--text-muted)]">Focus outline color</span>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={settings.focusOutlineColor}
+            onChange={(e) => update({ focusOutlineColor: e.target.value })}
+            className="h-7 w-7 cursor-pointer rounded-full border border-[var(--border)] bg-transparent p-0"
+            aria-label="Custom focus outline color"
+          />
+        </div>
       </Section>
+      </div>
 
       {canModerate && (
-        <>
+        <div ref={(el) => { sectionRefs.current.moderation = el; }}>
           <div className="h-px bg-[var(--border)]" />
           <Section icon={<IconShield width={14} height={14} />} title="Moderation" i={4}>
             <Toggle
@@ -592,7 +784,7 @@ export function SettingsPanel({ canModerate = false }: { canModerate?: boolean }
               onChange={(v) => update({ modHideUI: v })}
             />
           </Section>
-        </>
+        </div>
       )}
 
       <div className="flex flex-col gap-2">

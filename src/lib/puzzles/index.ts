@@ -21,6 +21,13 @@ export function dailyPuzzle(date = new Date()): PuzzleDef {
 
 export type DifficultyFilter = "auto" | "easy" | "medium" | "hard";
 
+/** All themes present in the bank, most common first — used to build the theme-pack filter UI. */
+export const ALL_THEMES: string[] = (() => {
+  const counts = new Map<string, number>();
+  for (const p of PUZZLES) for (const t of p.themes) counts.set(t, (counts.get(t) ?? 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+})();
+
 const DIFFICULTY_BANDS: Record<Exclude<DifficultyFilter, "auto">, [number, number]> = {
   easy: [0, 1200],
   medium: [1200, 1800],
@@ -33,10 +40,16 @@ const DIFFICULTY_BANDS: Record<Exclude<DifficultyFilter, "auto">, [number, numbe
  * `difficulty` restricts the candidate pool to a fixed rating band instead
  * of the adaptive default ("auto").
  */
-export function nextPuzzle(progress: PuzzleProgress, excludeId?: string, difficulty: DifficultyFilter = "auto"): PuzzleDef {
+export function nextPuzzle(
+  progress: PuzzleProgress,
+  excludeId?: string,
+  difficulty: DifficultyFilter = "auto",
+  themes?: string[],
+): PuzzleDef {
   const band = difficulty === "auto" ? null : DIFFICULTY_BANDS[difficulty];
   const inBand = (p: PuzzleDef) => !band || (p.rating >= band[0] && p.rating < band[1]);
-  const base = PUZZLES.filter(inBand);
+  const inThemes = (p: PuzzleDef) => !themes || themes.length === 0 || p.themes.some((t) => themes.includes(t));
+  const base = PUZZLES.filter((p) => inBand(p) && inThemes(p));
   const candidates = base.length > 0 ? base : PUZZLES;
   const unsolved = candidates.filter((p) => !progress.solved.includes(p.id) && p.id !== excludeId);
   const pool = unsolved.length > 0 ? unsolved : candidates.filter((p) => p.id !== excludeId);

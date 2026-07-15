@@ -4,8 +4,8 @@ import { auth } from "@/lib/auth/auth";
 
 export const runtime = "nodejs";
 
-/** Marks a single notification read. */
-export async function PATCH(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+/** Marks a single notification read, or (with ?action=snooze) hides it for 1 hour. */
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!isDbConfigured) return NextResponse.json({ error: "No database configured." }, { status: 503 });
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
@@ -15,6 +15,13 @@ export async function PATCH(_req: Request, { params }: { params: Promise<{ id: s
   if (!note) return NextResponse.json({ error: "Notification not found." }, { status: 404 });
   if (note.userId !== session.user.id) {
     return NextResponse.json({ error: "Not your notification." }, { status: 403 });
+  }
+
+  const action = new URL(req.url).searchParams.get("action");
+  if (action === "snooze") {
+    const snoozedUntil = new Date(Date.now() + 60 * 60 * 1000);
+    const updated = await prisma.notification.update({ where: { id }, data: { snoozedUntil } });
+    return NextResponse.json({ ok: true, notification: updated });
   }
 
   const updated = note.readAt ? note : await prisma.notification.update({ where: { id }, data: { readAt: new Date() } });

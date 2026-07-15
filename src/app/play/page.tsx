@@ -1,8 +1,8 @@
-import Link from "next/link";
+import { GamesHubClient } from "@/components/games/GamesHubClient";
 
 export const metadata = { title: "Games Hub" };
 
-interface GameCard {
+export interface GameCard {
   title: string;
   blurb: string;
   emoji: string;
@@ -556,35 +556,16 @@ const ORIGINAL_GAMES: GameCard[] = [
   },
 ];
 
-function Section({ title, games }: { title: string; games: GameCard[] }) {
-  return (
-    <section className="mb-8">
-      <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-[var(--text-faint)]">{title}</h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {games.map((g) => (
-          <div key={g.title} className="panel flex flex-col gap-2 p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{g.emoji}</span>
-              <h3 className="font-bold">{g.title}</h3>
-            </div>
-            <p className="flex-1 text-sm text-[var(--text-muted)]">{g.blurb}</p>
-            <div className="flex flex-wrap gap-2">
-              {g.links.map((link, i) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`btn flex-1 !py-2 text-sm ${i === 0 ? "btn-primary" : ""}`}
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
+// Most recently added batch — surfaced with a "New" badge in the hub for
+// a while after release rather than tracking real per-game timestamps.
+const NEW_TITLES = new Set(["Roulette", "Baccarat", "Craps", "Slot Machine", "Rock Paper Scissors", "Farkle", "Word Search"]);
+
+const CATEGORIES: { id: string; label: string; games: GameCard[] }[] = [
+  { id: "chess", label: "Chess", games: CHESS_GAMES },
+  { id: "board", label: "Board", games: MULTIPLAYER_GAMES },
+  { id: "arcade", label: "Arcade", games: ARCADE_GAMES },
+  { id: "original", label: "Original", games: ORIGINAL_GAMES },
+];
 
 export default function GamesHubPage() {
   return (
@@ -594,10 +575,7 @@ export default function GamesHubPage() {
         One account, one theme, every game — chess, classic board games, arcade favorites, and two
         original games built for this platform.
       </p>
-      <Section title="Chess" games={CHESS_GAMES} />
-      <Section title="Multiplayer board games" games={MULTIPLAYER_GAMES} />
-      <Section title="Arcade" games={ARCADE_GAMES} />
-      <Section title="Original games" games={ORIGINAL_GAMES} />
+      <GamesHubClient categories={CATEGORIES} newTitles={[...NEW_TITLES]} />
     </div>
   );
 }

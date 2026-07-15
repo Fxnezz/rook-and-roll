@@ -166,12 +166,22 @@ export default function OpeningsDrillPage() {
         <div className="panel flex w-full flex-col lg:h-[min(72vh,640px)] lg:w-[360px]">
           <div className="border-b border-[var(--border)] p-3">
             <span className="label mb-1 block">Choose a line to drill</span>
-            <input
-              className="input w-full !text-sm"
-              placeholder="Search openings (name or ECO)…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+            <div className="flex gap-1.5">
+              <input
+                className="input w-full !text-sm"
+                placeholder="Search openings (name or ECO)…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <button
+                className="btn btn-ghost shrink-0 !px-2.5 !text-sm"
+                onClick={() => filtered.length > 0 && start(filtered[Math.floor(Math.random() * filtered.length)], userColor)}
+                disabled={filtered.length === 0}
+                title="Pick a random line from the current search"
+              >
+                🎲
+              </button>
+            </div>
             <div className="mt-2 flex items-center gap-2 text-xs">
               <span className="text-[var(--text-faint)]">Play as</span>
               {(["w", "b"] as Color[]).map((c) => (

@@ -1,4 +1,5 @@
 import type {
+  BotRecordStat,
   CategoryStat,
   ColorStats,
   GameSummary,
@@ -8,6 +9,7 @@ import type {
   RatedGameHighlight,
   TerminationStat,
 } from "@/lib/db/profileStats";
+import { getTier } from "@/lib/engine/bots";
 
 function pct(n: number, total: number): number {
   return total > 0 ? Math.round((n / total) * 100) : 0;
@@ -133,6 +135,26 @@ function OpeningRow({ stat }: { stat: OpeningStat }) {
   );
 }
 
+function BotRecordRow({ stat }: { stat: BotRecordStat }) {
+  const total = stat.wins + stat.losses + stat.draws;
+  const tier = getTier(stat.botTier);
+  return (
+    <div className="flex items-center gap-3">
+      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]">
+        {tier.flag} {tier.name} <span className="text-[var(--text-faint)]">({tier.elo})</span>
+      </span>
+      <div className="flex h-2 w-24 shrink-0 overflow-hidden rounded-full bg-[var(--bg-elev-2)]">
+        {stat.wins > 0 && <div style={{ width: `${pct(stat.wins, total)}%`, background: "var(--good)" }} />}
+        {stat.draws > 0 && <div style={{ width: `${pct(stat.draws, total)}%`, background: "var(--text-faint)" }} />}
+        {stat.losses > 0 && <div style={{ width: `${pct(stat.losses, total)}%`, background: "var(--bad)" }} />}
+      </div>
+      <span className="w-20 shrink-0 text-right text-xs text-[var(--text-faint)]">
+        {stat.wins}W {stat.losses}L {stat.draws}D
+      </span>
+    </div>
+  );
+}
+
 export function ProfileBreakdowns({
   colorStats,
   categoryStats,
@@ -144,6 +166,7 @@ export function ProfileBreakdowns({
   bestWin,
   toughestLoss,
   opponentsTable,
+  botRecords,
 }: {
   colorStats: { white: ColorStats; black: ColorStats };
   categoryStats: CategoryStat[];
@@ -155,6 +178,7 @@ export function ProfileBreakdowns({
   bestWin: RatedGameHighlight | null;
   toughestLoss: RatedGameHighlight | null;
   opponentsTable: OpponentStat[];
+  botRecords: BotRecordStat[];
 }) {
   const terminationTotal = terminationStats.reduce((sum, t) => sum + t.count, 0);
 
@@ -238,6 +262,15 @@ export function ProfileBreakdowns({
           <span className="text-xs font-semibold text-[var(--text-muted)]">Opponents</span>
           {opponentsTable.slice(0, 8).map((s) => (
             <OpponentRow key={s.opponent} stat={s} />
+          ))}
+        </div>
+      )}
+
+      {botRecords.length > 0 && (
+        <div className="mt-4 flex flex-col gap-2">
+          <span className="text-xs font-semibold text-[var(--text-muted)]">Bot records (all-time, per tier)</span>
+          {botRecords.map((s) => (
+            <BotRecordRow key={s.botTier} stat={s} />
           ))}
         </div>
       )}

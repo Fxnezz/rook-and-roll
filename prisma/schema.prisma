@@ -84,12 +84,20 @@ model User {
   notifyAchievements   Boolean @default(true)
   /** Whether a Notification row is written when a rated game the user played finishes. */
   notifyGameResults    Boolean @default(true)
+  /** When true, the bell shows no unread badge/sound/toast for anything until turned off — notifications still land in the inbox, just silently. */
+  doNotDisturb         Boolean @default(false)
+  /** When true, incoming friend requests are auto-declined immediately (useful for public/well-known accounts getting spammed). */
+  autoDeclineFriendRequests Boolean @default(false)
   /** Bumped by "sign out of all other devices" — embedded in the JWT at login and checked on every session read (src/lib/auth/auth.ts); a mismatch invalidates that token. */
   sessionVersion       Int     @default(0)
   /** Free-text profile bio shown on the public profile page. */
   bio                  String? @db.VarChar(280)
   /** Achievement id (see UserAchievement) the user has chosen to feature prominently on their profile. */
   pinnedAchievementId  String?
+  /** When false, the public /u/[username] page shows only a minimal "private profile" stub to non-friends (the user themself and friends still see everything). */
+  profilePublic        Boolean @default(true)
+  /** Optional hex color (e.g. "#5b8dee") shown behind the avatar on the public profile header; null uses the default panel background. */
+  bannerColor          String? @db.VarChar(9)
 
   accounts        Account[]
   sessions        Session[]
@@ -246,6 +254,8 @@ model Notification {
   fromAdmin Boolean          @default(false)
   readAt    DateTime?
   createdAt DateTime         @default(now())
+  /** When set (and in the future), this notification is hidden from the inbox/unread-count until this time passes — "snooze for 1hr" action. */
+  snoozedUntil DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -403,6 +413,8 @@ model Friendship {
   blockedById String?
   /** Set when status becomes DECLINED — used as the start of the re-request cooldown window. */
   declinedAt  DateTime?
+  /** Optional short note the requester attaches when sending the request (e.g. "met you in the Sicilian puzzle rush"). */
+  note        String?          @db.VarChar(200)
   createdAt   DateTime         @default(now())
 
   requester User  @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)

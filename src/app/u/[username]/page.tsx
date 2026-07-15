@@ -7,15 +7,23 @@ import { ReportButton } from "@/components/profile/ReportButton";
 import { FriendButton } from "@/components/profile/FriendButton";
 import { DbNotice } from "@/components/ui/DbNotice";
 import { auth } from "@/lib/auth/auth";
-import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
+import { ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
+import { AchievementsSection } from "@/components/profile/AchievementsSection";
 import { fetchUserRank } from "@/lib/leaderboard/query";
 import { ModStatsCard } from "@/components/profile/ModStatsCard";
 import { computeHeadToHead } from "@/lib/db/headToHead";
+import { computeStatsComparison } from "@/lib/db/compareStats";
+import { StatsCompareCard } from "@/components/profile/StatsCompareCard";
 import { computeProfileExtras } from "@/lib/db/profileStats";
+import { computeActivityFeed } from "@/lib/db/activityFeed";
+import { ActivityFeed } from "@/components/profile/ActivityFeed";
 import { ProfileBreakdowns } from "@/components/profile/ProfileBreakdowns";
 import { RecentGamesList } from "@/components/profile/RecentGamesList";
+import { PresenceBadge } from "@/components/profile/PresenceBadge";
 import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
 import { HIGHER_IS_BETTER_GAMES, LOWER_IS_BETTER_GAMES } from "@/lib/games/scoreDirection";
+import { computeArcadeSummary } from "@/lib/db/arcadeSummary";
+import { ArcadeSummaryCard } from "@/components/profile/ArcadeSummaryCard";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +46,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       ratingClassical: true,
       puzzleRating: true,
       bio: true,
+      bannerColor: true,
       pinnedAchievementId: true,
+      profilePublic: true,
     },
   });
   if (!user) notFound();
@@ -69,9 +79,32 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           : "incoming"
         : "none"; // BLOCKED — no UI exposes this state today, treat as no relationship
 
+  // Private profiles show only a minimal stub to non-friends — the owner and accepted friends always see everything.
+  const canViewFullProfile = isOwnProfile || user.profilePublic || friendState === "friends";
+  if (!canViewFullProfile) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <div className="flex items-center gap-4">
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-2xl font-black text-[var(--accent-contrast)]">
+            {(user.username ?? "?")[0]?.toUpperCase()}
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold">{user.username}</h1>
+            <p className="text-sm text-[var(--text-muted)]">This profile is private.</p>
+          </div>
+          {canReport && (
+            <div className="ml-auto">
+              <FriendButton username={user.username!} initialState={friendState} initialFriendshipId={friendship?.id ?? null} />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const orFilter = [{ whiteId: user.id }, { blackId: user.id }];
   const viewerId = session?.user?.id;
-  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats, earnedAchievements, streakGames, myRank, headToHead, profileExtras] = await Promise.all([
+  const [wins, losses, draws, history, gameRatings, higherScores, lowerScores, wordStats, earnedAchievements, streakGames, myRank, headToHead, statsComparison, profileExtras, achievementCounts, totalUsers, activityFeed, arcadeSummary] = await Promise.all([
     prisma.game.count({
       where: {
         OR: [
@@ -119,8 +152,14 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     }),
     isOwnProfile ? fetchUserRank({ field: "ratingBlitz", period: "all", userId: user.id }) : Promise.resolve(null),
     viewerId && !isOwnProfile ? computeHeadToHead(viewerId, user.id) : Promise.resolve(null),
+    viewerId && !isOwnProfile ? computeStatsComparison(viewerId, user.id) : Promise.resolve(null),
     computeProfileExtras(user.id),
+    prisma.userAchievement.groupBy({ by: ["achievementId"], _count: true }),
+    prisma.user.count(),
+    computeActivityFeed(user.id),
+    computeArcadeSummary(user.id),
   ]);
+  const achievementRarity = new Map(achievementCounts.map((a) => [a.achievementId, totalUsers > 0 ? Math.round((a._count / totalUsers) * 100) : 0]));
 
   let currentStreak = 0;
   let bestStreak = 0;
@@ -149,7 +188,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <div className="flex items-center gap-4">
+      <div
+        className="flex items-center gap-4 rounded-2xl p-3"
+        style={user.bannerColor ? { background: `${user.bannerColor}22` } : undefined}
+      >
         <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-2xl font-black text-[var(--accent-contrast)]">
           {initial}
         </span>
@@ -172,6 +214,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             {user.createdAt.toLocaleDateString(undefined, { year: "numeric", month: "long" })}
           </p>
           {user.bio && <p className="mt-1 max-w-md text-sm text-[var(--text)]">{user.bio}</p>}
+          {!isOwnProfile && <div className="mt-1"><PresenceBadge userId={user.id} /></div>}
         </div>
         <div className="ml-auto flex flex-col items-end gap-2">
           {isOwnProfile && myRank && (
@@ -202,6 +245,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
         </div>
       )}
 
+      {statsComparison && <StatsCompareCard comparison={statsComparison} />}
+
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         <Stat label="Wins" value={wins} accent="var(--good)" />
         <Stat label="Losses" value={losses} accent="var(--bad)" />
@@ -222,6 +267,16 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
               <div className="text-xl font-black text-[var(--accent)]">{bestStreak}</div>
               <div className="label mt-0.5">Best streak</div>
             </div>
+            {profileExtras.partialTimePlayedMs > 0 && (
+              <div>
+                <div className="text-xl font-black text-[var(--accent)]">
+                  {formatDuration(profileExtras.partialTimePlayedMs)}
+                </div>
+                <div className="label mt-0.5" title="Bot and local pass-and-play games only — online games aren't tracked yet.">
+                  Time played*
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -237,6 +292,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
         history={history.map((h) => ({ category: h.category, rating: h.rating }))}
       />
 
+      <ArcadeSummaryCard summary={arcadeSummary} />
       <UnifiedGameStats gameRatings={gameRatings} highScores={highScores} wordStats={wordStats} />
 
       {total > 0 && (
@@ -252,46 +308,27 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             bestWin={profileExtras.bestWin}
             toughestLoss={profileExtras.toughestLoss}
             opponentsTable={profileExtras.opponentsTable}
+            botRecords={profileExtras.botRecords}
           />
           <RecentGamesList games={profileExtras.recentGames} username={user.username ?? ""} />
           <ActivityHeatmap days={profileExtras.activityHeatmap} />
+          <ActivityFeed events={activityFeed} />
         </>
       )}
 
       <ModStatsCard username={user.username ?? ""} />
 
-      <AchievementsSection earned={earnedAchievements} />
+      <AchievementsSection earned={earnedAchievements} rarity={achievementRarity} username={user.username ?? ""} />
     </div>
   );
 }
 
-function AchievementsSection({ earned }: { earned: { achievementId: string; earnedAt: Date }[] }) {
-  const earnedMap = new Map(earned.map((e) => [e.achievementId, e.earnedAt]));
-  return (
-    <section className="mt-8">
-      <h2 className="label mb-3">
-        Achievements ({earned.length}/{ACHIEVEMENTS.length})
-      </h2>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-        {ACHIEVEMENTS.map((a) => {
-          const earnedAt = earnedMap.get(a.id);
-          const isEarned = Boolean(earnedAt);
-          return (
-            <div
-              key={a.id}
-              className="panel flex flex-col items-center gap-1.5 p-3 text-center"
-              style={{ opacity: isEarned ? 1 : 0.4 }}
-              title={isEarned ? `Earned ${earnedAt!.toLocaleDateString()}` : "Not yet earned"}
-            >
-              <span className="text-2xl">{a.icon}</span>
-              <span className="text-xs font-semibold">{a.name}</span>
-              <span className="text-[0.65rem] text-[var(--text-faint)]">{a.description}</span>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
+function formatDuration(ms: number): string {
+  const totalMinutes = Math.round(ms / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
 function Stat({ label, value, accent }: { label: string; value: number; accent: string }) {

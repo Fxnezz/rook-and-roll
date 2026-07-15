@@ -17,10 +17,13 @@ export function PuzzlePlayer({
   puzzle,
   onComplete,
   onFirstMistake,
+  onSkip,
 }: {
   puzzle: PuzzleDef;
   onComplete: (outcome: PuzzleOutcome) => void;
   onFirstMistake: () => void;
+  /** Advance to the next puzzle without solving/failing this one — not counted as an attempt. */
+  onSkip?: () => void;
 }) {
   const game = useChessGame();
   const { snapshot } = game;
@@ -168,11 +171,18 @@ export function PuzzlePlayer({
             </>
           )}
         </span>
-        {phase === "solving" && !hint && (
-          <button className="btn btn-ghost !py-1 text-xs" onClick={() => setHint(true)}>
-            Hint
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {phase === "solving" && !hint && (
+            <button className="btn btn-ghost !py-1 text-xs" onClick={() => setHint(true)}>
+              Hint
+            </button>
+          )}
+          {onSkip && phase !== "done" && (
+            <button className="btn btn-ghost !py-1 text-xs" onClick={onSkip}>
+              Skip
+            </button>
+          )}
+        </div>
         {hintSquare && (
           <span className="text-xs text-[var(--accent)]">
             Look at <span className="font-mono font-bold">{hintSquare}</span>

@@ -160,6 +160,8 @@ export interface ChatMsg {
 export interface ServerToClientEvents {
   "queue:waiting": (p: { position: number; playersSearching: number }) => void;
   "queue:matched": (p: { roomId: string }) => void;
+  "invite:created": (p: { code: string }) => void;
+  "invite:error": (p: { message: string }) => void;
   "game:state": (s: GameStateMsg) => void;
   "game:move": (p: { san: string; from: string; to: string; promotion?: string; clock: ClockState }) => void;
   "game:over": (p: GameOverMsg) => void;
@@ -194,6 +196,8 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   "queue:join": (p: { identity: Identity; timeControl: TimeControlSpec; rated: boolean }) => void;
   "queue:leave": () => void;
+  "invite:create": (p: { identity: Identity; timeControl: TimeControlSpec; rated: boolean }) => void;
+  "invite:join": (p: { code: string; identity: Identity }) => void;
   "room:join": (p: { roomId: string; identity: Identity }) => void;
   "room:spectate": (p: { roomId: string; identity: Identity }) => void;
   "room:leave": (p: { roomId: string }) => void;

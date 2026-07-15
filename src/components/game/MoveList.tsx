@@ -55,6 +55,13 @@ export function MoveList({
   const activeRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const [jumpValue, setJumpValue] = useState("");
+  const jumpToMoveNumber = () => {
+    const n = parseInt(jumpValue, 10);
+    if (!Number.isFinite(n) || n < 1) return;
+    onGoToPly(Math.min(n * 2 - 1, moves.length));
+    setJumpValue("");
+  };
   const copyMoves = async () => {
     try {
       await navigator.clipboard.writeText(movesToText(moves));
@@ -122,7 +129,27 @@ export function MoveList({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex shrink-0 items-center justify-end border-b border-[var(--border)] px-2 py-1">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--border)] px-2 py-1">
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            min={1}
+            value={jumpValue}
+            onChange={(e) => setJumpValue(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && jumpToMoveNumber()}
+            placeholder="#"
+            aria-label="Jump to move number"
+            className="input !w-12 !py-0.5 !px-1.5 text-xs"
+          />
+          <button
+            className="hover-lift rounded-md px-1.5 py-0.5 text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
+            onClick={jumpToMoveNumber}
+            disabled={!jumpValue}
+            title="Jump to this move number"
+          >
+            Go
+          </button>
+        </div>
         <button
           className="hover-lift flex items-center gap-1 rounded-md px-2 py-1 text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
           onClick={copyMoves}

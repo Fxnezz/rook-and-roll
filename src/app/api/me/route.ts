@@ -26,7 +26,11 @@ export async function GET() {
       showOnlineStatus: true,
       notifyAchievements: true,
       notifyGameResults: true,
+      doNotDisturb: true,
+      autoDeclineFriendRequests: true,
+      profilePublic: true,
       bio: true,
+      bannerColor: true,
       pinnedAchievementId: true,
     },
   });
@@ -63,7 +67,11 @@ export async function PATCH(req: Request) {
     showOnlineStatus?: boolean;
     notifyAchievements?: boolean;
     notifyGameResults?: boolean;
+    doNotDisturb?: boolean;
+    autoDeclineFriendRequests?: boolean;
+    profilePublic?: boolean;
     bio?: string;
+    bannerColor?: string | null;
     pinnedAchievementId?: string | null;
   };
   try {
@@ -85,6 +93,9 @@ export async function PATCH(req: Request) {
         ...(typeof body.showOnlineStatus === "boolean" && { showOnlineStatus: body.showOnlineStatus }),
         ...(typeof body.notifyAchievements === "boolean" && { notifyAchievements: body.notifyAchievements }),
         ...(typeof body.notifyGameResults === "boolean" && { notifyGameResults: body.notifyGameResults }),
+        ...(typeof body.profilePublic === "boolean" && { profilePublic: body.profilePublic }),
+        ...(typeof body.doNotDisturb === "boolean" && { doNotDisturb: body.doNotDisturb }),
+        ...(typeof body.autoDeclineFriendRequests === "boolean" && { autoDeclineFriendRequests: body.autoDeclineFriendRequests }),
       },
     });
     return NextResponse.json({ ok: true });
@@ -108,6 +119,7 @@ export async function PATCH(req: Request) {
       where: { id: user.id },
       data: {
         ...(typeof body.bio === "string" && { bio: body.bio.slice(0, 280) }),
+        ...(body.bannerColor !== undefined && { bannerColor: body.bannerColor }),
         ...(pinnedAchievementId !== undefined && { pinnedAchievementId }),
       },
     });

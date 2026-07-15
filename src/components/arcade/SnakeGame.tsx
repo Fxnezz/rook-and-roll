@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useHighScore } from "@/lib/arcade/useHighScore";
+import { useIdleAutoPause } from "@/lib/arcade/useIdleAutoPause";
+import { ShareScoreButton } from "@/components/arcade/ShareScoreButton";
 import { playArcadeSound } from "@/lib/arcade/sound";
 
 const GRID = 20;
@@ -234,6 +236,12 @@ export function SnakeGame() {
     });
   }, [running, over]);
 
+  // Auto-pause after a stretch of no input (or the tab going hidden) so a
+  // forgotten game doesn't just run the snake into a wall unattended.
+  useIdleAutoPause(() => {
+    if (running && !paused && !over) togglePause();
+  }, running && !paused && !over);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === " ") {
@@ -298,19 +306,22 @@ export function SnakeGame() {
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-lg bg-black/60">
             <p className="text-lg font-bold text-white">{over ? "Game over" : paused ? "Paused" : "Snake"}</p>
             {over && <p className="text-sm text-white/80">Score: {score}</p>}
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                if (paused) {
-                  togglePause();
-                  return;
-                }
-                if (over) reset();
-                setRunning(true);
-              }}
-            >
-              {paused ? "Resume" : over ? "Play again" : "Start"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  if (paused) {
+                    togglePause();
+                    return;
+                  }
+                  if (over) reset();
+                  setRunning(true);
+                }}
+              >
+                {paused ? "Resume" : over ? "Play again" : "Start"}
+              </button>
+              {over && <ShareScoreButton gameName="Snake" emoji="🐍" score={score} isBest={best === score} />}
+            </div>
           </div>
         )}
       </div>

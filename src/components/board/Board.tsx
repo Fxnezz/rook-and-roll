@@ -246,7 +246,13 @@ export function Board({
       const pieceName = PIECE_NAMES[mv.promotion ?? mv.piece];
       const captureText = mv.captured ? `, capturing ${COLOR_NAMES[mv.color === "w" ? "b" : "w"]} ${PIECE_NAMES[mv.captured]}` : "";
       const checkText = mv.san.includes("#") ? ", checkmate" : mv.san.includes("+") ? ", check" : "";
-      const text = `${mover} ${pieceName} to ${mv.to}${captureText}${checkText}`;
+      const verbosity = document.documentElement.dataset.moveAnnounceVerbosity ?? "standard";
+      const text =
+        verbosity === "minimal"
+          ? mv.san
+          : verbosity === "detailed"
+            ? `${mover} ${pieceName} from ${mv.from} to ${mv.to}${captureText}${checkText}, move ${count}`
+            : `${mover} ${pieceName} to ${mv.to}${captureText}${checkText}`;
       setMoveAnnouncement(text);
       if (speechAnnounceMoves && typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
@@ -578,7 +584,7 @@ export function Board({
             <div
               key={r}
               className="flex flex-1 items-center justify-center text-[min(2.4vw,0.72rem)] font-bold leading-none"
-              style={{ color: "var(--text-faint)" }}
+              style={{ color: "var(--coord-color-override, var(--text-faint))" }}
             >
               {r}
             </div>
@@ -625,7 +631,7 @@ export function Board({
                   role="gridcell"
                   aria-label={squareAriaLabel(square, pieceAt(square), isCheck)}
                 >
-              {isLast && <div className="absolute inset-0" style={{ background: effTheme.lastMove }} />}
+              {isLast && <div className="rr-last-move absolute inset-0" style={{ background: effTheme.lastMove }} />}
               {isSel && <div className="absolute inset-0" style={{ background: effTheme.selected }} />}
               {isPremoveSq && <div className="absolute inset-0" style={{ background: "rgba(90,140,220,0.4)" }} />}
               {isPendingConfirmTarget && (
@@ -663,7 +669,7 @@ export function Board({
               {showRank && (
                 <span
                   className="absolute top-[3%] left-[5%] text-[min(2.4vw,0.72rem)] font-bold leading-none pointer-events-none"
-                  style={{ color: labelColor }}
+                  style={{ color: `var(--coord-color-override, ${labelColor})` }}
                 >
                   {square[1]}
                 </span>
@@ -671,7 +677,7 @@ export function Board({
               {showFile && (
                 <span
                   className="absolute bottom-[3%] right-[5%] text-[min(2.4vw,0.72rem)] font-bold leading-none pointer-events-none"
-                  style={{ color: labelColor }}
+                  style={{ color: `var(--coord-color-override, ${labelColor})` }}
                 >
                   {square[0]}
                 </span>
@@ -794,7 +800,7 @@ export function Board({
             <div
               key={f}
               className="flex-1 text-center text-[min(2.4vw,0.72rem)] font-bold leading-none"
-              style={{ color: "var(--text-faint)" }}
+              style={{ color: "var(--coord-color-override, var(--text-faint))" }}
             >
               {f}
             </div>

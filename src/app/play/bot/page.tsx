@@ -10,6 +10,7 @@ import { OpeningTicker } from "@/components/game/OpeningTicker";
 import { CapturedTray } from "@/components/game/CapturedTray";
 import { GameControls } from "@/components/game/GameControls";
 import { GameOverModal } from "@/components/game/GameOverModal";
+import { GameStartCountdown } from "@/components/game/GameStartCountdown";
 import { SharePanel } from "@/components/game/SharePanel";
 import { SanMoveInput } from "@/components/game/SanMoveInput";
 import { EvalBar } from "@/components/game/EvalBar";
@@ -37,6 +38,8 @@ import { ShortcutsHelpModal } from "@/components/ui/ShortcutsHelpModal";
 import { CheatGate } from "@/components/cheats/CheatGate";
 import { CheatPanel, type CheatLogEntry } from "@/components/cheats/CheatPanel";
 import { CheatEffects, VOICE_LINES } from "@/components/cheats/CheatEffects";
+import { BotBanter } from "@/components/bot/BotBanter";
+import { shareOrCopyLink } from "@/lib/shareLink";
 import { illegalCastleFen, clonePieceFen, swapPiecesFen, promoteAnyPawnFen, forceMoveFen } from "@/lib/cheats/moveManipulation";
 import { DEFAULT_BOT_OVERRIDE, resolveOverriddenMove, type BotOverride } from "@/lib/cheats/botManipulation";
 import { useToasts } from "@/lib/hooks/useToasts";
@@ -70,6 +73,9 @@ export default function BotGamePage() {
   // one level up; always counted from the human's perspective regardless of
   // which color they're swapped to play next.
   const [series, setSeries] = useState({ wins: 0, losses: 0, draws: 0 });
+  // Adaptive-difficulty skill nudge (Batch H) — +1 per win, -1 per loss, clamped,
+  // carried across rematches the same way `series` is.
+  const [skillNudge, setSkillNudge] = useState(0);
   if (!config) return <BotSetup onStart={setConfig} />;
   return (
     <BotGame
@@ -81,13 +87,15 @@ export default function BotGamePage() {
         setRematchSeq((n) => n + 1);
       }}
       series={series}
-      onGameEnd={(outcome) =>
+      adaptiveSkillNudge={skillNudge}
+      onGameEnd={(outcome) => {
         setSeries((s) => ({
           wins: s.wins + (outcome === "win" ? 1 : 0),
           losses: s.losses + (outcome === "loss" ? 1 : 0),
           draws: s.draws + (outcome === "draw" ? 1 : 0),
-        }))
-      }
+        }));
+        setSkillNudge((n) => Math.max(-4, Math.min(4, n + (outcome === "win" ? 1 : outcome === "loss" ? -1 : 0))));
+      }}
       key={`${JSON.stringify(config)}-${rematchSeq}`}
     />
   );
@@ -98,12 +106,14 @@ function BotGame({
   onExit,
   onRematch,
   series,
+  adaptiveSkillNudge,
   onGameEnd,
 }: {
   config: BotConfig;
   onExit: () => void;
   onRematch: () => void;
   series: { wins: number; losses: number; draws: number };
+  adaptiveSkillNudge: number;
   onGameEnd: (outcome: "win" | "loss" | "draw") => void;
 }) {
   const game = useChessGame(config.startFen);
@@ -155,7 +165,16 @@ function BotGame({
   const [paused, setPaused] = useState(false);
   // Defaults to the chosen tier's own personality (Batch C) — a mod/cheat can
   // still override it from the cheat panel via setBotOverride below.
-  const [botOverride, setBotOverride] = useState<BotOverride>(() => ({ ...DEFAULT_BOT_OVERRIDE, personality: tier.personality }));
+  const [botOverride, setBotOverride] = useState<BotOverride>(() => ({
+    ...DEFAULT_BOT_OVERRIDE,
+    personality: config.customPersonality ?? tier.personality,
+    skillOverride:
+      config.customSkill != null
+        ? config.customSkill
+        : settings.adaptiveBotDifficulty
+          ? Math.max(0, Math.min(20, tier.skill + adaptiveSkillNudge))
+          : null,
+  }));
   const [showPredictedMove, setShowPredictedMove] = useState(false);
   const [predictedArrow, setPredictedArrow] = useState<Arrow | null>(null);
   const [cheatEffects, setCheatEffects] = useState({
@@ -923,8 +942,11 @@ function BotGame({
             </div>
           )}
           <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <PlayerBar side={botColor} />
+            <div className="sticky top-14 z-20 bg-[var(--bg)]/95 py-1 backdrop-blur">
+              <PlayerBar side={botColor} />
+            </div>
             <div ref={boardWrapperRef} id="board-anchor" tabIndex={-1} className="relative outline-none">
+              {!clock.untimed && snapshot.moves.length === 0 && <GameStartCountdown />}
               <Board
                 snapshot={snapshot}
                 orientation={orientation}
@@ -968,6 +990,7 @@ function BotGame({
                 toggles={cheatEffects}
                 zoomTargetRef={boardWrapperRef}
               />
+              <BotBanter voiceLine={voiceLine} enabled={settings.botBanter} />
               <TrollEffectOverlay
                 effect={overlayEffect}
                 watchedBanner={watchedBanner}
@@ -1099,8 +1122,9 @@ function BotGame({
                     <button
                       className="btn w-full !text-xs"
                       onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/games/${savedGameId}`).catch(() => {});
-                        pushToast("Spectator link copied");
+                        shareOrCopyLink(`${window.location.origin}/games/${savedGameId}`, "Watch my Rook & Roll game", () =>
+                          pushToast("Spectator link copied"),
+                        );
                       }}
                     >
                       Copy spectator link
@@ -1155,6 +1179,8 @@ function BotGame({
           onRematch={onRematch}
           series={series}
           botTierId={tier.id}
+          analysis={analysis}
+          yourColor={humanColor}
         />
       )}
 

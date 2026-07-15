@@ -52,6 +52,7 @@ import { useModStats } from "@/lib/moderation/useModStats";
 import { useTrollEffects } from "@/lib/moderation/useTrollEffects";
 import { TrollEffectOverlay } from "@/components/moderation/TrollEffectOverlay";
 import type { TrollEffectType } from "@/lib/online/protocol";
+import { shareOrCopyLink } from "@/lib/shareLink";
 
 function soundFor(san: string, overrideSound?: SoundName | null, haptic?: boolean) {
   if (haptic) vibrateForMove(san);
@@ -99,6 +100,7 @@ export default function OnlinePage() {
   const [customMinutes, setCustomMinutes] = useState(10);
   const [customIncrement, setCustomIncrement] = useState(0);
   const [rated, setRated] = useState(false);
+  const [joinCodeInput, setJoinCodeInput] = useState("");
   const isCustomTc = tc.id.startsWith("custom:");
   useEffect(() => {
     try {
@@ -263,6 +265,20 @@ export default function OnlinePage() {
       draws: s.draws + (outcome === "draw" ? 1 : 0),
     }));
   }, [state.status, state.myColor, state.roomId]);
+
+  // Remember the last real (human) opponent so the lobby can offer a one-click
+  // rematch/profile link even after leaving the room — localStorage survives
+  // across sessions, unlike the in-memory `state`.
+  useEffect(() => {
+    if (!state.players || !state.myColor) return;
+    const opponent = state.players[state.myColor === "w" ? "black" : "white"];
+    if (!opponent?.username) return;
+    try {
+      localStorage.setItem("rr.lastOpponent.v1", JSON.stringify({ username: opponent.username, at: Date.now() }));
+    } catch {
+      /* ignore */
+    }
+  }, [state.players, state.myColor]);
 
   // Full resync from authoritative server state.
   useEffect(() => {
@@ -596,6 +612,13 @@ export default function OnlinePage() {
   if (state.phase === "idle") {
     const grouped: Record<string, TimeControl[]> = {};
     for (const t of TIME_CONTROLS) if (t.category !== "untimed") (grouped[t.category] ??= []).push(t);
+    let lastOpponent: { username: string; at: number } | null = null;
+    try {
+      const raw = localStorage.getItem("rr.lastOpponent.v1");
+      if (raw) lastOpponent = JSON.parse(raw);
+    } catch {
+      /* ignore */
+    }
     return (
       <div className="mx-auto max-w-lg px-4 py-10">
         <div className="mb-6 flex items-center gap-3">
@@ -609,6 +632,18 @@ export default function OnlinePage() {
             </p>
           </div>
         </div>
+
+        {lastOpponent && (
+          <Link
+            href={`/u/${lastOpponent.username}`}
+            className="panel mb-4 flex items-center justify-between gap-2 p-3 text-sm hover:bg-[var(--bg-elev)]"
+          >
+            <span className="text-[var(--text-muted)]">
+              Last played <span className="font-semibold text-[var(--text)]">{lastOpponent.username}</span>
+            </span>
+            <span className="text-xs font-semibold text-[var(--accent)]">Rematch →</span>
+          </Link>
+        )}
 
         <section className="panel p-4">
           <span className="label mb-3 block">Time control</span>
@@ -705,6 +740,57 @@ export default function OnlinePage() {
         >
           Find a game
         </button>
+        <section className="panel mt-4 p-4">
+          <span className="label mb-2 block">Private room</span>
+          {state.inviteCode ? (
+            <div className="flex items-center justify-between gap-2 rounded-md bg-[var(--bg-elev)] p-3">
+              <div>
+                <p className="text-xs text-[var(--text-faint)]">Share this code — it expires in 10 minutes</p>
+                <p className="font-mono text-xl font-bold tracking-widest">{state.inviteCode}</p>
+              </div>
+              <button
+                className="btn btn-ghost !py-1.5 !text-xs"
+                onClick={() => {
+                  navigator.clipboard.writeText(state.inviteCode!).then(() => pushToast("Code copied")).catch(() => {});
+                }}
+              >
+                Copy
+              </button>
+            </div>
+          ) : (
+            <button
+              className="btn w-full"
+              onClick={() => {
+                primeAudio();
+                online.createInvite(tc, rated && loggedIn);
+              }}
+            >
+              Create a room code
+            </button>
+          )}
+          <div className="mt-3 flex gap-2">
+            <input
+              className="input flex-1 !text-sm uppercase"
+              placeholder="Enter a code…"
+              value={joinCodeInput}
+              maxLength={6}
+              onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === "Enter" && joinCodeInput.trim() && online.joinInvite(joinCodeInput.trim())}
+            />
+            <button
+              className="btn shrink-0"
+              disabled={!joinCodeInput.trim()}
+              onClick={() => {
+                primeAudio();
+                online.joinInvite(joinCodeInput.trim());
+              }}
+            >
+              Join
+            </button>
+          </div>
+          {state.inviteError && <p className="mt-2 text-xs text-[var(--bad)]">{state.inviteError}</p>}
+        </section>
+
         {loggedIn && (
           <Link href="/friends" className="mt-3 block text-center text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:underline">
             Prefer to play someone you know? Challenge a friend →
@@ -730,6 +816,11 @@ export default function OnlinePage() {
         <p className="mt-1 text-sm text-[var(--text-muted)]">
           {tc.name} {rated ? "· Rated" : "· Casual"} · {state.searching.seconds}s
         </p>
+        {state.searching.position != null && state.searching.position > 0 && (
+          <p className="mt-1 text-xs text-[var(--text-faint)]">
+            #{state.searching.position} in queue for this time control
+          </p>
+        )}
         <p className="mt-1 text-xs text-[var(--text-faint)]">Rating range widens the longer you wait.</p>
         <button className="btn mt-6" onClick={online.cancelSearch}>
           Cancel
@@ -929,10 +1020,9 @@ export default function OnlinePage() {
             <button
               className="btn btn-ghost !py-1.5 text-sm"
               onClick={() => {
-                navigator.clipboard
-                  .writeText(`${window.location.origin}/watch/${state.roomId}`)
-                  .then(() => pushToast("Spectator link copied"))
-                  .catch(() => {});
+                shareOrCopyLink(`${window.location.origin}/watch/${state.roomId}`, "Watch my Rook & Roll game", () =>
+                  pushToast("Spectator link copied"),
+                );
               }}
             >
               Copy spectator link
@@ -1277,7 +1367,7 @@ export default function OnlinePage() {
         </div>
       )}
 
-      {showShortcuts && <ShortcutsHelpModal onClose={() => setShowShortcuts(false)} showDraw showChat />}
+      {showShortcuts && <ShortcutsHelpModal onClose={() => setShowShortcuts(false)} showDraw showChat showModeration={showModUI} />}
       {showModUI && modPanelOpen && state.phase === "playing" && (
         <ModPanel
           onClose={() => setModPanelOpen(false)}

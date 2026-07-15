@@ -68,6 +68,55 @@
   font-size: 18px;
 }
 
+/* Accessibility: UI font-family choice (toggled via useSettings). */
+:root[data-font-family="serif"] body {
+  font-family: Georgia, "Times New Roman", serif;
+}
+:root[data-font-family="mono"] body {
+  font-family: var(--font-mono);
+}
+
+/* Accessibility: line-height multiplier for body/UI text (toggled via useSettings). */
+body {
+  line-height: var(--ui-line-height, 1.5);
+}
+
+/* Accessibility: reduce-transparency flattens blurred/translucent surfaces to solid ones. */
+:root[data-transparency="reduced"] .backdrop-blur,
+:root[data-transparency="reduced"] header {
+  backdrop-filter: none !important;
+  background-color: var(--bg) !important;
+}
+
+/* Accessibility: always-underlined links (toggled via useSettings). */
+:root[data-underline-links="true"] a {
+  text-decoration: underline;
+}
+
+/* Accessibility: larger touch/click targets for buttons and inputs. */
+:root[data-touch-targets="large"] .btn,
+:root[data-touch-targets="large"] button,
+:root[data-touch-targets="large"] .input,
+:root[data-touch-targets="large"] input,
+:root[data-touch-targets="large"] select {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}
+
+/* Accessibility: stop in-app blinking indicators (browsers don't expose native text-caret blink control). */
+:root[data-caret-blink="off"] .dot-blink > span {
+  animation: none;
+  opacity: 1;
+}
+
+/* Compact-UI density (toggled via useSettings) — tightens panel/section padding site-wide. */
+:root[data-density="compact"] .panel {
+  padding: 0.65em !important;
+}
+:root[data-density="compact"] section {
+  margin-top: 0.75em !important;
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-bg-elev: var(--bg-elev);
@@ -370,6 +419,14 @@ body {
   animation: clock-pulse-critical 0.7s ease-in-out infinite;
 }
 
+@keyframes last-move-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+[data-highlight="pulse"]:not([data-motion="reduced"]) .rr-last-move {
+  animation: last-move-pulse 1.1s ease-in-out infinite;
+}
+
 /* ------------------------------------------------------------------ */
 /*  In-game moderator "troll" effects — cosmetic only, applied to the   */
 /*  flagged target's own board container ref. Automatically suppressed */
@@ -479,9 +536,28 @@ body {
   }
 }
 
-/* Keyboard focus ring — consistent, visible, only shows for keyboard nav. */
+/* Keyboard focus ring — consistent, visible, only shows for keyboard nav.
+   Color is customizable (useSettings.focusOutlineColor -> --focus-color). */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-color, var(--accent));
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+/* Print stylesheet — used by the replay page's Print button (window.print()).
+   Hides chrome (header/sidebar/nav/buttons) and prints just the board + move list. */
+@media print {
+  header,
+  aside,
+  .btn,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+  .print-area {
+    display: block !important;
+  }
 }

@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Chess } from "chess.js";
 import { useSession } from "next-auth/react";
-import { redirect, useRouter } from "next/navigation";
+import { redirect, useRouter, useSearchParams } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { IconUsers, IconCheck, IconClose } from "@/components/ui/icons";
+import { SkeletonRow } from "@/components/ui/Skeleton";
 import { TIME_CONTROLS, type TimeControl } from "@/lib/chess/useClock";
 import { SOCKET_URL, type ClientToServerEvents, type ServerToClientEvents, type ChallengeInfo, type Identity } from "@/lib/online/protocol";
 import { playSound } from "@/lib/chess/sound";
@@ -60,7 +61,7 @@ interface FriendUser {
 }
 interface FriendsData {
   friends: { friendshipId: string; user: FriendUser }[];
-  incoming: { friendshipId: string; user: FriendUser; createdAt: string }[];
+  incoming: { friendshipId: string; user: FriendUser; createdAt: string; note?: string | null }[];
   outgoing: { friendshipId: string; user: FriendUser; createdAt: string }[];
   blocked: { friendshipId: string; user: FriendUser }[];
 }
@@ -78,8 +79,11 @@ function displayName(u: FriendUser) {
 export default function FriendsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [data, setData] = useState<FriendsData | null>(null);
-  const [usernameInput, setUsernameInput] = useState("");
+  const [usernameInput, setUsernameInput] = useState(() => searchParams.get("add") ?? "");
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const [noteInput, setNoteInput] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -208,7 +212,7 @@ export default function FriendsPage() {
       const res = await fetch("/api/friends/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username }),
+        body: JSON.stringify({ username, note: noteInput.trim() || undefined }),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -216,6 +220,7 @@ export default function FriendsPage() {
       } else {
         setMsg(`Friend request sent to ${username}.`);
         setUsernameInput("");
+        setNoteInput("");
         await load();
       }
     } finally {
@@ -240,9 +245,22 @@ export default function FriendsPage() {
 
   const accept = async (friendshipId: string) => {
     setBusy(friendshipId);
+    // Optimistic: move the row from incoming -> friends immediately, reconciling with the server response after.
+    const prev = data;
+    const row = data?.incoming.find((r) => r.friendshipId === friendshipId);
+    if (data && row) {
+      setData({
+        ...data,
+        incoming: data.incoming.filter((r) => r.friendshipId !== friendshipId),
+        friends: [...data.friends, { friendshipId, user: row.user }],
+      });
+    }
     try {
-      await fetch(`/api/friends/${friendshipId}/accept`, { method: "POST" });
+      const res = await fetch(`/api/friends/${friendshipId}/accept`, { method: "POST" });
+      if (!res.ok) setData(prev);
       await load();
+    } catch {
+      setData(prev);
     } finally {
       setBusy(null);
     }
@@ -250,9 +268,15 @@ export default function FriendsPage() {
 
   const decline = async (friendshipId: string) => {
     setBusy(friendshipId);
+    // Optimistic: remove the row immediately, reconciling with the server response after.
+    const prev = data;
+    if (data) setData({ ...data, incoming: data.incoming.filter((r) => r.friendshipId !== friendshipId) });
     try {
-      await fetch(`/api/friends/${friendshipId}/decline`, { method: "POST" });
+      const res = await fetch(`/api/friends/${friendshipId}/decline`, { method: "POST" });
+      if (!res.ok) setData(prev);
       await load();
+    } catch {
+      setData(prev);
     } finally {
       setBusy(null);
     }
@@ -377,7 +401,25 @@ export default function FriendsPage() {
       {challengeErr && <p className="mb-4 text-sm text-[var(--bad)]">{challengeErr}</p>}
 
       <section className="panel mb-6 flex flex-col gap-2 p-4">
-        <span className="label">Add a friend</span>
+        <div className="flex items-center justify-between">
+          <span className="label">Add a friend</span>
+          {session?.user?.username && (
+            <button
+              className="text-xs text-[var(--accent)] hover:underline"
+              onClick={() => {
+                navigator.clipboard
+                  .writeText(`${window.location.origin}/friends?add=${session.user!.username}`)
+                  .then(() => {
+                    setInviteCopied(true);
+                    setTimeout(() => setInviteCopied(false), 1500);
+                  })
+                  .catch(() => {});
+              }}
+            >
+              {inviteCopied ? "Copied!" : "Copy my invite link"}
+            </button>
+          )}
+        </div>
         <div className="flex gap-2">
           <input
             className="input"
@@ -390,6 +432,13 @@ export default function FriendsPage() {
             Send request
           </button>
         </div>
+        <input
+          className="input text-xs"
+          placeholder="Add a short note (optional)…"
+          maxLength={200}
+          value={noteInput}
+          onChange={(e) => setNoteInput(e.target.value)}
+        />
         {err && <p className="text-xs text-[var(--bad)]">{err}</p>}
         {msg && <p className="text-xs text-[var(--good)]">{msg}</p>}
       </section>
@@ -403,7 +452,10 @@ export default function FriendsPage() {
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-black text-[var(--accent-contrast)]">
                   {displayName(r.user)[0]?.toUpperCase()}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold">{displayName(r.user)}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">{displayName(r.user)}</span>
+                  {r.note && <span className="block truncate text-xs italic text-[var(--text-muted)]">&quot;{r.note}&quot;</span>}
+                </div>
                 <button
                   className="btn btn-primary !p-2"
                   aria-label="Accept"
@@ -462,7 +514,13 @@ export default function FriendsPage() {
         <span className="label mb-2 block">
           Friends {data ? `(${data.friends.length})` : ""}
         </span>
-        {data && data.friends.length === 0 ? (
+        {!data ? (
+          <div className="panel divide-y divide-[var(--border)] overflow-hidden">
+            <SkeletonRow />
+            <SkeletonRow />
+            <SkeletonRow />
+          </div>
+        ) : data.friends.length === 0 ? (
           <div className="panel flex flex-col items-center gap-2 p-8 text-center">
             <p className="text-[var(--text-muted)]">No friends yet. Send a request above to get started.</p>
           </div>

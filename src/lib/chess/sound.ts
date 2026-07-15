@@ -33,6 +33,7 @@ let enabled = true;
 let moveVolume = 0.6;
 let uiVolume = 0.6;
 let activePack: SoundPack = "classic";
+let notifyPack: SoundPack = "classic";
 
 function ac(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -278,7 +279,8 @@ export function playSound(name: SoundName) {
   try {
     ac(); // ensure master exists before we touch its gain
     if (master) master.gain.value = UI_SOUNDS.has(name) ? uiVolume : moveVolume;
-    PACKS[activePack][name]?.();
+    const pack = name === "notify" ? notifyPack : activePack;
+    PACKS[pack][name]?.();
     if (FLASH_SOUNDS.has(name) && typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("rr:sound-flash", { detail: name }));
     }
@@ -289,6 +291,11 @@ export function playSound(name: SoundName) {
 
 export function setSoundPack(pack: SoundPack) {
   activePack = pack;
+}
+
+/** Independent tone choice for just the "notify" ding (achievements, notifications), separate from the main move/game sound pack. */
+export function setNotifySoundPack(pack: SoundPack) {
+  notifyPack = pack;
 }
 
 export function setSoundEnabled(v: boolean) {

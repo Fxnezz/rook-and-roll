@@ -51,7 +51,12 @@ export default function AdminPlatformPage() {
       </section>
 
       <section className="panel p-5">
-        <h2 className="font-bold">Site-wide announcement</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-bold">Site-wide announcement</h2>
+          <Link href="/admin/audit?action=broadcast" className="text-xs text-[var(--text-muted)] hover:text-[var(--text)]">
+            View history →
+          </Link>
+        </div>
         {cfg?.broadcast && (
           <div className="mt-3 flex items-center justify-between rounded bg-[var(--bg-elev)] p-2 text-sm">
             <span>

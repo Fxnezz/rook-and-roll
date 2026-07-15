@@ -85,6 +85,20 @@ interface Challenge {
 }
 const challenges = new Map<string, Challenge>();
 
+interface RoomInvite {
+  identity: Identity;
+  socketId: string;
+  timeControl: TimeControlSpec;
+  rated: boolean;
+  createdAt: number;
+}
+const invites = new Map<string, RoomInvite>(); // 6-char code -> pending private-room invite
+const INVITE_TTL_MS = 10 * 60_000;
+
+function inviteCode(): string {
+  return Math.random().toString(36).slice(2, 8).toUpperCase();
+}
+
 const moveLimiter = new RateLimiter(20, 5_000); // 20 moves / 5s per socket
 const chatLimiter = new RateLimiter(8, 5_000);
 const correlation = new CorrelationTracker();
@@ -255,6 +269,14 @@ setInterval(() => {
   }
 }, 30_000);
 
+// sweep expired/unused private-room invite codes
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, inv] of invites) {
+    if (now - inv.createdAt > INVITE_TTL_MS) invites.delete(code);
+  }
+}, 30_000);
+
 // ---- socket handlers -------------------------------------------------------
 io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<string, never>, SocketData>) => {
   socket.on("queue:join", async ({ identity, timeControl, rated }) => {
@@ -308,6 +330,42 @@ io.on("connection", (socket: Socket<ClientToServer, ServerToClient, Record<strin
   });
 
   socket.on("queue:leave", () => removeFromQueues(socket.id));
+
+  // ---- private room invite codes ---------------------------------------------
+  socket.on("invite:create", ({ identity, timeControl, rated }) => {
+    socket.data.userId = identity.userId;
+    socket.data.username = identity.username;
+    userSocket.set(identity.userId, socket.id);
+    if (userRoom.has(identity.userId)) {
+      socket.emit("invite:error", { message: "Finish your current game first." });
+      return;
+    }
+    const code = inviteCode();
+    invites.set(code, { identity, socketId: socket.id, timeControl, rated: rated && !identity.guest, createdAt: Date.now() });
+    socket.emit("invite:created", { code });
+  });
+
+  socket.on("invite:join", ({ code, identity }) => {
+    const inv = invites.get(code.toUpperCase());
+    if (!inv) {
+      socket.emit("invite:error", { message: "That invite code is invalid or expired." });
+      return;
+    }
+    invites.delete(code.toUpperCase());
+    socket.data.userId = identity.userId;
+    socket.data.username = identity.username;
+    userSocket.set(identity.userId, socket.id);
+    if (userRoom.has(inv.identity.userId) || userRoom.has(identity.userId)) {
+      socket.emit("invite:error", { message: "One of you is already in a game." });
+      return;
+    }
+    void createGame(
+      { identity: inv.identity, socketId: inv.socketId, rated: inv.rated, joinedAt: Date.now() },
+      { identity, socketId: socket.id, rated: inv.rated, joinedAt: Date.now() },
+      inv.timeControl,
+      inv.rated,
+    );
+  });
 
   // ---- presence + direct friend challenges ---------------------------------
   socket.on("presence:hello", async ({ identity }) => {

@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
 
-  let body: { username?: string };
+  let body: { username?: string; note?: string };
   try {
     body = await req.json();
   } catch {
@@ -19,14 +19,18 @@ export async function POST(req: Request) {
   }
   const username = (body.username ?? "").trim();
   if (!username) return NextResponse.json({ error: "Username required." }, { status: 400 });
+  const note = (body.note ?? "").trim().slice(0, 200) || null;
 
   const me = session.user.id;
   const target = await prisma.user.findUnique({
     where: { username },
-    select: { id: true, username: true, notifyFriendRequests: true },
+    select: { id: true, username: true, notifyFriendRequests: true, autoDeclineFriendRequests: true },
   });
   if (!target) return NextResponse.json({ error: "No user with that username." }, { status: 404 });
   if (target.id === me) return NextResponse.json({ error: "You can't friend yourself." }, { status: 400 });
+  if (target.autoDeclineFriendRequests) {
+    return NextResponse.json({ error: "This user isn't accepting friend requests right now." }, { status: 403 });
+  }
 
   const existing = await prisma.friendship.findFirst({
     where: {
@@ -53,7 +57,7 @@ export async function POST(req: Request) {
       // Cooldown elapsed — reuse the row as a fresh request from me.
       const friendship = await prisma.friendship.update({
         where: { id: existing.id },
-        data: { status: "PENDING", requesterId: me, addresseeId: target.id, declinedAt: null, createdAt: new Date() },
+        data: { status: "PENDING", requesterId: me, addresseeId: target.id, declinedAt: null, createdAt: new Date(), note },
       });
       if (target.notifyFriendRequests) {
         await prisma.notification.create({
@@ -88,7 +92,7 @@ export async function POST(req: Request) {
   }
 
   const friendship = await prisma.friendship.create({
-    data: { requesterId: me, addresseeId: target.id, status: "PENDING" },
+    data: { requesterId: me, addresseeId: target.id, status: "PENDING", note },
   });
   if (target.notifyFriendRequests) {
     await prisma.notification.create({

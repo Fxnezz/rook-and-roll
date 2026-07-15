@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useHighScore } from "@/lib/arcade/useHighScore";
+import { useSettings } from "@/lib/chess/useSettings";
 import { playArcadeSound } from "@/lib/arcade/sound";
 import {
   emptyBoard2048,
@@ -44,6 +45,7 @@ interface Confetto {
 }
 
 export function Game2048() {
+  const { settings } = useSettings();
   const { best, submit } = useHighScore("2048");
   const [board, setBoard] = useState<Board2048>(() => makeInitial());
   const [score, setScore] = useState(0);
@@ -71,6 +73,7 @@ export function Game2048() {
   }, []);
 
   const fireConfetti = () => {
+    if (!settings.confettiEnabled) return;
     const colors = ["#e9a23b", "#5bbf7a", "#5aa8e0", "#e5604d", "#b06fe0", "#e0c030"];
     setConfetti(
       Array.from({ length: 24 }, (_, i) => ({

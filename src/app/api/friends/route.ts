@@ -20,7 +20,7 @@ export async function GET() {
   });
 
   const friends: { friendshipId: string; user: { id: string; username: string | null; name: string | null } }[] = [];
-  const incoming: { friendshipId: string; user: { id: string; username: string | null; name: string | null }; createdAt: Date }[] = [];
+  const incoming: { friendshipId: string; user: { id: string; username: string | null; name: string | null }; createdAt: Date; note: string | null }[] = [];
   const outgoing: { friendshipId: string; user: { id: string; username: string | null; name: string | null }; createdAt: Date }[] = [];
   const blocked: { friendshipId: string; user: { id: string; username: string | null; name: string | null } }[] = [];
 
@@ -29,7 +29,7 @@ export async function GET() {
     if (row.status === "ACCEPTED") {
       friends.push({ friendshipId: row.id, user: other });
     } else if (row.status === "PENDING") {
-      if (row.addresseeId === me) incoming.push({ friendshipId: row.id, user: other, createdAt: row.createdAt });
+      if (row.addresseeId === me) incoming.push({ friendshipId: row.id, user: other, createdAt: row.createdAt, note: row.note });
       else outgoing.push({ friendshipId: row.id, user: other, createdAt: row.createdAt });
     } else if (row.status === "BLOCKED" && row.blockedById === me) {
       blocked.push({ friendshipId: row.id, user: other });

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Color } from "chess.js";
 import { BOT_TIERS, type BotTierId } from "@/lib/engine/bots";
+import type { BotPersonality } from "@/lib/cheats/botManipulation";
 import { BotAvatar } from "@/components/bot/BotAvatar";
 import {
   TIME_CONTROLS,
@@ -27,6 +28,10 @@ export interface BotConfig {
   showEval: boolean;
   /** Non-standard starting position — handicap odds (or a deep-linked custom FEN) apply this instead of the normal start. */
   startFen?: string;
+  /** Custom bot builder: overrides the chosen tier's Stockfish skill level (0-20) when set. */
+  customSkill?: number;
+  /** Custom bot builder: overrides the chosen tier's play style when set. */
+  customPersonality?: BotPersonality;
 }
 
 export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
@@ -40,6 +45,9 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
   const [delayMode, setDelayMode] = useState<DelayMode>("increment");
   const [showRules, setShowRules] = useState(false);
   const [myRating, setMyRating] = useState<number | null>(null);
+  const [customizing, setCustomizing] = useState(false);
+  const [customSkill, setCustomSkill] = useState(10);
+  const [customPersonality, setCustomPersonality] = useState<BotPersonality>("normal");
 
   // Recommended-bot guidance: fetch the signed-in player's blitz rating and
   // highlight the tier closest to it. Silently skipped when signed out.
@@ -103,7 +111,14 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
     const color: Color = colorChoice === "random" ? (Math.random() < 0.5 ? "w" : "b") : colorChoice;
     const botColor: Color = color === "w" ? "b" : "w";
     const startFen = oddsStartFen(botColor, oddsId) ?? undefined;
-    onStart({ tierId, color, timeControlId: tcId, showEval, startFen });
+    onStart({
+      tierId,
+      color,
+      timeControlId: tcId,
+      showEval,
+      startFen,
+      ...(customizing ? { customSkill, customPersonality } : {}),
+    });
   };
 
   const grouped: Record<string, TimeControl[]> = {};
@@ -199,6 +214,50 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
             </div>
           </div>
         ))}
+      </section>
+
+      <section className="panel mt-4 p-4">
+        <label className="flex cursor-pointer items-center justify-between">
+          <span className="label">Customize strength &amp; style</span>
+          <input
+            type="checkbox"
+            checked={customizing}
+            onChange={(e) => setCustomizing(e.target.checked)}
+            className="h-4 w-4 accent-[var(--accent)]"
+          />
+        </label>
+        {customizing && (
+          <div className="mt-3 flex flex-col gap-3">
+            <p className="text-xs text-[var(--text-faint)]">
+              Fine-tunes {selectedTier.name}&apos;s engine strength and play style — the tier above still sets its avatar, name, and starting elo estimate.
+            </p>
+            <label className="flex flex-col gap-1.5 text-xs text-[var(--text-muted)]">
+              Skill level ({customSkill}/20)
+              <input
+                type="range"
+                min={0}
+                max={20}
+                step={1}
+                value={customSkill}
+                onChange={(e) => setCustomSkill(Number(e.target.value))}
+                className="w-full accent-[var(--accent)]"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+              Play style
+              <select
+                className="input !w-auto !py-1 text-xs"
+                value={customPersonality}
+                onChange={(e) => setCustomPersonality(e.target.value as BotPersonality)}
+              >
+                <option value="normal">Normal</option>
+                <option value="aggressive">Aggressive</option>
+                <option value="passive">Passive</option>
+                <option value="random">Random</option>
+              </select>
+            </label>
+          </div>
+        )}
       </section>
 
       <section className="panel mt-4 p-4">

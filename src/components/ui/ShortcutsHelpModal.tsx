@@ -7,10 +7,12 @@ export function ShortcutsHelpModal({
   onClose,
   showDraw = false,
   showChat = false,
+  showModeration = false,
 }: {
   onClose: () => void;
   showDraw?: boolean;
   showChat?: boolean;
+  showModeration?: boolean;
 }) {
   const panelRef = useFocusTrap<HTMLDivElement>(onClose);
 
@@ -21,6 +23,7 @@ export function ShortcutsHelpModal({
     ["P", "Announce position (screen reader)"],
     ...(showDraw ? ([["D", "Offer draw"], ["A", "Accept a pending draw offer"]] as [string, string][]) : []),
     ...(showChat ? ([["/", "Focus the chat input"]] as [string, string][]) : []),
+    ...(showModeration ? ([["M", "Toggle moderation panel"]] as [string, string][]) : []),
     ["?", "Toggle this help"],
   ];
 

@@ -3,6 +3,7 @@ import { Piece } from "@/lib/pieces";
 import { IconUsers, IconRobot, IconPuzzle, IconSparkles, IconTarget, IconGrid, IconChevronRight } from "@/components/ui/icons";
 import { HowToPlayChessLink } from "@/components/home/HowToPlayChessLink";
 import { BotAvatar } from "@/components/bot/BotAvatar";
+import { ResumeGameCard } from "@/components/ui/ResumeGameCard";
 
 const FEATURES = [
   { title: "Play online", body: "Get matched with a live opponent, with clocks, chat, and rated ladders." },
@@ -63,6 +64,10 @@ function HeroBoard() {
 export default function Home() {
   return (
     <div className="mx-auto max-w-6xl px-4">
+      <div className="pt-6">
+        <ResumeGameCard />
+      </div>
+
       <section className="grid items-center gap-12 py-12 md:grid-cols-2 md:py-16">
         <div className="flex justify-center md:order-2 md:justify-end">
           <HeroBoard />

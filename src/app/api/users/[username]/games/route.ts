@@ -86,6 +86,45 @@ export async function GET(req: Request, { params }: { params: Promise<{ username
     });
   }
 
+  // Bulk "download all as CSV" archive — same pagination walk as the PGN
+  // export above, but as a spreadsheet-friendly row per game (opponent,
+  // result, date, rating change) instead of full move text.
+  if (url.searchParams.get("format") === "csv") {
+    const games: Awaited<ReturnType<typeof fetchGameHistory>>["games"] = [];
+    let pageCursor: string | undefined;
+    do {
+      const page = await fetchGameHistory({ userId: user.id, cursor: pageCursor, limit: 50, result, category, favoritesOnly });
+      games.push(...page.games);
+      pageCursor = page.nextCursor ?? undefined;
+    } while (pageCursor && games.length < MAX_BULK_EXPORT_GAMES);
+
+    const escapeCsv = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const rows = games.map((g) => {
+      const isWhite = g.whiteId === user.id;
+      const opponent = isWhite ? g.blackName : g.whiteName;
+      const outcome = g.result === "DRAW" ? "draw" : (g.result === "WHITE_WINS") === isWhite ? "win" : "loss";
+      const before = isWhite ? g.whiteRatingBefore : g.blackRatingBefore;
+      const after = isWhite ? g.whiteRatingAfter : g.blackRatingAfter;
+      const ratingChange = before != null && after != null ? after - before : "";
+      return [
+        g.createdAt.toISOString().slice(0, 10),
+        escapeCsv(opponent),
+        isWhite ? "white" : "black",
+        outcome,
+        g.category,
+        g.termination,
+        String(ratingChange),
+      ].join(",");
+    });
+    const csv = ["date,opponent,color,result,category,termination,rating_change", ...rows].join("\n");
+    return new NextResponse(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="rook-and-roll-${username}-games.csv"`,
+      },
+    });
+  }
+
   const { games, nextCursor } = await fetchGameHistory({ userId: user.id, cursor, limit, result, category, favoritesOnly });
 
   return NextResponse.json({

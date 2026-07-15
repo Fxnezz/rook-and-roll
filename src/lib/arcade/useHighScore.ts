@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useSettings } from "@/lib/chess/useSettings";
 
 export interface LeaderboardRow {
   username: string | null;
@@ -18,6 +19,7 @@ const key = (game: string, level?: string) => `rr.highscore.${game}${level ? `.$
 export function useHighScore(game: string, opts: { level?: string; higherIsBetter?: boolean } = {}) {
   const { level, higherIsBetter = true } = opts;
   const { data: session } = useSession();
+  const { settings } = useSettings();
   const [best, setBest] = useState<number | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,19 @@ export function useHighScore(game: string, opts: { level?: string; higherIsBette
 
   const submit = useCallback(
     async (score: number) => {
-      setBest((prev) => (isBetter(score, prev) ? score : prev));
+      // Practice mode: don't touch the recorded best or leaderboards at all —
+      // this run simply doesn't count.
+      if (settings.arcadePracticeMode) return;
+
+      setBest((prev) => {
+        if (!isBetter(score, prev)) return prev;
+        // Only celebrate a genuine improvement over a real previous best —
+        // not the very first score ever recorded for this game.
+        if (prev !== null && typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("rr:new-highscore", { detail: { game, score } }));
+        }
+        return score;
+      });
       if (session?.user) {
         fetch("/api/highscores", {
           method: "POST",
@@ -70,8 +84,8 @@ export function useHighScore(game: string, opts: { level?: string; higherIsBette
         }
       }
     },
-    [game, level, session, isBetter],
+    [game, level, session, isBetter, settings.arcadePracticeMode],
   );
 
-  return { best, leaderboard, loading, submit, loggedIn: Boolean(session?.user) };
+  return { best, leaderboard, loading, submit, loggedIn: Boolean(session?.user), practiceMode: settings.arcadePracticeMode };
 }

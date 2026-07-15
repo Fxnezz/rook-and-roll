@@ -41,7 +41,10 @@ export interface OnlineState {
   rematchOfferFrom: Color | null;
   opponentConnected: boolean;
   chat: ChatMsg[];
-  searching: { seconds: number; players: number };
+  searching: { seconds: number; players: number; position: number | null };
+  /** Set after createInvite() succeeds — the 6-char code to share with a friend. */
+  inviteCode: string | null;
+  inviteError: string | null;
   error: string | null;
   rated: boolean;
   /** monotonic; increments when a server move should be applied */
@@ -74,7 +77,9 @@ const INITIAL: OnlineState = {
   rematchOfferFrom: null,
   opponentConnected: true,
   chat: [],
-  searching: { seconds: 0, players: 0 },
+  searching: { seconds: 0, players: 0, position: null },
+  inviteCode: null,
+  inviteError: null,
   error: null,
   rated: false,
   moveSeq: 0,
@@ -110,14 +115,17 @@ export function useOnlineGame(identity: Identity) {
     });
     socket.on("disconnect", () => patch({ connected: false }));
 
-    socket.on("queue:waiting", ({ playersSearching }) =>
-      setState((s) => ({ ...s, phase: "searching", searching: { ...s.searching, players: playersSearching } })),
+    socket.on("queue:waiting", ({ playersSearching, position }) =>
+      setState((s) => ({ ...s, phase: "searching", searching: { ...s.searching, players: playersSearching, position: position ?? null } })),
     );
 
     socket.on("queue:matched", ({ roomId }) => {
       roomRef.current = roomId;
       socket.emit("room:join", { roomId, identity: identityRef.current });
     });
+
+    socket.on("invite:created", ({ code }) => patch({ inviteCode: code, inviteError: null }));
+    socket.on("invite:error", ({ message }) => patch({ inviteError: message, inviteCode: null }));
 
     socket.on("game:state", (gs) => {
       const my = playerColorOf(gs.players, identityRef.current.userId);
@@ -198,7 +206,7 @@ export function useOnlineGame(identity: Identity) {
   const findGame = useCallback(
     (timeControl: TimeControlSpec, rated: boolean) => {
       const socket = ensureSocket();
-      setState((s) => ({ ...s, phase: "searching", searching: { seconds: 0, players: 0 }, error: null, rated }));
+      setState((s) => ({ ...s, phase: "searching", searching: { seconds: 0, players: 0, position: null }, error: null, rated }));
       socket.emit("queue:join", { identity: identityRef.current, timeControl, rated });
     },
     [ensureSocket],
@@ -208,6 +216,25 @@ export function useOnlineGame(identity: Identity) {
     socketRef.current?.emit("queue:leave");
     setState((s) => ({ ...s, phase: "idle" }));
   }, []);
+
+  /** Creates a private-room invite code for the given time control — the friend who joins with it starts a game with you directly, bypassing public matchmaking. */
+  const createInvite = useCallback(
+    (timeControl: TimeControlSpec, rated: boolean) => {
+      const socket = ensureSocket();
+      patch({ inviteCode: null, inviteError: null });
+      socket.emit("invite:create", { identity: identityRef.current, timeControl, rated });
+    },
+    [ensureSocket, patch],
+  );
+
+  const joinInvite = useCallback(
+    (code: string) => {
+      const socket = ensureSocket();
+      patch({ inviteError: null });
+      socket.emit("invite:join", { code, identity: identityRef.current });
+    },
+    [ensureSocket, patch],
+  );
 
   const spectate = useCallback(
     (roomId: string) => {
@@ -337,6 +364,8 @@ export function useOnlineGame(identity: Identity) {
     connect,
     findGame,
     cancelSearch,
+    createInvite,
+    joinInvite,
     spectate,
     joinRoom,
     sendMove,

@@ -13,7 +13,11 @@ interface Me {
   showOnlineStatus: boolean;
   notifyAchievements: boolean;
   notifyGameResults: boolean;
+  doNotDisturb: boolean;
+  autoDeclineFriendRequests: boolean;
+  profilePublic: boolean;
   bio: string | null;
+  bannerColor: string | null;
   pinnedAchievementId: string | null;
   earnedAchievementIds: string[];
 }
@@ -61,9 +65,28 @@ export default function AccountPage() {
   );
 }
 
+interface LoginEventRow {
+  id: string;
+  ip: string | null;
+  userAgent: string | null;
+  method: string;
+  createdAt: string;
+}
+
 function DataAndSessionsForm() {
   const [signingOut, setSigningOut] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<LoginEventRow[] | null>(null);
+
+  const loadHistory = () => {
+    setShowHistory((v) => !v);
+    if (history) return;
+    fetch("/api/me/login-history")
+      .then((r) => r.json())
+      .then((d) => setHistory(d.events ?? []))
+      .catch(() => setHistory([]));
+  };
 
   const signOutEverywhere = async () => {
     setErr(null);
@@ -108,6 +131,34 @@ function DataAndSessionsForm() {
           {signingOut ? "Signing out…" : "Sign out everywhere"}
         </button>
       </div>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm">Login history</p>
+          <p className="text-xs text-[var(--text-muted)]">Recent sign-ins to your account.</p>
+        </div>
+        <button className="btn btn-ghost hover-lift !py-1.5 !text-sm" onClick={loadHistory}>
+          {showHistory ? "Hide" : "View"}
+        </button>
+      </div>
+      {showHistory && (
+        <div className="max-h-56 overflow-y-auto rounded-md bg-[var(--bg-elev)] p-2">
+          {history === null ? (
+            <p className="p-2 text-sm text-[var(--text-muted)]">Loading…</p>
+          ) : history.length === 0 ? (
+            <p className="p-2 text-sm text-[var(--text-muted)]">No recorded logins yet.</p>
+          ) : (
+            <div className="flex flex-col divide-y divide-[var(--border)]">
+              {history.map((h) => (
+                <div key={h.id} className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs">
+                  <span className="capitalize text-[var(--text-muted)]">{h.method}</span>
+                  <span className="min-w-0 flex-1 truncate text-[var(--text-faint)]">{h.ip ?? "unknown IP"}</span>
+                  <span className="shrink-0 text-[var(--text-faint)]">{new Date(h.createdAt).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {err && <p className="text-sm text-[var(--bad)]">{err}</p>}
     </div>
   );
@@ -329,8 +380,11 @@ function PasswordForm() {
   );
 }
 
-function ProfileEditForm({ initial }: { initial: Pick<Me, "bio" | "pinnedAchievementId" | "earnedAchievementIds"> }) {
+const BANNER_SWATCHES = ["#5b8dee", "#e5604d", "#5bbf7a", "#e5a13c", "#a85bd8", "#3ba0a0"];
+
+function ProfileEditForm({ initial }: { initial: Pick<Me, "bio" | "bannerColor" | "pinnedAchievementId" | "earnedAchievementIds"> }) {
   const [bio, setBio] = useState(initial.bio ?? "");
+  const [bannerColor, setBannerColor] = useState<string | null>(initial.bannerColor);
   const [pinnedAchievementId, setPinnedAchievementId] = useState(initial.pinnedAchievementId ?? "");
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -345,7 +399,7 @@ function ProfileEditForm({ initial }: { initial: Pick<Me, "bio" | "pinnedAchieve
       await fetch("/api/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "profile", bio, pinnedAchievementId: pinnedAchievementId || null }),
+        body: JSON.stringify({ action: "profile", bio, bannerColor, pinnedAchievementId: pinnedAchievementId || null }),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
@@ -372,6 +426,30 @@ function ProfileEditForm({ initial }: { initial: Pick<Me, "bio" | "pinnedAchieve
         />
         <p className="mt-1 text-right text-xs text-[var(--text-faint)]">{bio.length}/280</p>
       </div>
+      <div>
+        <label className="label mb-1 block">Profile banner color</label>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="No banner color"
+            onClick={() => setBannerColor(null)}
+            className="hover-lift flex h-7 items-center rounded-full border border-[var(--border)] px-2 text-xs transition-transform"
+            style={{ boxShadow: !bannerColor ? "0 0 0 2px var(--panel), 0 0 0 4px var(--accent)" : "none" }}
+          >
+            None
+          </button>
+          {BANNER_SWATCHES.map((c) => (
+            <button
+              type="button"
+              key={c}
+              aria-label={`Banner color ${c}`}
+              onClick={() => setBannerColor(c)}
+              className="hover-lift h-7 w-7 rounded-full transition-transform"
+              style={{ background: c, boxShadow: bannerColor === c ? "0 0 0 2px var(--panel), 0 0 0 4px var(--accent)" : "none" }}
+            />
+          ))}
+        </div>
+      </div>
       {earned.length > 0 && (
         <div>
           <label className="label mb-1 block">Featured achievement</label>
@@ -392,7 +470,15 @@ function ProfileEditForm({ initial }: { initial: Pick<Me, "bio" | "pinnedAchieve
   );
 }
 
-type PrefKey = "notifyFriendRequests" | "notifyFriendOnline" | "showOnlineStatus" | "notifyAchievements" | "notifyGameResults";
+type PrefKey =
+  | "notifyFriendRequests"
+  | "notifyFriendOnline"
+  | "showOnlineStatus"
+  | "notifyAchievements"
+  | "notifyGameResults"
+  | "profilePublic"
+  | "doNotDisturb"
+  | "autoDeclineFriendRequests";
 
 function PreferencesForm({ initial }: { initial: Pick<Me, PrefKey> }) {
   const [notifyFriendRequests, setNotifyFriendRequests] = useState(initial.notifyFriendRequests);
@@ -400,6 +486,9 @@ function PreferencesForm({ initial }: { initial: Pick<Me, PrefKey> }) {
   const [showOnlineStatus, setShowOnlineStatus] = useState(initial.showOnlineStatus);
   const [notifyAchievements, setNotifyAchievements] = useState(initial.notifyAchievements);
   const [notifyGameResults, setNotifyGameResults] = useState(initial.notifyGameResults);
+  const [profilePublic, setProfilePublic] = useState(initial.profilePublic);
+  const [doNotDisturb, setDoNotDisturb] = useState(initial.doNotDisturb);
+  const [autoDeclineFriendRequests, setAutoDeclineFriendRequests] = useState(initial.autoDeclineFriendRequests);
   const [saved, setSaved] = useState(false);
 
   const save = async (patch: Partial<Record<PrefKey, boolean>>) => {
@@ -460,6 +549,18 @@ function PreferencesForm({ initial }: { initial: Pick<Me, PrefKey> }) {
         />
       </label>
       <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Public profile (visible to everyone, not just friends)</span>
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-[var(--accent)]"
+          checked={profilePublic}
+          onChange={(e) => {
+            setProfilePublic(e.target.checked);
+            save({ profilePublic: e.target.checked });
+          }}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3">
         <span className="text-sm">Notify me when I earn an achievement</span>
         <input
           type="checkbox"
@@ -480,6 +581,30 @@ function PreferencesForm({ initial }: { initial: Pick<Me, PrefKey> }) {
           onChange={(e) => {
             setNotifyGameResults(e.target.checked);
             save({ notifyGameResults: e.target.checked });
+          }}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Do not disturb (silence the bell badge &amp; sound)</span>
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-[var(--accent)]"
+          checked={doNotDisturb}
+          onChange={(e) => {
+            setDoNotDisturb(e.target.checked);
+            save({ doNotDisturb: e.target.checked });
+          }}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Auto-decline incoming friend requests</span>
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-[var(--accent)]"
+          checked={autoDeclineFriendRequests}
+          onChange={(e) => {
+            setAutoDeclineFriendRequests(e.target.checked);
+            save({ autoDeclineFriendRequests: e.target.checked });
           }}
         />
       </label>

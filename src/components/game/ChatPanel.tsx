@@ -24,6 +24,7 @@ export function ChatPanel({
   isModerator,
   onModMute,
   onModWarn,
+  isSpectatorView,
 }: {
   messages: ChatMsg[];
   onSend: (text: string) => void;
@@ -36,6 +37,8 @@ export function ChatPanel({
   isModerator?: boolean;
   onModMute?: () => void;
   onModWarn?: (m: ChatMsg) => void;
+  /** Relabels the mute button for spectators ("Mute chat" instead of "Mute opponent", which doesn't apply when you're not a player). */
+  isSpectatorView?: boolean;
 }) {
   const [text, setText] = useState("");
   const [muteOpponent, setMuteOpponent] = useState(false);
@@ -140,10 +143,10 @@ export function ChatPanel({
           className="hover-lift flex items-center gap-1 rounded px-1.5 py-1 text-xs text-[var(--text-faint)] transition-colors hover:text-[var(--text)]"
           onClick={() => setMuteOpponent((v) => !v)}
           aria-pressed={muteOpponent}
-          title={muteOpponent ? "Unmute opponent's chat" : "Mute opponent's chat"}
+          title={isSpectatorView ? (muteOpponent ? "Unmute chat" : "Mute chat") : muteOpponent ? "Unmute opponent's chat" : "Mute opponent's chat"}
         >
           {muteOpponent ? <IconVolumeOff width={13} height={13} /> : <IconVolume width={13} height={13} />}
-          {muteOpponent ? "Opponent muted" : "Mute opponent"}
+          {isSpectatorView ? (muteOpponent ? "Chat muted" : "Mute chat") : muteOpponent ? "Opponent muted" : "Mute opponent"}
         </button>
       </div>
 

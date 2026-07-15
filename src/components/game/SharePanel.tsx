@@ -1,8 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Color } from "chess.js";
-import { IconCopy, IconDownload } from "@/components/ui/icons";
+import { IconCopy, IconDownload, IconStar } from "@/components/ui/icons";
+
+const SAVED_POSITIONS_KEY = "rr.savedPositions.v1";
+
+interface SavedPosition {
+  label: string;
+  fen: string;
+  savedAt: number;
+}
+
+function loadSavedPositions(): SavedPosition[] {
+  try {
+    const raw = localStorage.getItem(SAVED_POSITIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
 
 const PIECE_GLYPHS: Record<string, string> = {
   p: "♟",
@@ -113,6 +130,13 @@ function renderShareCard(fen: string, theme: { light: string; dark: string }, or
   return canvas;
 }
 
+/** e.g. "Alice 1-0 Bob (Ruy Lopez) — Rook & Roll" for pasting into chat/social. */
+function resultText(meta: ShareCardMeta): string {
+  const score = meta.result === "DRAW" ? "½–½" : meta.result === "WHITE_WINS" ? "1–0" : "0–1";
+  const opening = meta.opening ? ` (${meta.opening})` : "";
+  return `${meta.whiteName} ${score} ${meta.blackName}${opening} — Rook & Roll`;
+}
+
 function useCopy() {
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (label: string, text: string) => {
@@ -152,6 +176,30 @@ export function SharePanel({
   const [fenInput, setFenInput] = useState("");
   const [pgnInput, setPgnInput] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [savedPositions, setSavedPositions] = useState<SavedPosition[]>([]);
+
+  useEffect(() => {
+    setSavedPositions(loadSavedPositions());
+  }, []);
+
+  const persistSaved = (list: SavedPosition[]) => {
+    setSavedPositions(list);
+    try {
+      localStorage.setItem(SAVED_POSITIONS_KEY, JSON.stringify(list));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const saveCurrentPosition = () => {
+    const label = window.prompt("Label this position (e.g. \"My Sicilian sideline\"):");
+    if (!label?.trim()) return;
+    persistSaved([{ label: label.trim(), fen, savedAt: Date.now() }, ...savedPositions].slice(0, 30));
+  };
+
+  const removeSavedPosition = (savedAt: number) => {
+    persistSaved(savedPositions.filter((p) => p.savedAt !== savedAt));
+  };
 
   const downloadPgn = () => {
     const blob = new Blob([pgn || "*"], { type: "application/x-chess-pgn" });
@@ -211,12 +259,62 @@ export function SharePanel({
         </code>
       </section>
 
+      {onLoadFen && (
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="label">Saved positions</span>
+            <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={saveCurrentPosition}>
+              <IconStar width={14} height={14} /> Save current
+            </button>
+          </div>
+          {savedPositions.length === 0 ? (
+            <p className="text-xs text-[var(--text-faint)]">No saved positions yet.</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {savedPositions.map((p) => (
+                <li
+                  key={p.savedAt}
+                  className="flex items-center justify-between gap-2 rounded-md bg-[var(--bg-elev)] px-2 py-1"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-medium text-[var(--text)]">{p.label}</div>
+                    <div className="text-[10px] text-[var(--text-faint)]">
+                      {new Date(p.savedAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      className="btn btn-ghost !px-2 !py-1 text-xs"
+                      onClick={() => onLoadFen(p.fen)}
+                    >
+                      Load
+                    </button>
+                    <button
+                      className="btn btn-ghost !px-2 !py-1 text-xs text-[var(--bad)]"
+                      onClick={() => removeSavedPosition(p.savedAt)}
+                      aria-label={`Delete saved position ${p.label}`}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       {shareCardMeta && (
         <section className="flex items-center justify-between rounded-md bg-[var(--bg-elev)] p-2">
           <span className="text-xs text-[var(--text-muted)]">Result card (board + names + accuracy)</span>
-          <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={downloadShareCard}>
-            <IconDownload width={14} height={14} /> Share card
-          </button>
+          <div className="flex gap-1">
+            <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => copy("result", resultText(shareCardMeta))}>
+              <IconCopy width={14} height={14} /> {copied === "result" ? "Copied" : "Copy result"}
+            </button>
+            <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={downloadShareCard}>
+              <IconDownload width={14} height={14} /> Share card
+            </button>
+          </div>
         </section>
       )}
 

@@ -82,6 +82,7 @@ export default async function GamesPage({
   const baseParams = { user: sp.user, result: sp.result, category: sp.category, favorites: sp.favorites };
   const isOwn = !sp.user;
   const downloadHref = `/api/users/${profileUser.username}/games?format=pgn&result=${result}&category=${category}${favoritesOnly ? "&favorites=true" : ""}`;
+  const downloadCsvHref = `/api/users/${profileUser.username}/games?format=csv&result=${result}&category=${category}${favoritesOnly ? "&favorites=true" : ""}`;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -93,9 +94,14 @@ export default async function GamesPage({
             <AnalyzeAllButton games={games.filter((g) => g.accuracyW == null || g.accuracyB == null).map((g) => ({ id: g.id, pgn: g.pgn }))} />
           )}
           {games.length > 0 && (
-            <a href={downloadHref} className="btn hover-lift !py-1.5 text-xs" download>
-              <IconDownload width={14} height={14} /> Download all as PGN
-            </a>
+            <>
+              <a href={downloadHref} className="btn hover-lift !py-1.5 text-xs" download>
+                <IconDownload width={14} height={14} /> PGN
+              </a>
+              <a href={downloadCsvHref} className="btn hover-lift !py-1.5 text-xs" download>
+                <IconDownload width={14} height={14} /> CSV
+              </a>
+            </>
           )}
         </div>
       </div>

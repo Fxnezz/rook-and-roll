@@ -11,6 +11,7 @@ import {
   puzzleElo,
   loadProgress,
   saveProgress,
+  ALL_THEMES,
   type DifficultyFilter,
 } from "@/lib/puzzles";
 import type { PuzzleDef, PuzzleProgress } from "@/lib/puzzles/types";
@@ -56,6 +57,13 @@ function dailyStreak(log: Record<string, boolean>): number {
   return streak;
 }
 
+interface RushLogEntry {
+  puzzleId: string;
+  rating: number;
+  themes: string[];
+  mistake: boolean;
+}
+
 interface HistoryEntry {
   id: string;
   puzzleId: string;
@@ -76,11 +84,14 @@ export default function PuzzlesPage() {
   const [ratingFlash, setRatingFlash] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [difficulty, setDifficulty] = useState<DifficultyFilter>("auto");
+  const [themes, setThemes] = useState<string[]>([]);
 
   const [rushActive, setRushActive] = useState(false);
   const [rushMsLeft, setRushMsLeft] = useState(RUSH_DURATION_MS);
   const [rushSolved, setRushSolved] = useState(0);
   const [rushResult, setRushResult] = useState<number | null>(null);
+  const [rushLog, setRushLog] = useState<RushLogEntry[]>([]);
+  const [rushMistakeThisPuzzle, setRushMistakeThisPuzzle] = useState(false);
 
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
@@ -120,11 +131,13 @@ export default function PuzzlesPage() {
     setRushSolved(0);
     setRushMsLeft(RUSH_DURATION_MS);
     setRushResult(null);
+    setRushLog([]);
+    setRushMistakeThisPuzzle(false);
     setRushActive(true);
     setSolvedThis(false);
     setRatingFlash(null);
-    setPuzzle(nextPuzzle(progress, undefined, difficulty));
-  }, [progress, difficulty]);
+    setPuzzle(nextPuzzle(progress, undefined, difficulty, themes));
+  }, [progress, difficulty, themes]);
 
   const loadHistory = useCallback(() => {
     setShowHistory((v) => !v);
@@ -196,16 +209,22 @@ export default function PuzzlesPage() {
 
       if (rushActive) {
         setRushSolved((n) => n + 1);
+        setRushLog((log) => [
+          ...log,
+          { puzzleId: puzzle.id, rating: puzzle.rating, themes: puzzle.themes, mistake: rushMistakeThisPuzzle },
+        ]);
+        setRushMistakeThisPuzzle(false);
         setTimeout(() => {
           setSolvedThis(false);
-          setPuzzle(nextPuzzle(nextProgress, puzzle.id, difficulty));
+          setPuzzle(nextPuzzle(nextProgress, puzzle.id, difficulty, themes));
         }, 500);
       }
     },
-    [mode, puzzle, progress, persist, rushActive, difficulty],
+    [mode, puzzle, progress, persist, rushActive, difficulty, themes, rushMistakeThisPuzzle],
   );
 
   const onFirstMistake = useCallback(() => {
+    if (rushActive) setRushMistakeThisPuzzle(true);
     // The daily puzzle is a no-stakes bonus — it never touches the practice rating.
     if (mode === "daily") return;
     if (!puzzle) return;
@@ -219,13 +238,13 @@ export default function PuzzlesPage() {
     };
     setRatingFlash(rating - before);
     persist(p, puzzle.id, false, before);
-  }, [mode, puzzle, progress, persist]);
+  }, [mode, puzzle, progress, persist, rushActive]);
 
   const advance = useCallback(() => {
     setSolvedThis(false);
     setRatingFlash(null);
-    setPuzzle(nextPuzzle(progress, puzzle?.id, difficulty));
-  }, [progress, puzzle, difficulty]);
+    setPuzzle(nextPuzzle(progress, puzzle?.id, difficulty, themes));
+  }, [progress, puzzle, difficulty, themes]);
 
   const active = mode === "daily" ? daily : puzzle;
 
@@ -277,7 +296,12 @@ export default function PuzzlesPage() {
 
       {showHistory && (
         <div className="panel mb-4 max-h-64 overflow-y-auto p-4">
-          <span className="label">Recent attempts</span>
+          <div className="flex items-center justify-between">
+            <span className="label">Recent attempts</span>
+            <Link href="/puzzles/history" className="text-xs text-[var(--accent)] hover:underline">
+              View full history →
+            </Link>
+          </div>
           {history === null ? (
             <p className="mt-2 text-sm text-[var(--text-muted)]">Loading…</p>
           ) : history.length === 0 ? (
@@ -319,13 +343,33 @@ export default function PuzzlesPage() {
               </button>
             </div>
           ) : mode === "rush" && rushResult !== null ? (
-            <div className="panel flex aspect-square flex-col items-center justify-center gap-3 p-6 text-center">
+            <div className="panel flex aspect-square flex-col items-center gap-3 overflow-y-auto p-6 text-center">
               <h2 className="text-xl font-bold">Time&apos;s up!</h2>
               <p className="text-3xl font-black text-[var(--accent)]">{rushResult}</p>
               <p className="text-sm text-[var(--text-muted)]">puzzles solved</p>
-              <button className="btn btn-primary mt-2" onClick={startRush}>
+              <button className="btn btn-primary mt-1" onClick={startRush}>
                 Play again
               </button>
+              {rushLog.length > 0 && (
+                <div className="mt-2 w-full text-left">
+                  <p className="label mb-1.5 text-center">Run review</p>
+                  <div className="flex flex-col gap-1">
+                    {rushLog.map((entry, i) => (
+                      <div
+                        key={`${entry.puzzleId}-${i}`}
+                        className="flex items-center justify-between rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-xs"
+                      >
+                        <span className="font-semibold">#{i + 1}</span>
+                        <span className="text-[var(--text-muted)]">{entry.themes.slice(0, 2).join(", ") || "—"}</span>
+                        <span className="text-[var(--text-muted)]">{entry.rating}</span>
+                        <span className={entry.mistake ? "font-semibold text-[var(--bad)]" : "font-semibold text-[var(--good)]"}>
+                          {entry.mistake ? "Mistake" : "Clean"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : active ? (
             <PuzzlePlayer
@@ -333,6 +377,7 @@ export default function PuzzlesPage() {
               puzzle={active}
               onComplete={onComplete}
               onFirstMistake={onFirstMistake}
+              onSkip={mode === "practice" ? advance : undefined}
             />
           ) : (
             <div className="panel flex aspect-square items-center justify-center text-[var(--text-muted)]">
@@ -359,7 +404,7 @@ export default function PuzzlesPage() {
                     key={d}
                     onClick={() => {
                       setDifficulty(d);
-                      if (mode === "practice") setPuzzle(nextPuzzle(progress, puzzle?.id, d));
+                      if (mode === "practice") setPuzzle(nextPuzzle(progress, puzzle?.id, d, themes));
                     }}
                     className="hover-lift rounded-md border px-1.5 py-1.5 text-xs font-medium capitalize transition-colors"
                     style={{
@@ -371,6 +416,30 @@ export default function PuzzlesPage() {
                     {d}
                   </button>
                 ))}
+              </div>
+              <span className="label mt-4 block">Themed packs</span>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {ALL_THEMES.slice(0, 12).map((t) => {
+                  const active = themes.includes(t);
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => {
+                        const next = active ? themes.filter((x) => x !== t) : [...themes, t];
+                        setThemes(next);
+                        if (mode === "practice") setPuzzle(nextPuzzle(progress, puzzle?.id, difficulty, next));
+                      }}
+                      className="hover-lift rounded-full border px-2 py-1 text-[11px] font-medium capitalize transition-colors"
+                      style={{
+                        borderColor: active ? "var(--accent)" : "var(--border)",
+                        background: active ? "var(--bg-elev-2)" : "transparent",
+                        color: active ? "var(--accent)" : "var(--text-muted)",
+                      }}
+                    >
+                      {t.replace(/([A-Z])/g, " $1").toLowerCase()}
+                    </button>
+                  );
+                })}
               </div>
             </>
           )}

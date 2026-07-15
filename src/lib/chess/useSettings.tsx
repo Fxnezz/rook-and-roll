@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { DEFAULT_THEME, type BoardThemeId } from "./themes";
 import type { PieceSetId } from "@/lib/pieces";
-import { setSoundEnabled, setSoundVolume, setUiVolume, setSoundPack, type SoundPack } from "./sound";
+import { setSoundEnabled, setSoundVolume, setUiVolume, setSoundPack, setNotifySoundPack, type SoundPack } from "./sound";
 
 export type MoveInputMode = "drag" | "click" | "both";
 export type AnimationSpeed = "instant" | "fast" | "normal" | "slow";
@@ -11,6 +11,9 @@ export type BoardFrame = "none" | "wood" | "minimal" | "shadow";
 export type CoordinateStyle = "inside" | "outside";
 export type UiTextScale = "small" | "normal" | "large";
 export type DefaultGameTab = "moves" | "analysis" | "share";
+export type HighlightStyle = "solid" | "pulse";
+export type UiFontFamily = "system" | "serif" | "mono";
+export type MoveAnnounceVerbosity = "minimal" | "standard" | "detailed";
 
 export interface Settings {
   boardTheme: BoardThemeId;
@@ -43,6 +46,8 @@ export interface Settings {
   highContrast: boolean;
   colorblindMode: boolean;
   soundPack: SoundPack;
+  /** Separate tone choice for just the notification "ding" (bell/achievement/toast), independent of the move/game soundPack. */
+  notifySoundPack: SoundPack;
   boardFrame: BoardFrame;
   compactMoveList: boolean;
   /** Play a sound whenever the opponent makes a move (separate from your own move sound). */
@@ -87,6 +92,44 @@ export interface Settings {
   blindfoldBot: boolean;
   /** Hint strength: "best" shows the engine's top move; "second-best" shows its #2 choice — a lighter nudge that still requires you to find the strongest move yourself. */
   hintMode: "best" | "second-best";
+  /** When on, arcade/racing/platformer scores aren't recorded as a personal best or submitted to leaderboards — a way to try a game without it counting. */
+  arcadePracticeMode: boolean;
+  /** Visual treatment for the last-move/check square highlight: a steady tint, or a pulsing animation. */
+  highlightStyle: HighlightStyle;
+  /** Overrides the board theme's coordinate label color when set (null = use the theme default). */
+  coordinateColor: string | null;
+  /** Show OS-level desktop notifications (via the browser Notification API) when a new site notification arrives while the tab is hidden. Requesting this also triggers the browser's permission prompt. */
+  desktopNotifications: boolean;
+  /** Body-text typeface: system sans, a serif, or monospace. */
+  uiFontFamily: UiFontFamily;
+  /** Line-height multiplier applied to body/UI text (1.2-2.0). */
+  uiLineHeight: number;
+  /** Replace translucent/blurred panels (header, dropdowns) with solid backgrounds. */
+  reduceTransparency: boolean;
+  /** Color used for the visible focus ring on interactive elements. */
+  focusOutlineColor: string;
+  /** How much detail speechAnnounceMoves reads aloud: minimal (just the move), standard (+ check/capture), detailed (+ piece/square names). */
+  moveAnnounceVerbosity: MoveAnnounceVerbosity;
+  /** Always underline inline links, not just on hover. */
+  underlineLinks: boolean;
+  /** Increase the minimum size of buttons/icon-buttons/inputs for easier touch/click targeting. */
+  largeTouchTargets: boolean;
+  /** Stop blinking on in-app blinking indicators (e.g. the "thinking" dots) — browsers don't expose control over the native text-cursor blink rate, so this targets the closest in-app equivalent. */
+  reducedCaretBlink: boolean;
+  /** Show a small persistent icon/badge when sound is muted, so the muted state is visible without hovering the header button. */
+  soundMutedIndicator: boolean;
+  /** Auto-load the next page when a "Load more" sentinel scrolls into view, instead of requiring a click. */
+  infiniteScrollLists: boolean;
+  /** Show a short scripted speech-bubble line from the bot on capture/check/checkmate moves. */
+  botBanter: boolean;
+  /** Bot skill nudges up/down a notch based on your recent win/loss streak against it, on rematch. */
+  adaptiveBotDifficulty: boolean;
+  /** Show confetti/particle celebrations on wins (checkmate, arcade high scores, etc). Doesn't affect moderator troll effects. */
+  confettiEnabled: boolean;
+  /** Which corner/edge toasts (high-score celebrations, copy confirmations, etc) appear from. */
+  toastPosition: "bottom-center" | "top-center" | "bottom-right" | "top-right";
+  /** Denser spacing/padding across panels and lists, for fitting more on screen. */
+  compactUi: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -111,6 +154,7 @@ const DEFAULTS: Settings = {
   highContrast: false,
   colorblindMode: false,
   soundPack: "classic",
+  notifySoundPack: "classic",
   boardFrame: "none",
   compactMoveList: false,
   opponentMoveSound: true,
@@ -134,6 +178,25 @@ const DEFAULTS: Settings = {
   analysisDepth: 12,
   blindfoldBot: false,
   hintMode: "best",
+  arcadePracticeMode: false,
+  highlightStyle: "solid",
+  coordinateColor: null,
+  desktopNotifications: false,
+  uiFontFamily: "system",
+  uiLineHeight: 1.5,
+  reduceTransparency: false,
+  focusOutlineColor: "#5b8dee",
+  moveAnnounceVerbosity: "standard",
+  underlineLinks: false,
+  largeTouchTargets: false,
+  reducedCaretBlink: false,
+  soundMutedIndicator: false,
+  infiniteScrollLists: false,
+  botBanter: false,
+  adaptiveBotDifficulty: false,
+  confettiEnabled: true,
+  toastPosition: "bottom-center",
+  compactUi: false,
 };
 
 const STORAGE_KEY = "rr.settings.v1";
@@ -185,6 +248,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSoundVolume(settings.volume);
     setUiVolume(settings.uiVolume);
     setSoundPack(settings.soundPack);
+    setNotifySoundPack(settings.notifySoundPack);
   }, [settings, ready]);
 
   // Reflect the reduce-motion preference as a data attribute so globals.css
@@ -207,6 +271,47 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.dyslexiaFont = settings.dyslexiaFont ? "true" : "false";
     document.documentElement.dataset.textScale = settings.uiTextScale;
   }, [settings.dyslexiaFont, settings.uiTextScale]);
+
+  // Last-move highlight style (solid vs pulse) + coordinate label color override —
+  // set globally so <Board> doesn't need every settings field prop-drilled through
+  // the many pages that render it.
+  useEffect(() => {
+    document.documentElement.dataset.highlight = settings.highlightStyle;
+    if (settings.coordinateColor) {
+      document.documentElement.style.setProperty("--coord-color-override", settings.coordinateColor);
+    } else {
+      document.documentElement.style.removeProperty("--coord-color-override");
+    }
+  }, [settings.highlightStyle, settings.coordinateColor]);
+
+  // Batch F accessibility toggles — same data-attribute/CSS-var pattern.
+  useEffect(() => {
+    document.documentElement.dataset.fontFamily = settings.uiFontFamily;
+    document.documentElement.style.setProperty("--ui-line-height", settings.uiLineHeight.toString());
+    document.documentElement.dataset.transparency = settings.reduceTransparency ? "reduced" : "normal";
+    document.documentElement.style.setProperty("--focus-color", settings.focusOutlineColor);
+    document.documentElement.dataset.underlineLinks = settings.underlineLinks ? "true" : "false";
+    document.documentElement.dataset.touchTargets = settings.largeTouchTargets ? "large" : "normal";
+    document.documentElement.dataset.caretBlink = settings.reducedCaretBlink ? "off" : "on";
+    // Not a CSS hook — Board.tsx reads this dataset value directly to build its
+    // speech/aria-live announcement text, since that setting isn't worth prop-drilling
+    // through the ~8 pages that render <Board>.
+    document.documentElement.dataset.moveAnnounceVerbosity = settings.moveAnnounceVerbosity;
+  }, [
+    settings.uiFontFamily,
+    settings.uiLineHeight,
+    settings.reduceTransparency,
+    settings.focusOutlineColor,
+    settings.underlineLinks,
+    settings.largeTouchTargets,
+    settings.reducedCaretBlink,
+    settings.moveAnnounceVerbosity,
+  ]);
+
+  // Batch J: compact-UI density hook.
+  useEffect(() => {
+    document.documentElement.dataset.density = settings.compactUi ? "compact" : "normal";
+  }, [settings.compactUi]);
 
   const update = useCallback((patch: Partial<Settings>) => {
     setSettings((s) => ({ ...s, ...patch }));
