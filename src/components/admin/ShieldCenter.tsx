@@ -86,7 +86,7 @@ export function ShieldCenter({ open, onClose }: { open: boolean; onClose: () => 
       onClose={onClose}
       title="Shield Center · 50 tools"
       footer={
-        <Link href="/admin" onClick={onClose} className="flex items-center justify-center gap-2 px-4 py-3.5 text-sm font-bold text-[var(--accent)] hover:bg-[var(--bg-elev)]">
+        <Link href="/admin" prefetch={false} onClick={onClose} className="flex items-center justify-center gap-2 px-4 py-3.5 text-sm font-bold text-[var(--accent)] hover:bg-[var(--bg-elev)]">
           <IconShield width={16} height={16} /> Open full command center
         </Link>
       }
@@ -145,7 +145,7 @@ export function ShieldCenter({ open, onClose }: { open: boolean; onClose: () => 
             <h3 id="recent-shield-tools" className="mb-2 text-[11px] font-black uppercase tracking-[0.12em] text-[var(--text-faint)]">Recent tools</h3>
             <div className="flex flex-wrap gap-1.5">
               {recentFeatures.map((feature) => (
-                <Link key={feature.id} href={feature.href} onClick={() => recordRecent(feature.id)} className="rounded-lg bg-[var(--bg-elev)] px-2.5 py-1.5 text-xs font-semibold hover:text-[var(--accent)]">
+                <Link key={feature.id} href={feature.href} prefetch={false} onClick={() => recordRecent(feature.id)} className="rounded-lg bg-[var(--bg-elev)] px-2.5 py-1.5 text-xs font-semibold hover:text-[var(--accent)]">
                   {feature.id}. {feature.title}
                 </Link>
               ))}
@@ -166,7 +166,7 @@ export function ShieldCenter({ open, onClose }: { open: boolean; onClose: () => 
           <div className="grid gap-2">
             {filtered.map((feature) => (
               <article key={feature.id} className="group relative rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--bg-elev)]">
-                <Link href={feature.href} onClick={() => recordRecent(feature.id)} className="block pr-8">
+                <Link href={feature.href} prefetch={false} onClick={() => recordRecent(feature.id)} className="block pr-8">
                   <div className="flex items-center gap-2">
                     <span className="grid h-6 min-w-6 place-items-center rounded-md bg-[var(--accent)]/12 px-1 text-[10px] font-black text-[var(--accent)]">{feature.id}</span>
                     <h4 className="text-sm font-bold">{feature.title}</h4>
