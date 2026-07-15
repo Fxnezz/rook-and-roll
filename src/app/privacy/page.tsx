@@ -49,7 +49,7 @@ const sections = [
 export default function PrivacyPage() {
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 sm:py-16">
-      <span className="chip !border-[var(--accent)]/30 !bg-[var(--accent)]/10 !text-[var(--accent)]">App Store ready</span>
+      <span className="chip !border-[var(--accent)]/30 !bg-[var(--accent)]/10 !text-[var(--accent)]">Your data</span>
       <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">Privacy Policy</h1>
       <p className="mt-3 text-sm font-semibold text-[var(--text-faint)]">Last updated 15 July 2026</p>
       <p className="mt-5 max-w-3xl text-base leading-7 text-[var(--text-muted)]">This policy explains how Sam&apos;s Arcade handles information across the website and iOS app.</p>

@@ -15,6 +15,7 @@ export type MotionProfile = "calm" | "balanced" | "cinematic" | "arcade" | "cust
 export type PageTransition = "none" | "fade" | "slide" | "zoom" | "curtain";
 export type HoverMotion = "off" | "subtle" | "expressive";
 export type CelebrationIntensity = "off" | "subtle" | "full";
+export type AmbientScene = "aurora" | "chess" | "stars";
 
 export interface Settings {
   boardTheme: BoardThemeId;
@@ -109,6 +110,14 @@ export interface Settings {
   celebrationIntensity: CelebrationIntensity;
   /** Use a subtle blur/depth layer during cinematic transitions. */
   depthBlur: boolean;
+  /** Decorative environment rendered behind every route. */
+  ambientScene: AmbientScene;
+  /** Soft light that follows fine pointers without intercepting input. */
+  cursorGlow: boolean;
+  /** Reveal major surfaces as they enter the viewport. */
+  scrollReveal: boolean;
+  /** Add pointer-responsive perspective and light to interactive surfaces. */
+  cardTilt: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -165,6 +174,10 @@ const DEFAULTS: Settings = {
   staggerMenus: true,
   celebrationIntensity: "subtle",
   depthBlur: false,
+  ambientScene: "aurora",
+  cursorGlow: true,
+  scrollReveal: true,
+  cardTilt: true,
 };
 
 const STORAGE_KEY = "rr.settings.v1";
@@ -255,15 +268,23 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     root.dataset.menuStagger = settings.staggerMenus ? "true" : "false";
     root.dataset.celebration = settings.celebrationIntensity;
     root.dataset.depthBlur = settings.depthBlur ? "true" : "false";
+    root.dataset.ambientScene = settings.ambientScene;
+    root.dataset.cursorGlow = settings.cursorGlow ? "true" : "false";
+    root.dataset.scrollReveal = settings.scrollReveal ? "true" : "false";
+    root.dataset.cardTilt = settings.cardTilt ? "true" : "false";
   }, [
+    settings.ambientScene,
     settings.ambientMotion,
     settings.buttonEffects,
+    settings.cardTilt,
     settings.celebrationIntensity,
+    settings.cursorGlow,
     settings.depthBlur,
     settings.hoverMotion,
     settings.motionProfile,
     settings.pageTransition,
     settings.panelGlow,
+    settings.scrollReveal,
     settings.staggerMenus,
   ]);
 

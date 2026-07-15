@@ -31,6 +31,7 @@ export default function QualityOfLifePage() {
           <li>⚡ Sam Engine S1 now defaults to depth 26, reaches depth 40, and uses a maximum-strength browser profile.</li>
           <li>🤖 Engine Arena now supports every bot-vs-bot pairing, including Pip vs Omen and Sam vs Sam.</li>
           <li>🧠 Sam Core X1 is a new original chess engine with independent search and evaluation—no Stockfish move calls.</li>
+          <li>✨ Motion Studio 2 adds ambient worlds, cursor lighting, scroll reveals, perspective cards, particles, richer route transitions, and redesigned surfaces.</li>
           <li>♟ Engine Arena supports custom-position bot-vs-bot matches.</li>
         </ul>
       </section>

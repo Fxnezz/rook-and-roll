@@ -60,9 +60,9 @@ function HeroBoard() {
   ]);
 
   return (
-    <div className="relative mx-auto w-full max-w-[32rem] select-none lg:mx-0" aria-label="Decorative chess game between Rosa and you">
+    <div className="home-board-float relative mx-auto w-full min-w-0 max-w-[32rem] select-none lg:mx-0" aria-label="Decorative chess game between Rosa and you" data-motion-reveal>
       <div className="absolute -inset-10 -z-10 rounded-full bg-[var(--accent)]/10 blur-3xl" />
-      <div className="rounded-[1.7rem] border border-[var(--border-strong)] bg-[var(--panel)] p-3 shadow-[var(--shadow)] sm:p-4">
+      <div className="motion-card rounded-[1.7rem] border border-[var(--border-strong)] bg-[var(--panel)] p-3 shadow-[var(--shadow)] sm:p-4">
         <div className="mb-3 flex items-center justify-between px-1">
           <div className="flex items-center gap-2.5">
             <BotAvatar tierId="rosa" size={36} rounded="full" />
@@ -74,7 +74,7 @@ function HeroBoard() {
           <span className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 font-mono text-sm font-bold">04:18</span>
         </div>
 
-        <div className="grid aspect-square grid-cols-8 overflow-hidden rounded-xl ring-1 ring-[var(--border-strong)]">
+        <div className="relative grid aspect-square grid-cols-8 overflow-hidden rounded-xl ring-1 ring-[var(--border-strong)]">
           {layout.map((piece, index) => {
             const row = Math.floor(index / 8);
             const col = index % 8;
@@ -101,6 +101,7 @@ function HeroBoard() {
               </div>
             );
           })}
+          <span className="home-board-scan absolute inset-y-0 w-24" aria-hidden="true" />
         </div>
 
         <div className="mt-3 flex items-center justify-between px-1">
@@ -127,17 +128,17 @@ export default function Home() {
     <div className="overflow-hidden">
       <section className="relative border-b border-[var(--border)]">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_22%_32%,color-mix(in_srgb,var(--accent)_12%,transparent),transparent_30%)]" />
-        <div className="mx-auto grid max-w-6xl items-center gap-14 px-4 py-12 md:py-16 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16 lg:py-20">
-          <div className="order-2 lg:order-1">
+        <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] items-center gap-14 px-4 py-12 md:py-16 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-16 lg:py-20">
+          <div className="order-2 min-w-0 lg:order-1">
             <HeroBoard />
           </div>
 
-          <div className="order-1 animate-fade lg:order-2">
+          <div className="order-1 min-w-0 animate-fade lg:order-2" data-motion-reveal>
             <span className="chip mb-5 !border-[var(--accent)]/25 !bg-[var(--accent)]/10 !text-[var(--accent-strong)]">
               ♜ Your next game starts here
             </span>
             <h1 className="max-w-xl text-5xl font-black leading-[0.98] tracking-[-0.05em] sm:text-6xl lg:text-7xl">
-              Play chess <span className="text-[var(--accent)]">your way.</span>
+              Play chess <span className="home-title-accent">your way.</span>
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-8 text-[var(--text-muted)] sm:text-xl">
               Find a live opponent, challenge a bot with a real personality, or train until the hard moves feel obvious.
@@ -164,7 +165,7 @@ export default function Home() {
                   </span>
                   <span className="text-left">
                     <span className="block text-lg leading-tight">Play a Bot</span>
-                    <span className="block text-xs font-semibold text-[var(--text-faint)]">13 opponents · 400–2400</span>
+                    <span className="block text-xs font-semibold text-[var(--text-faint)]">15 opponents · beginner to engine lab</span>
                   </span>
                 </span>
                 <span className="flex shrink-0 -space-x-2" aria-hidden="true">
@@ -177,7 +178,7 @@ export default function Home() {
 
             <div className="mt-4 grid max-w-xl grid-cols-2 gap-2">
               {QUICK_LINKS.map((item) => (
-                <Link key={item.href} href={item.href} className="group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-3 transition hover:border-[var(--border-strong)] hover:bg-[var(--bg-elev)]">
+                <Link key={item.href} href={item.href} className="motion-card home-quick-link group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-3 transition hover:border-[var(--border-strong)] hover:bg-[var(--bg-elev)]">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-elev-2)] text-[var(--accent)]">
                     <item.icon width={18} height={18} />
                   </span>
@@ -194,7 +195,7 @@ export default function Home() {
 
       <HomeQolRail />
 
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:py-20" data-motion-reveal>
         <div className="panel overflow-hidden">
           <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[0.75fr_1.25fr] lg:items-center">
             <div>
@@ -215,7 +216,7 @@ export default function Home() {
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {GAME_SHELF.map((game, index) => (
-                <div key={game.name} className="flex min-h-32 flex-col justify-between rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)]">
+                <div key={game.name} className="motion-card flex min-h-32 flex-col justify-between rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)]">
                   <span className={`text-2xl font-black ${index % 3 === 0 ? "text-[var(--accent)]" : index % 3 === 1 ? "text-[var(--info)]" : "text-[var(--good)]"}`}>
                     {game.mark}
                   </span>

@@ -13,6 +13,7 @@ import {
   type PageTransition,
   type HoverMotion,
   type CelebrationIntensity,
+  type AmbientScene,
 } from "@/lib/chess/useSettings";
 import { playSound, setSoundPack, type SoundName, type SoundPack } from "@/lib/chess/sound";
 import { BOARD_THEMES } from "@/lib/chess/themes";
@@ -99,7 +100,9 @@ const SETTINGS_TABS: { id: SettingsTab; label: string; symbol: string; descripti
 const SEARCH_ITEMS: { label: string; tab: SettingsTab; keywords: string }[] = [
   { label: "Motion profiles and presets", tab: "motion", keywords: "animation cinematic arcade calm balanced" },
   { label: "Page transitions", tab: "motion", keywords: "fade slide zoom curtain navigation" },
-  { label: "Hover movement and panel glow", tab: "motion", keywords: "button hover glow effects depth blur" },
+  { label: "Hover movement and panel glow", tab: "motion", keywords: "button hover glow effects depth blur tilt cursor spotlight" },
+  { label: "Ambient scenes", tab: "motion", keywords: "aurora chess stars particles background environment" },
+  { label: "Scroll reveals", tab: "motion", keywords: "entrance viewport reveal cards sections" },
   { label: "Celebration intensity", tab: "motion", keywords: "confetti win celebration effects" },
   { label: "Website and page tools", tab: "qol", keywords: "breadcrumbs notes reading ruler low data battery session clock" },
   { label: "Interface density", tab: "qol", keywords: "compact comfortable spacious layout" },
@@ -131,6 +134,10 @@ const MOTION_PROFILES: {
     celebrationIntensity: CelebrationIntensity;
     depthBlur: boolean;
     animationSpeed: AnimationSpeed;
+    ambientScene: AmbientScene;
+    cursorGlow: boolean;
+    scrollReveal: boolean;
+    cardTilt: boolean;
   };
 }[] = [
   {
@@ -138,28 +145,28 @@ const MOTION_PROFILES: {
     label: "Calm",
     description: "Quick, quiet movement with no ambient distractions.",
     accent: "#78a8c8",
-    settings: { pageTransition: "fade", hoverMotion: "off", ambientMotion: false, panelGlow: false, buttonEffects: false, staggerMenus: false, celebrationIntensity: "off", depthBlur: false, animationSpeed: "fast" },
+    settings: { pageTransition: "fade", hoverMotion: "off", ambientMotion: false, panelGlow: false, buttonEffects: false, staggerMenus: false, celebrationIntensity: "off", depthBlur: false, animationSpeed: "fast", ambientScene: "aurora", cursorGlow: false, scrollReveal: false, cardTilt: false },
   },
   {
     id: "balanced",
     label: "Balanced",
     description: "Polished motion that stays fast and easy to follow.",
     accent: "#e9a23b",
-    settings: { pageTransition: "fade", hoverMotion: "subtle", ambientMotion: true, panelGlow: true, buttonEffects: true, staggerMenus: true, celebrationIntensity: "subtle", depthBlur: false, animationSpeed: "normal" },
+    settings: { pageTransition: "fade", hoverMotion: "subtle", ambientMotion: true, panelGlow: true, buttonEffects: true, staggerMenus: true, celebrationIntensity: "subtle", depthBlur: false, animationSpeed: "normal", ambientScene: "aurora", cursorGlow: true, scrollReveal: true, cardTilt: true },
   },
   {
     id: "cinematic",
     label: "Cinematic",
     description: "Smooth depth, slower transitions and dramatic entrances.",
     accent: "#9f8bea",
-    settings: { pageTransition: "curtain", hoverMotion: "subtle", ambientMotion: true, panelGlow: true, buttonEffects: true, staggerMenus: true, celebrationIntensity: "full", depthBlur: true, animationSpeed: "slow" },
+    settings: { pageTransition: "curtain", hoverMotion: "subtle", ambientMotion: true, panelGlow: true, buttonEffects: true, staggerMenus: true, celebrationIntensity: "full", depthBlur: true, animationSpeed: "slow", ambientScene: "stars", cursorGlow: true, scrollReveal: true, cardTilt: true },
   },
   {
     id: "arcade",
     label: "Arcade",
     description: "Expressive lifts, energetic highlights and full celebrations.",
     accent: "#5bbf7a",
-    settings: { pageTransition: "zoom", hoverMotion: "expressive", ambientMotion: true, panelGlow: true, buttonEffects: true, staggerMenus: true, celebrationIntensity: "full", depthBlur: false, animationSpeed: "fast" },
+    settings: { pageTransition: "zoom", hoverMotion: "expressive", ambientMotion: true, panelGlow: true, buttonEffects: true, staggerMenus: true, celebrationIntensity: "full", depthBlur: false, animationSpeed: "fast", ambientScene: "chess", cursorGlow: true, scrollReveal: true, cardTilt: true },
   },
 ];
 
@@ -423,9 +430,9 @@ export function SettingsPanel({ canModerate = false, initialTab = "motion" }: { 
         <div className="mb-5 overflow-hidden rounded-2xl border border-[var(--border)] bg-[radial-gradient(circle_at_80%_10%,color-mix(in_srgb,var(--accent)_18%,transparent),transparent_45%),var(--bg-elev)] p-4">
           <div className="grid min-h-44 gap-4 sm:grid-cols-[1fr_12rem] sm:items-center">
             <div>
-              <span className="text-[0.65rem] font-black uppercase tracking-[0.14em] text-[var(--accent)]">Live preview</span>
-              <h4 className="mt-1 text-lg font-black">Motion with purpose</h4>
-              <p className="mt-1 max-w-sm text-xs leading-relaxed text-[var(--text-muted)]">Hover the cards and button. The preview updates immediately as you tune the controls below.</p>
+              <span className="text-[0.65rem] font-black uppercase tracking-[0.14em] text-[var(--accent)]">Live motion engine</span>
+              <h4 className="mt-1 text-lg font-black">Depth that reacts to you</h4>
+              <p className="mt-1 max-w-sm text-xs leading-relaxed text-[var(--text-muted)]">Tune route choreography, ambient worlds, cursor light, viewport reveals, and perspective response from one studio.</p>
               <button type="button" className="btn btn-primary mt-4">Preview action <span aria-hidden="true">→</span></button>
             </div>
             <div className="relative mx-auto grid h-36 w-44 place-items-center" aria-hidden="true">
@@ -457,6 +464,7 @@ export function SettingsPanel({ canModerate = false, initialTab = "motion" }: { 
           <div><span className="mb-2 block text-xs font-black text-[var(--text-muted)]">Hover response</span><Segmented options={[{ id: "off", label: "Off" }, { id: "subtle", label: "Subtle" }, { id: "expressive", label: "Expressive" }]} value={settings.hoverMotion} onChange={(v) => updateMotion({ hoverMotion: v })} /></div>
           <div><span className="mb-2 block text-xs font-black text-[var(--text-muted)]">Animation speed</span><Segmented options={ANIM_SPEEDS} value={settings.animationSpeed} onChange={(v) => updateMotion({ animationSpeed: v })} /></div>
           <div><span className="mb-2 block text-xs font-black text-[var(--text-muted)]">Celebrations</span><Segmented options={[{ id: "off", label: "Off" }, { id: "subtle", label: "Subtle" }, { id: "full", label: "Full" }]} value={settings.celebrationIntensity} onChange={(v) => updateMotion({ celebrationIntensity: v })} /></div>
+          <div className="sm:col-span-2"><span className="mb-2 block text-xs font-black text-[var(--text-muted)]">Ambient world</span><Segmented options={[{ id: "aurora", label: "Aurora" }, { id: "chess", label: "Chess grid" }, { id: "stars", label: "Starfield" }]} value={settings.ambientScene} onChange={(v) => updateMotion({ ambientScene: v })} /></div>
         </div>
         <div className="mt-4 grid gap-x-5 sm:grid-cols-2">
           <Toggle label="Ambient motion" description="Slow light and arcade-grid movement behind pages" checked={settings.ambientMotion} onChange={(v) => updateMotion({ ambientMotion: v })} />
@@ -464,6 +472,9 @@ export function SettingsPanel({ canModerate = false, initialTab = "motion" }: { 
           <Toggle label="Button effects" description="Shimmer and richer press feedback on primary actions" checked={settings.buttonEffects} onChange={(v) => updateMotion({ buttonEffects: v })} />
           <Toggle label="Staggered menus" description="Items enter in sequence instead of all at once" checked={settings.staggerMenus} onChange={(v) => updateMotion({ staggerMenus: v })} />
           <Toggle label="Cinematic depth blur" description="Soft focus during supported page transitions" checked={settings.depthBlur} onChange={(v) => updateMotion({ depthBlur: v })} />
+          <Toggle label="Cursor lighting" description="A soft accent spotlight follows mouse and trackpad movement" checked={settings.cursorGlow} onChange={(v) => updateMotion({ cursorGlow: v })} />
+          <Toggle label="Scroll reveals" description="Major cards and sections rise into place as they enter view" checked={settings.scrollReveal} onChange={(v) => updateMotion({ scrollReveal: v })} />
+          <Toggle label="Perspective cards" description="Interactive surfaces respond with subtle 3D depth and reflected light" checked={settings.cardTilt} onChange={(v) => updateMotion({ cardTilt: v })} />
           <Toggle label="Reduce all motion" description="Accessibility override: minimize every animation" checked={settings.reduceMotion} onChange={(v) => update({ reduceMotion: v })} />
         </div>
       </Section>
