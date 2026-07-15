@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useHighScore } from "@/lib/arcade/useHighScore";
 import { playArcadeSound } from "@/lib/arcade/sound";
+import { Die } from "@/components/arcade/Die";
 import {
   CATEGORIES,
   CATEGORY_LABEL,
@@ -16,7 +17,6 @@ import {
   type Scorecard,
 } from "@/lib/arcade/yahtzee";
 
-const DIE_FACE: Record<number, string> = { 1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅" };
 const MAX_ROLLS = 3;
 
 export function YahtzeeGame() {
@@ -82,13 +82,9 @@ export function YahtzeeGame() {
             key={i}
             onClick={() => toggleHold(i)}
             disabled={rollsLeft === MAX_ROLLS || done}
-            className="flex h-16 w-16 items-center justify-center rounded-xl text-4xl"
-            style={{
-              background: held[i] ? "var(--accent)" : "var(--bg-elev-2)",
-              boxShadow: held[i] ? "0 0 0 2px var(--accent)" : undefined,
-            }}
+            className="rounded-xl"
           >
-            {DIE_FACE[d]}
+            <Die value={d} selected={held[i]} />
           </button>
         ))}
       </div>

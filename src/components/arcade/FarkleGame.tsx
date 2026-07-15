@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useHighScore } from "@/lib/arcade/useHighScore";
 import { playArcadeSound } from "@/lib/arcade/sound";
+import { Die } from "@/components/arcade/Die";
 import { scoreDice, isFarkle, rollDice } from "@/lib/arcade/farkle";
 
-const DICE_FACES = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 const WINNING_SCORE = 10000;
 
 export function FarkleGame() {
@@ -107,15 +107,15 @@ export function FarkleGame() {
       <p className="max-w-sm text-center text-sm text-[var(--text-muted)]">{message}</p>
 
       {dice.length > 0 && (
-        <div className="flex gap-2 text-4xl">
+        <div className="flex flex-wrap justify-center gap-2">
           {dice.map((d, i) => (
             <button
               key={i}
               onClick={() => toggleDie(i)}
               disabled={farkled}
-              style={{ opacity: selected.has(i) ? 1 : 0.5, transform: selected.has(i) ? "translateY(-6px)" : "none" }}
+              className="rounded-xl"
             >
-              {DICE_FACES[d]}
+              <Die value={d} selected={selected.has(i)} muted={!selected.has(i)} size="compact" />
             </button>
           ))}
         </div>

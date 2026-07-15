@@ -126,10 +126,17 @@ function GameCardView({
   onCompare: () => void;
 }) {
   return (
-    <article className="group panel flex min-h-64 flex-col overflow-hidden transition duration-200 hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-[var(--shadow)]">
+    <article
+      data-game-card
+      data-category={game.category}
+      className="group panel flex min-h-64 flex-col overflow-hidden transition duration-200 hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-[var(--shadow)]"
+    >
+      <div className="game-visual" aria-hidden="true">
+        <span className="game-visual-icon">{game.emoji}</span>
+      </div>
       <div className="flex flex-1 flex-col p-5">
         <div className="mb-4 flex items-start justify-between gap-3">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-elev-2)] text-2xl ring-1 ring-white/5">{game.emoji}</span>
+          <span className="chip !border-white/10 !bg-white/[0.035] !text-[0.66rem] !font-black !uppercase !tracking-[0.14em]">{game.category}</span>
           <div className="flex items-center gap-1.5">
             <button
               type="button"

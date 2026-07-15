@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useHighScore } from "@/lib/arcade/useHighScore";
 import { playArcadeSound } from "@/lib/arcade/sound";
+import { PlayingCard } from "@/components/arcade/PlayingCard";
 import {
   deal,
   moveTableauToTableau,
@@ -17,21 +18,11 @@ import {
 import { SUITS, isRed } from "@/lib/arcade/solitaire";
 
 const SUIT_GLYPH: Record<string, string> = { S: "♠", H: "♥", D: "♦", C: "♣" };
-const RANK_LABEL: Record<number, string> = { 1: "A", 11: "J", 12: "Q", 13: "K" };
 
 type Selection = { source: "cell"; index: number } | { source: "tableau"; col: number; cardIndex: number };
 
 function CardFace({ card, selected }: { card: FcCard; selected?: boolean }) {
-  const red = isRed(card.suit);
-  return (
-    <div
-      className="flex h-full w-full flex-col justify-between rounded-md p-1 text-xs font-bold"
-      style={{ background: "#f3ecd8", color: red ? "#c0392b" : "#1c1c1c", boxShadow: selected ? "0 0 0 2px var(--accent)" : "0 1px 3px rgba(0,0,0,0.4)" }}
-    >
-      <span>{RANK_LABEL[card.rank] ?? card.rank}</span>
-      <span className="self-center text-lg leading-none">{SUIT_GLYPH[card.suit]}</span>
-    </div>
-  );
+  return <PlayingCard rank={card.rank} suit={card.suit} selected={selected} size="fill" />;
 }
 
 export function FreeCellGame() {

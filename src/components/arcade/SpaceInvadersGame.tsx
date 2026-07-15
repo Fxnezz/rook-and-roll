@@ -70,25 +70,96 @@ export function SpaceInvadersGame() {
   const draw = useCallback(() => {
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
-    ctx.fillStyle = "#0d1017";
+    const space = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+    space.addColorStop(0, "#070c1b");
+    space.addColorStop(0.58, "#10152a");
+    space.addColorStop(1, "#080b12");
+    ctx.fillStyle = space;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    // Deterministic starfield: stable between frames, with a subtle pulse.
+    for (let i = 0; i < 42; i++) {
+      const x = (i * 83 + 17) % WIDTH;
+      const y = (i * 137 + 31) % HEIGHT;
+      const bright = 0.24 + ((i + frameRef.current / 18) % 5) * 0.08;
+      ctx.fillStyle = `rgba(185,218,255,${bright})`;
+      ctx.fillRect(x, y, i % 9 === 0 ? 1.6 : 1, i % 9 === 0 ? 1.6 : 1);
+    }
+
+    const horizon = ctx.createLinearGradient(0, HEIGHT * 0.72, 0, HEIGHT);
+    horizon.addColorStop(0, "rgba(68,104,165,0)");
+    horizon.addColorStop(1, "rgba(68,104,165,0.12)");
+    ctx.fillStyle = horizon;
+    ctx.fillRect(0, HEIGHT * 0.72, WIDTH, HEIGHT * 0.28);
 
     const { x: fx, y: fy } = formationRef.current;
     for (const a of aliensRef.current) {
       if (!a.alive) continue;
       const x = fx + a.col * (ALIEN_W + ALIEN_GAP_X);
       const y = fy + ALIEN_TOP + a.row * (ALIEN_H + ALIEN_GAP_Y);
-      ctx.fillStyle = ROW_COLORS[a.row % ROW_COLORS.length];
-      ctx.fillRect(x, y, ALIEN_W, ALIEN_H);
+      const color = ROW_COLORS[a.row % ROW_COLORS.length];
+      ctx.save();
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 7;
+      const hull = ctx.createLinearGradient(x, y, x, y + ALIEN_H);
+      hull.addColorStop(0, "rgba(255,255,255,0.9)");
+      hull.addColorStop(0.16, color);
+      hull.addColorStop(1, "rgba(17,22,34,0.9)");
+      ctx.fillStyle = hull;
+      ctx.beginPath();
+      ctx.roundRect(x + 2, y + 3, ALIEN_W - 4, ALIEN_H - 7, [7, 7, 4, 4]);
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x + ALIEN_W / 2, y + 4, ALIEN_W * 0.22, Math.PI, 0);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#07101b";
+      ctx.beginPath();
+      ctx.arc(x + ALIEN_W * 0.36, y + ALIEN_H * 0.47, 1.8, 0, Math.PI * 2);
+      ctx.arc(x + ALIEN_W * 0.64, y + ALIEN_H * 0.47, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      for (const offset of [0.25, 0.5, 0.75]) {
+        ctx.beginPath();
+        ctx.moveTo(x + ALIEN_W * offset, y + ALIEN_H - 5);
+        ctx.lineTo(x + ALIEN_W * offset + (offset === 0.5 ? 0 : offset < 0.5 ? -2 : 2), y + ALIEN_H);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
-    ctx.fillStyle = "#e8ecf3";
-    ctx.fillRect(playerXRef.current, PLAYER_Y, PLAYER_W, PLAYER_H);
+    const px = playerXRef.current;
+    ctx.save();
+    ctx.shadowColor = "#79c8ff";
+    ctx.shadowBlur = 12;
+    const ship = ctx.createLinearGradient(px, PLAYER_Y, px, PLAYER_Y + PLAYER_H);
+    ship.addColorStop(0, "#f7fbff");
+    ship.addColorStop(0.4, "#91b8d5");
+    ship.addColorStop(1, "#314e6a");
+    ctx.fillStyle = ship;
+    ctx.beginPath();
+    ctx.moveTo(px + PLAYER_W / 2, PLAYER_Y - 5);
+    ctx.lineTo(px + PLAYER_W * 0.66, PLAYER_Y + 2);
+    ctx.lineTo(px + PLAYER_W, PLAYER_Y + PLAYER_H);
+    ctx.lineTo(px, PLAYER_Y + PLAYER_H);
+    ctx.lineTo(px + PLAYER_W * 0.34, PLAYER_Y + 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#6edcff";
+    ctx.fillRect(px + PLAYER_W * 0.43, PLAYER_Y, PLAYER_W * 0.14, 4);
+    ctx.restore();
 
-    ctx.fillStyle = "#f7c065";
+    ctx.save();
+    ctx.fillStyle = "#fff0a6";
+    ctx.shadowColor = "#f7c065";
+    ctx.shadowBlur = 9;
     for (const b of playerBulletsRef.current) ctx.fillRect(b.x, b.y, BULLET_W, BULLET_H);
-    ctx.fillStyle = "#e5604d";
+    ctx.fillStyle = "#ff8a77";
+    ctx.shadowColor = "#ff493b";
     for (const b of alienBulletsRef.current) ctx.fillRect(b.x, b.y, BULLET_W, BULLET_H);
+    ctx.restore();
   }, []);
 
   const startWave = useCallback((n: number) => {

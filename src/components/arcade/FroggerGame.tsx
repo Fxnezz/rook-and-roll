@@ -33,13 +33,55 @@ export function FroggerGame() {
 
     for (const lane of LANES) {
       const y = lane.row * CELL;
-      const bg = lane.type === "river" ? "#1c3a52" : lane.type === "road" ? "#26262e" : lane.type === "goal" ? "#173a2a" : "#151a20";
-      ctx.fillStyle = bg;
+      const laneGradient = ctx.createLinearGradient(0, y, 0, y + CELL);
+      if (lane.type === "river") { laneGradient.addColorStop(0, "#1d5672"); laneGradient.addColorStop(1, "#0c2e45"); }
+      else if (lane.type === "road") { laneGradient.addColorStop(0, "#353840"); laneGradient.addColorStop(1, "#1d2027"); }
+      else { laneGradient.addColorStop(0, lane.type === "goal" ? "#245a3b" : "#183225"); laneGradient.addColorStop(1, "#102219"); }
+      ctx.fillStyle = laneGradient;
       ctx.fillRect(0, y, WIDTH, CELL);
+      if (lane.type === "river") {
+        ctx.strokeStyle = "rgba(147,220,255,0.18)";
+        ctx.lineWidth = 1;
+        for (let x = -20; x < WIDTH; x += 42) {
+          ctx.beginPath();
+          ctx.moveTo(x + ((frameRef.current * lane.dir) % 42), y + CELL * 0.35);
+          ctx.quadraticCurveTo(x + 10, y + CELL * 0.25, x + 20, y + CELL * 0.35);
+          ctx.stroke();
+        }
+      } else if (lane.type === "road") {
+        ctx.fillStyle = "rgba(255,225,134,0.34)";
+        for (let x = 8; x < WIDTH; x += 64) ctx.fillRect(x, y + CELL / 2 - 1, 30, 2);
+      }
       const speedMult = 0.5 + levelRef.current * 0.15;
       for (const o of laneObstacles(lane, frameRef.current, speedMult)) {
-        ctx.fillStyle = lane.type === "river" ? "#7a5230" : "#c0524a";
-        ctx.fillRect(o.x, y + 4, o.width, CELL - 8);
+        if (lane.type === "river") {
+          const log = ctx.createLinearGradient(o.x, y, o.x, y + CELL);
+          log.addColorStop(0, "#b07943");
+          log.addColorStop(0.5, "#704421");
+          log.addColorStop(1, "#3b2415");
+          ctx.fillStyle = log;
+          ctx.beginPath();
+          ctx.roundRect(o.x, y + 7, o.width, CELL - 14, 9);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(46,24,10,0.55)";
+          for (let lx = o.x + 14; lx < o.x + o.width - 5; lx += 25) { ctx.beginPath(); ctx.moveTo(lx, y + 9); ctx.lineTo(lx - 4, y + CELL - 9); ctx.stroke(); }
+        } else {
+          const car = ctx.createLinearGradient(o.x, y, o.x, y + CELL);
+          car.addColorStop(0, "#ff8b72");
+          car.addColorStop(0.55, "#c94e47");
+          car.addColorStop(1, "#6f2427");
+          ctx.fillStyle = car;
+          ctx.beginPath();
+          ctx.roundRect(o.x, y + 6, o.width, CELL - 12, 7);
+          ctx.fill();
+          ctx.fillStyle = "#9bd4e7";
+          ctx.fillRect(o.x + o.width * 0.25, y + 8, o.width * 0.35, 7);
+          ctx.fillStyle = "#11151b";
+          ctx.fillRect(o.x + 7, y + 3, 9, 5);
+          ctx.fillRect(o.x + o.width - 16, y + 3, 9, 5);
+          ctx.fillRect(o.x + 7, y + CELL - 8, 9, 5);
+          ctx.fillRect(o.x + o.width - 16, y + CELL - 8, 9, 5);
+        }
       }
     }
 
@@ -49,8 +91,22 @@ export function FroggerGame() {
     }
 
     const frog = frogRef.current;
-    ctx.fillStyle = "#8fe36a";
-    ctx.fillRect(frog.x + 4, frog.row * CELL + 4, CELL - 8, CELL - 8);
+    const frogY = frog.row * CELL;
+    ctx.save();
+    ctx.shadowColor = "#8fe36a";
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = "#76cf59";
+    ctx.beginPath();
+    ctx.ellipse(frog.x + CELL / 2, frogY + CELL / 2 + 2, CELL * 0.3, CELL * 0.27, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#9af07a";
+    for (const ex of [frog.x + CELL * 0.34, frog.x + CELL * 0.66]) { ctx.beginPath(); ctx.arc(ex, frogY + CELL * 0.31, CELL * 0.105, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = "#142018";
+    for (const ex of [frog.x + CELL * 0.34, frog.x + CELL * 0.66]) { ctx.beginPath(); ctx.arc(ex, frogY + CELL * 0.29, 2, 0, Math.PI * 2); ctx.fill(); }
+    ctx.strokeStyle = "#69b74f";
+    ctx.lineWidth = 4;
+    for (const side of [-1, 1]) { ctx.beginPath(); ctx.moveTo(frog.x + CELL / 2 + side * 7, frogY + CELL * 0.58); ctx.lineTo(frog.x + CELL / 2 + side * 14, frogY + CELL * 0.73); ctx.stroke(); }
+    ctx.restore();
   }, []);
 
   const respawn = useCallback(() => {

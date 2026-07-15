@@ -22,7 +22,7 @@ export default function QualityOfLifePage() {
           <span className="text-xs font-black uppercase tracking-[0.14em] text-[var(--accent)]">Latest · July 2026</span>
           <span className="chip !border-[var(--good)]/30 !bg-[var(--good)]/10 !text-[var(--good)]">Live</span>
         </div>
-        <h2 className="mt-3 text-xl font-black">Bot families and the Variant Workshop</h2>
+        <h2 className="mt-3 text-xl font-black">Immersive arcade graphics, bot families and variants</h2>
         <ul className="mt-3 grid gap-2 text-sm leading-6 text-[var(--text-muted)] sm:grid-cols-2">
           <li>◇ All adjustable website and QOL controls now live in Settings.</li>
           <li>✦ Motion Studio adds profiles, transitions and effect controls.</li>
@@ -37,6 +37,10 @@ export default function QualityOfLifePage() {
           <li>🧠 Sam Core gains deeper search, check extensions, late-move reductions, richer evaluation, and a larger opening book.</li>
           <li>🐉 Variant Workshop adds playable Chess960, Dragon Chess, Archon Guard, Knightmare, and asymmetric Custom Forge armies.</li>
           <li>⚒ Dragons, Archbishops, Chancellors, and Wizards have original artwork and complete movement rules.</li>
+          <li>🎮 Every playable route now has an immersive scene with responsive lighting, depth, materials, fullscreen controls, and reduced-motion support.</li>
+          <li>🃏 Card games now use detailed linen cards with dimensional faces, embossed Sam&apos;s Arcade backs, selection lift, and light reflections.</li>
+          <li>🎲 Craps, Farkle, and Yahtzee now use physical ivory dice with recessed pips, shadows, held states, and tactile motion.</li>
+          <li>🕹 Canvas games now sit inside realistic illuminated cabinet bezels, while board games receive tournament-table framing.</li>
         </ul>
       </section>
 

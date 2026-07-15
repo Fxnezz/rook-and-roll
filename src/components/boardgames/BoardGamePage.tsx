@@ -52,7 +52,7 @@ export function BoardGamePage<TMove, TState>({
 
   if (state.phase === "idle") {
     return (
-      <div className="mx-auto max-w-md px-4 py-10">
+      <div data-game-session data-session-phase="lobby" className="mx-auto max-w-md px-4 py-10">
         <div className="mb-6 flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elev-2)] text-[var(--accent)]">
             <IconUsers width={22} height={22} />
@@ -115,7 +115,7 @@ export function BoardGamePage<TMove, TState>({
 
   if (state.phase === "searching") {
     return (
-      <div className="mx-auto flex max-w-sm flex-col items-center px-4 py-24 text-center">
+      <div data-game-session data-session-phase="searching" className="mx-auto flex max-w-sm flex-col items-center px-4 py-24 text-center">
         {state.inviteCode ? (
           <>
             <h1 className="text-xl font-bold">Share this code</h1>
@@ -160,7 +160,7 @@ export function BoardGamePage<TMove, TState>({
         : "Opponent's move";
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-5">
+    <div data-game-session data-session-phase="playing" className="mx-auto max-w-4xl px-4 py-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <button className="btn btn-ghost" onClick={match.leave}>
           ← Leave

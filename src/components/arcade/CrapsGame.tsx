@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { useHighScore } from "@/lib/arcade/useHighScore";
 import { playArcadeSound } from "@/lib/arcade/sound";
+import { Die } from "@/components/arcade/Die";
 import { newGame, roll, type CrapsState } from "@/lib/arcade/craps";
 
 const START_CHIPS = 100;
-const DICE_FACES = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 
 export function CrapsGame() {
   const { best, submit } = useHighScore("craps", { higherIsBetter: true });
@@ -73,9 +73,9 @@ export function CrapsGame() {
       </div>
 
       {dice && (
-        <div className="flex gap-3 text-5xl">
-          <span>{DICE_FACES[dice[0]]}</span>
-          <span>{DICE_FACES[dice[1]]}</span>
+        <div className="flex gap-3">
+          <Die value={dice[0]} />
+          <Die value={dice[1]} />
         </div>
       )}
 

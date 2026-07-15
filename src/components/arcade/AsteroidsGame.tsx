@@ -73,39 +73,90 @@ export function AsteroidsGame() {
   const draw = useCallback(() => {
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
-    ctx.fillStyle = "#0a0d12";
+    const space = ctx.createRadialGradient(WIDTH * 0.48, HEIGHT * 0.42, 20, WIDTH * 0.5, HEIGHT * 0.5, WIDTH * 0.7);
+    space.addColorStop(0, "#111c31");
+    space.addColorStop(0.55, "#080d18");
+    space.addColorStop(1, "#03060b");
+    ctx.fillStyle = space;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    for (let i = 0; i < 48; i++) {
+      const x = (i * 71 + 19) % WIDTH;
+      const y = (i * 113 + 43) % HEIGHT;
+      ctx.fillStyle = `rgba(202,226,255,${0.16 + (i % 5) * 0.09})`;
+      ctx.fillRect(x, y, i % 11 === 0 ? 1.7 : 1, i % 11 === 0 ? 1.7 : 1);
+    }
 
     const ship = shipRef.current;
     if (invulnRef.current % 6 < 3) {
       ctx.save();
       ctx.translate(ship.x, ship.y);
       ctx.rotate(ship.angle);
-      ctx.strokeStyle = "#e8ecf3";
-      ctx.lineWidth = 2;
+      ctx.shadowColor = "#87d6ff";
+      ctx.shadowBlur = 10;
+      const hull = ctx.createLinearGradient(-SHIP_SIZE, -SHIP_SIZE, SHIP_SIZE, SHIP_SIZE);
+      hull.addColorStop(0, "#f5fbff");
+      hull.addColorStop(0.48, "#8aa8bd");
+      hull.addColorStop(1, "#26384a");
+      ctx.fillStyle = hull;
+      ctx.strokeStyle = "#d9f2ff";
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.moveTo(SHIP_SIZE, 0);
       ctx.lineTo(-SHIP_SIZE * 0.7, SHIP_SIZE * 0.7);
       ctx.lineTo(-SHIP_SIZE * 0.4, 0);
       ctx.lineTo(-SHIP_SIZE * 0.7, -SHIP_SIZE * 0.7);
       ctx.closePath();
+      ctx.fill();
       ctx.stroke();
+      if (keysRef.current.has("ArrowUp")) {
+        ctx.shadowColor = "#ffb24f";
+        ctx.fillStyle = "#ffd37b";
+        ctx.beginPath();
+        ctx.moveTo(-SHIP_SIZE * 0.48, -4);
+        ctx.lineTo(-SHIP_SIZE * 1.55, 0);
+        ctx.lineTo(-SHIP_SIZE * 0.48, 4);
+        ctx.closePath();
+        ctx.fill();
+      }
       ctx.restore();
     }
 
-    ctx.strokeStyle = "#f7c065";
     for (const a of asteroidsRef.current) {
+      const radius = RADIUS[a.size];
+      const rock = ctx.createRadialGradient(a.x - radius * 0.35, a.y - radius * 0.4, 2, a.x, a.y, radius);
+      rock.addColorStop(0, "#9d8e79");
+      rock.addColorStop(0.45, "#5f574e");
+      rock.addColorStop(1, "#272a30");
+      ctx.fillStyle = rock;
+      ctx.strokeStyle = "rgba(233,203,158,0.72)";
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(a.x, a.y, RADIUS[a.size], 0, Math.PI * 2);
+      for (let i = 0; i < 10; i++) {
+        const angle = (Math.PI * 2 * i) / 10;
+        const wobble = 0.78 + ((i * 7 + Math.round(a.x + a.y)) % 5) * 0.055;
+        const px = a.x + Math.cos(angle) * radius * wobble;
+        const py = a.y + Math.sin(angle) * radius * wobble;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
+      ctx.fillStyle = "rgba(27,28,31,0.38)";
+      ctx.beginPath();
+      ctx.ellipse(a.x - radius * 0.22, a.y - radius * 0.12, radius * 0.2, radius * 0.13, -0.5, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    ctx.fillStyle = "#9ad1ff";
+    ctx.fillStyle = "#d8f4ff";
+    ctx.shadowColor = "#69c7ff";
+    ctx.shadowBlur = 8;
     for (const b of bulletsRef.current) {
       ctx.beginPath();
       ctx.arc(b.x, b.y, 2, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.shadowBlur = 0;
   }, []);
 
   const startWave = useCallback((n: number) => {

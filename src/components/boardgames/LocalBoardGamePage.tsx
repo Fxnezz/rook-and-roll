@@ -133,7 +133,7 @@ export function LocalBoardGamePage<TMove, TState>({
       : `${seatLabel(match.turn)} to move`;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6">
+    <div data-game-session data-session-phase={mode} className="mx-auto max-w-4xl px-4 py-6">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">

@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useHighScore } from "@/lib/arcade/useHighScore";
 import { playArcadeSound } from "@/lib/arcade/sound";
-import { RANK_LABEL, SUIT_GLYPH, isRedSuit, type Card } from "@/lib/arcade/blackjack";
+import { PlayingCard } from "@/components/arcade/PlayingCard";
+import type { Card } from "@/lib/arcade/blackjack";
 import {
   ROWS,
   deal,
@@ -22,16 +23,7 @@ import {
 type Selection = { kind: "pyramid"; index: number } | { kind: "waste" };
 
 function MiniCard({ card, dim }: { card: Card; dim?: boolean }) {
-  const red = isRedSuit(card.suit);
-  return (
-    <div
-      className="flex h-16 w-11 flex-col justify-between rounded-md p-1 text-xs font-bold"
-      style={{ background: "#f3ecd8", color: red ? "#c0392b" : "#1c1c1c", opacity: dim ? 0.45 : 1, boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }}
-    >
-      <span>{RANK_LABEL[card.rank] ?? card.rank}</span>
-      <span className="self-center text-base leading-none">{SUIT_GLYPH[card.suit]}</span>
-    </div>
-  );
+  return <PlayingCard rank={card.rank} suit={card.suit} dim={dim} size="small" />;
 }
 
 export function PyramidSolitaireGame() {

@@ -1,0 +1,52 @@
+.die {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  padding: 0.54rem;
+  overflow: hidden;
+  border: 1px solid rgb(42 35 26 / 0.32);
+  border-radius: 0.92rem;
+  background:
+    radial-gradient(circle at 28% 18%, white, transparent 28%),
+    repeating-linear-gradient(106deg, rgb(83 65 42 / 0.025) 0 1px, transparent 1px 5px),
+    linear-gradient(145deg, #fffef7, #e8dcc5);
+  box-shadow:
+    0 2px 1px rgb(255 255 255 / 0.75) inset,
+    0 -4px 5px rgb(77 55 30 / 0.18) inset,
+    0 11px 18px rgb(0 0 0 / 0.3),
+    0 2px 4px rgb(0 0 0 / 0.28);
+  transform: rotate(-1.5deg) translateZ(0);
+  transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.standard { width: 4rem; height: 4rem; }
+.compact { width: 3.15rem; height: 3.15rem; padding: 0.42rem; border-radius: 0.72rem; }
+
+.pip {
+  align-self: center;
+  justify-self: center;
+  width: 0.52rem;
+  height: 0.52rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 28%, #4d5663, #0d1118 68%);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.28), inset 0 1px 2px rgb(0 0 0 / 0.78);
+}
+.compact .pip { width: 0.4rem; height: 0.4rem; }
+.blank { width: 1px; height: 1px; }
+
+.shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(125deg, rgb(255 255 255 / 0.42), transparent 34% 72%, rgb(105 79 43 / 0.1));
+  pointer-events: none;
+}
+
+.selected {
+  border-color: var(--accent);
+  transform: translateY(-7px) rotate(2deg) scale(1.04);
+  box-shadow: 0 0 0 2px var(--accent), 0 16px 25px rgb(0 0 0 / 0.34), 0 0 28px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) { .die { transition: none; } }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useHighScore } from "@/lib/arcade/useHighScore";
 import { playArcadeSound } from "@/lib/arcade/sound";
+import { PlayingCard } from "@/components/arcade/PlayingCard";
 import {
   deal,
   canPickUp,
@@ -15,19 +16,7 @@ import {
 } from "@/lib/arcade/spider";
 
 function CardView({ card }: { card: Card }) {
-  const red = card.suit === "H";
-  if (!card.faceUp) {
-    return <div className="h-16 w-11 rounded-md" style={{ background: "linear-gradient(160deg, #2a5a8a, #163a5a)" }} />;
-  }
-  return (
-    <div
-      className="flex h-16 w-11 flex-col justify-between rounded-md border p-1 text-xs font-bold"
-      style={{ background: "#f3ecd8", color: red ? "#c0392b" : "#1c1c1c", borderColor: "rgba(0,0,0,0.2)" }}
-    >
-      <span>{card.rank === 1 ? "A" : card.rank === 11 ? "J" : card.rank === 12 ? "Q" : card.rank === 13 ? "K" : card.rank}</span>
-      <span className="self-center text-base leading-none">{card.suit === "S" ? "♠" : "♥"}</span>
-    </div>
-  );
+  return <PlayingCard rank={card.rank} suit={card.suit} faceDown={!card.faceUp} size="small" />;
 }
 
 export function SpiderSolitaireGame() {

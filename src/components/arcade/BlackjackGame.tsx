@@ -3,15 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useHighScore } from "@/lib/arcade/useHighScore";
 import { playArcadeSound } from "@/lib/arcade/sound";
+import { PlayingCard } from "@/components/arcade/PlayingCard";
 import {
   freshShoe,
   handValue,
   isBlackjack,
   isBust,
   dealerShouldHit,
-  RANK_LABEL,
-  SUIT_GLYPH,
-  isRedSuit,
   type Card,
 } from "@/lib/arcade/blackjack";
 
@@ -21,21 +19,7 @@ const BET = 10;
 type Phase = "betting" | "player" | "dealer" | "resolved";
 
 function CardView({ card, hidden }: { card: Card; hidden?: boolean }) {
-  if (hidden) {
-    return (
-      <div className="flex h-24 w-16 items-center justify-center rounded-md" style={{ background: "linear-gradient(160deg, #2a5a8a, #163a5a)" }} />
-    );
-  }
-  const red = isRedSuit(card.suit);
-  return (
-    <div
-      className="flex h-24 w-16 flex-col justify-between rounded-md p-1.5 text-sm font-bold"
-      style={{ background: "#f3ecd8", color: red ? "#c0392b" : "#1c1c1c", boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }}
-    >
-      <span>{RANK_LABEL[card.rank] ?? card.rank}</span>
-      <span className="self-center text-xl leading-none">{SUIT_GLYPH[card.suit]}</span>
-    </div>
-  );
+  return <PlayingCard rank={card.rank} suit={card.suit} faceDown={hidden} />;
 }
 
 export function BlackjackGame() {
