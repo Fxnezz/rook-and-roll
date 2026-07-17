@@ -37,8 +37,11 @@ export function useLocalMatch<TMove, TState>(
   const [state, setState] = useState<TState>(() => engine.initialState());
   const [lastMove, setLastMove] = useState<{ move: TMove; by: Player; seq: number } | null>(null);
   const [moveCount, setMoveCount] = useState(0);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   const moveSeq = useRef(0);
   const historyRef = useRef<MatchSnapshot<TMove, TState>[]>([]);
+  const redoRef = useRef<MatchSnapshot<TMove, TState>[]>([]);
 
   const status = engine.getResult(state);
   const turn = engine.turnOf(state);
@@ -55,6 +58,9 @@ export function useLocalMatch<TMove, TState>(
         moveCount,
         sequence: moveSeq.current,
       });
+      redoRef.current = [];
+      setCanUndo(true);
+      setCanRedo(false);
       setState(res.state);
       moveSeq.current += 1;
       setLastMove({ move, by, seq: moveSeq.current });
@@ -92,6 +98,9 @@ export function useLocalMatch<TMove, TState>(
     setMoveCount(0);
     moveSeq.current = 0;
     historyRef.current = [];
+    redoRef.current = [];
+    setCanUndo(false);
+    setCanRedo(false);
   }, [engine]);
 
   const undo = useCallback(() => {
@@ -99,6 +108,7 @@ export function useLocalMatch<TMove, TState>(
 
     // In bot mode, undo a complete human+bot round when both plies exist.
     // If the bot is still thinking, only the human move needs to be undone.
+    redoRef.current.push({ state, lastMove, moveCount, sequence: moveSeq.current });
     const steps = mode === "bot" && !thinking ? Math.min(2, historyRef.current.length) : 1;
     let target = historyRef.current.pop();
     for (let i = 1; i < steps; i += 1) target = historyRef.current.pop() ?? target;
@@ -108,8 +118,22 @@ export function useLocalMatch<TMove, TState>(
     setLastMove(target.lastMove);
     setMoveCount(target.moveCount);
     moveSeq.current = target.sequence;
-  }, [mode, thinking]);
+    setCanUndo(historyRef.current.length > 0);
+    setCanRedo(true);
+  }, [lastMove, mode, moveCount, state, thinking]);
+
+  const redo = useCallback(() => {
+    const target = redoRef.current.pop();
+    if (!target) return;
+    historyRef.current.push({ state, lastMove, moveCount, sequence: moveSeq.current });
+    setState(target.state);
+    setLastMove(target.lastMove);
+    setMoveCount(target.moveCount);
+    moveSeq.current = target.sequence;
+    setCanUndo(true);
+    setCanRedo(redoRef.current.length > 0);
+  }, [lastMove, moveCount, state]);
 
   const result: LocalMatchState<TMove, TState> = { state, turn, status, lastMove, moveCount, thinking };
-  return { ...result, sendMove, reset, undo, canUndo: moveCount > 0 };
+  return { ...result, sendMove, reset, undo, redo, canUndo, canRedo };
 }

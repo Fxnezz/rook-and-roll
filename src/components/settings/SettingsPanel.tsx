@@ -14,6 +14,7 @@ import {
   type HoverMotion,
   type CelebrationIntensity,
   type AmbientScene,
+  type ArcadeQuality,
 } from "@/lib/chess/useSettings";
 import { playSound, setSoundPack, type SoundName, type SoundPack } from "@/lib/chess/sound";
 import { BOARD_THEMES } from "@/lib/chess/themes";
@@ -86,6 +87,13 @@ const DEFAULT_GAME_TABS: { id: DefaultGameTab; label: string }[] = [
   { id: "share", label: "Share" },
 ];
 
+const ARCADE_QUALITIES: { id: ArcadeQuality; label: string }[] = [
+  { id: "auto", label: "Auto" },
+  { id: "ultra", label: "Ultra" },
+  { id: "smooth", label: "Smooth" },
+  { id: "calm", label: "Calm" },
+];
+
 const SETTINGS_TABS: { id: SettingsTab; label: string; symbol: string; description: string }[] = [
   { id: "motion", label: "Motion Studio", symbol: "✦", description: "Profiles, transitions and effects" },
   { id: "qol", label: "QOL & Website", symbol: "◇", description: "Comfort, navigation and website tools" },
@@ -104,6 +112,7 @@ const SEARCH_ITEMS: { label: string; tab: SettingsTab; keywords: string }[] = [
   { label: "Ambient scenes", tab: "motion", keywords: "aurora chess stars particles background environment" },
   { label: "Scroll reveals", tab: "motion", keywords: "entrance viewport reveal cards sections" },
   { label: "Celebration intensity", tab: "motion", keywords: "confetti win celebration effects" },
+  { label: "Arcade graphics and performance", tab: "motion", keywords: "game quality fps adaptive ultra smooth calm cinematic hud" },
   { label: "Website and Page Guide tools", tab: "qol", keywords: "breadcrumbs notes reading ruler low data battery session clock outline share health contrast cursor drafts print haptics" },
   { label: "Interface density", tab: "qol", keywords: "compact comfortable spacious layout" },
   { label: "Keyboard shortcuts", tab: "qol", keywords: "keys command alt navigation" },
@@ -476,6 +485,26 @@ export function SettingsPanel({ canModerate = false, initialTab = "motion" }: { 
           <Toggle label="Scroll reveals" description="Major cards and sections rise into place as they enter view" checked={settings.scrollReveal} onChange={(v) => updateMotion({ scrollReveal: v })} />
           <Toggle label="Perspective cards" description="Interactive surfaces respond with subtle 3D depth and reflected light" checked={settings.cardTilt} onChange={(v) => updateMotion({ cardTilt: v })} />
           <Toggle label="Reduce all motion" description="Accessibility override: minimize every animation" checked={settings.reduceMotion} onChange={(v) => update({ reduceMotion: v })} />
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-[var(--accent)]/25 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--accent)_9%,var(--bg-elev)),var(--bg))] p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <span className="text-[0.65rem] font-black uppercase tracking-[0.14em] text-[var(--accent)]">Arcade renderer</span>
+              <h4 className="mt-1 font-black">Per-game performance studio</h4>
+              <p className="mt-1 text-xs leading-5 text-[var(--text-faint)]">Auto measures your device and frame rate, then keeps the richest effects that remain smooth.</p>
+            </div>
+            <span className="rounded-full border border-[var(--good)]/30 bg-[var(--good)]/10 px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-wider text-[var(--good)]">Live</span>
+          </div>
+          <div className="mt-4">
+            <span className="mb-2 block text-xs font-black text-[var(--text-muted)]">Graphics quality</span>
+            <Segmented options={ARCADE_QUALITIES} value={settings.arcadeQuality} onChange={(v) => update({ arcadeQuality: v })} />
+          </div>
+          <div className="mt-3 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] px-3">
+            <Toggle label="Cinematic game worlds" description="Scene lighting, particles, depth and material effects" checked={settings.arcadeCinematic} onChange={(v) => update({ arcadeCinematic: v })} />
+            <Toggle label="Performance HUD" description="Show live FPS, graphics, sound and haptic status" checked={settings.arcadePerformanceHud} onChange={(v) => update({ arcadePerformanceHud: v })} />
+            <Toggle label="Game haptics" description="Short tactile feedback on supported devices" checked={settings.hapticFeedback} onChange={(v) => update({ hapticFeedback: v })} />
+          </div>
         </div>
       </Section>
 

@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSettings, type ArcadeQuality } from "@/lib/chess/useSettings";
+import { openSettingsPanel } from "@/lib/settings/openSettings";
 import styles from "./ArcadeExperience.module.css";
 
 type Scene = "hub" | "chess" | "board" | "table" | "neon" | "space" | "workshop" | "paddock";
-type VisualQuality = "ultra" | "smooth" | "calm";
+type RenderQuality = Exclude<ArcadeQuality, "auto">;
 
 interface SceneProfile {
   scene: Scene;
@@ -29,11 +31,14 @@ const NEON = new Set([
   "2048", "breakout", "frogger", "match3", "pong", "rock-paper-scissors", "simon", "snake", "tetris", "whackamole",
 ]);
 
-const QUALITY_LABELS: Record<VisualQuality, string> = {
+const QUALITY_LABELS: Record<ArcadeQuality, string> = {
+  auto: "Auto",
   ultra: "Ultra",
   smooth: "Smooth",
   calm: "Calm",
 };
+
+const QUALITY_ORDER: ArcadeQuality[] = ["auto", "ultra", "smooth", "calm"];
 
 const CONTROL_HINTS: Record<Scene, { icon: string; title: string; detail: string }[]> = {
   hub: [
@@ -106,18 +111,23 @@ function titleFromSlug(slug: string) {
 
 export function ArcadeExperience({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { settings, update, ready } = useSettings();
   const rootRef = useRef<HTMLDivElement>(null);
   const lightFrameRef = useRef<number | null>(null);
   const pendingLightRef = useRef<{ element: HTMLDivElement; x: number; y: number } | null>(null);
-  const [cinematic, setCinematic] = useState(true);
+  const controlCloseRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const fpsOutputRef = useRef<HTMLElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
-  const [visualQuality, setVisualQuality] = useState<VisualQuality>("ultra");
+  const [autoQuality, setAutoQuality] = useState<RenderQuality>("ultra");
   const [showControls, setShowControls] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
   const segments = pathname.split("/").filter(Boolean);
   const slug = segments[1] ?? "hub";
   const isHub = pathname === "/play";
   const profile = useMemo(() => sceneFor(slug, isHub), [slug, isHub]);
+  const visualQuality: RenderQuality = settings.arcadeQuality === "auto" ? autoQuality : settings.arcadeQuality;
+  const cinematic = settings.arcadeCinematic && !settings.reduceMotion;
 
   useEffect(() => {
     const onFullscreen = () => setFullscreen(document.fullscreenElement === rootRef.current);
@@ -132,18 +142,43 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target;
-      if (target instanceof HTMLElement && target.matches("input, textarea, select, [contenteditable='true']")) return;
-      if (event.key === "Escape") setShowControls(false);
-      if (event.key === "?" || (event.shiftKey && event.key === "/")) {
-        event.preventDefault();
-        setShowControls((open) => !open);
+    if (!ready || settings.arcadeQuality !== "auto") return;
+    const device = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const constrained = Boolean(device.connection?.saveData);
+    const balanced = Boolean((device.deviceMemory && device.deviceMemory <= 8) || navigator.hardwareConcurrency <= 8);
+    const frame = requestAnimationFrame(() => {
+      setAutoQuality(reducedMotion || constrained ? "calm" : balanced ? "smooth" : "ultra");
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [ready, settings.arcadeQuality]);
+
+  useEffect(() => {
+    if (!pageVisible || isHub || (!settings.arcadePerformanceHud && settings.arcadeQuality !== "auto")) return;
+    let animationFrame = 0;
+    let frames = 0;
+    let sampleStarted = performance.now();
+    const measure = (now: number) => {
+      frames += 1;
+      const elapsed = now - sampleStarted;
+      if (elapsed >= 1000) {
+        const measured = Math.min(60, Math.round((frames * 1000) / elapsed));
+        if (fpsOutputRef.current) fpsOutputRef.current.textContent = String(measured);
+        if (settings.arcadeQuality === "auto") {
+          setAutoQuality((quality) => measured < 48 && quality === "ultra" ? "smooth" : quality);
+        }
+        frames = 0;
+        sampleStarted = now;
       }
+      animationFrame = requestAnimationFrame(measure);
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+    animationFrame = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [isHub, pageVisible, settings.arcadePerformanceHud, settings.arcadeQuality]);
+
+  useEffect(() => {
+    if (showControls) controlCloseRef.current?.focus();
+  }, [showControls]);
 
   useEffect(() => () => {
     if (lightFrameRef.current !== null) cancelAnimationFrame(lightFrameRef.current);
@@ -180,16 +215,55 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
   }, []);
 
   const cycleVisualQuality = useCallback(() => {
-    setVisualQuality((quality) => quality === "ultra" ? "smooth" : quality === "smooth" ? "calm" : "ultra");
+    const currentIndex = QUALITY_ORDER.indexOf(settings.arcadeQuality);
+    update({ arcadeQuality: QUALITY_ORDER[(currentIndex + 1) % QUALITY_ORDER.length] });
+  }, [settings.arcadeQuality, update]);
+
+  const openControls = useCallback(() => {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setShowControls(true);
   }, []);
 
+  const closeControls = useCallback(() => {
+    setShowControls(false);
+    requestAnimationFrame(() => previousFocusRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && target.matches("input, textarea, select, [contenteditable='true']")) return;
+      const key = event.key.toLowerCase();
+      if (event.key === "Escape") closeControls();
+      if (event.key === "?" || (event.shiftKey && event.key === "/")) {
+        event.preventDefault();
+        if (showControls) closeControls();
+        else openControls();
+      }
+      if (!isHub && key === "f") {
+        event.preventDefault();
+        void toggleFullscreen();
+      }
+      if (!isHub && key === "m") {
+        event.preventDefault();
+        update({ soundEnabled: !settings.soundEnabled });
+      }
+      if (!isHub && key === "q") {
+        event.preventDefault();
+        cycleVisualQuality();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [closeControls, cycleVisualQuality, isHub, openControls, settings.soundEnabled, showControls, toggleFullscreen, update]);
+
   const triggerTactileFeedback = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    if (visualQuality === "calm" || typeof navigator.vibrate !== "function") return;
+    if (!settings.hapticFeedback || visualQuality === "calm" || typeof navigator.vibrate !== "function") return;
     const target = event.target;
     if (target instanceof Element && target.closest("button, [role='button'], [role='gridcell'], canvas, [data-game-board]")) {
       navigator.vibrate(8);
     }
-  }, [visualQuality]);
+  }, [settings.hapticFeedback, visualQuality]);
 
   return (
     <div
@@ -198,6 +272,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
       data-arcade-scene={profile.scene}
       data-cinematic={cinematic ? "true" : "false"}
       data-visual-quality={visualQuality}
+      data-selected-quality={settings.arcadeQuality}
       data-page-visible={pageVisible ? "true" : "false"}
       data-game-slug={slug}
       onPointerMove={trackLight}
@@ -231,15 +306,15 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className={styles.commands}>
-            <button type="button" aria-pressed={cinematic} onClick={() => setCinematic((value) => !value)}>
+            <button type="button" aria-pressed={settings.arcadeCinematic} onClick={() => update({ arcadeCinematic: !settings.arcadeCinematic })}>
               <span aria-hidden="true">✦</span>
               <span className={styles.commandLabel}>{cinematic ? "Cinematic" : "Calm light"}</span>
             </button>
-            <button type="button" onClick={cycleVisualQuality} aria-label={`Visual quality: ${QUALITY_LABELS[visualQuality]}`}>
+            <button type="button" onClick={cycleVisualQuality} aria-label={`Visual quality: ${QUALITY_LABELS[settings.arcadeQuality]}${settings.arcadeQuality === "auto" ? `, currently ${QUALITY_LABELS[visualQuality]}` : ""}`}>
               <span aria-hidden="true">◈</span>
-              <span className={styles.commandLabel}>{QUALITY_LABELS[visualQuality]}</span>
+              <span className={styles.commandLabel}>{settings.arcadeQuality === "auto" ? `Auto · ${QUALITY_LABELS[visualQuality]}` : QUALITY_LABELS[visualQuality]}</span>
             </button>
-            <button type="button" onClick={() => setShowControls(true)} aria-haspopup="dialog">
+            <button type="button" onClick={openControls} aria-haspopup="dialog">
               <span aria-hidden="true">?</span>
               <span className={styles.commandLabel}>Controls</span>
             </button>
@@ -253,9 +328,21 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
 
       <div className={styles.stage}>{children}</div>
 
+      {!isHub && settings.arcadePerformanceHud && (
+        <aside className={styles.performanceHud} aria-label="Live game performance">
+          <span className={styles.performancePulse} aria-hidden="true" />
+          <span><strong ref={fpsOutputRef}>60</strong><small>FPS</small></span>
+          <i aria-hidden="true" />
+          <span><strong>{settings.arcadeQuality === "auto" ? "AUTO" : QUALITY_LABELS[visualQuality].toUpperCase()}</strong><small>{QUALITY_LABELS[visualQuality]}</small></span>
+          <i aria-hidden="true" />
+          <span className={settings.soundEnabled ? styles.hudEnabled : styles.hudDisabled}><strong>{settings.soundEnabled ? "ON" : "OFF"}</strong><small>Sound</small></span>
+          <span className={settings.hapticFeedback ? styles.hudEnabled : styles.hudDisabled}><strong>{settings.hapticFeedback ? "ON" : "OFF"}</strong><small>Haptic</small></span>
+        </aside>
+      )}
+
       {showControls && !isHub && (
         <div className={styles.controlOverlay} role="presentation" onPointerDown={(event) => {
-          if (event.target === event.currentTarget) setShowControls(false);
+          if (event.target === event.currentTarget) closeControls();
         }}>
           <section className={styles.controlPanel} role="dialog" aria-modal="true" aria-labelledby="game-controls-title">
             <div className={styles.controlHeader}>
@@ -263,7 +350,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
                 <span>Player guide</span>
                 <h2 id="game-controls-title">{titleFromSlug(slug)} controls</h2>
               </div>
-              <button type="button" onClick={() => setShowControls(false)} aria-label="Close controls">×</button>
+              <button ref={controlCloseRef} type="button" onClick={closeControls} aria-label="Close controls">×</button>
             </div>
             <div className={styles.controlGrid}>
               {CONTROL_HINTS[profile.scene].map((hint) => (
@@ -277,19 +364,25 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
               ))}
             </div>
             <div className={styles.qualityPicker} role="group" aria-label="Visual quality">
-              {(Object.keys(QUALITY_LABELS) as VisualQuality[]).map((quality) => (
+              {(Object.keys(QUALITY_LABELS) as ArcadeQuality[]).map((quality) => (
                 <button
                   type="button"
                   key={quality}
-                  aria-pressed={visualQuality === quality}
-                  onClick={() => setVisualQuality(quality)}
+                  aria-pressed={settings.arcadeQuality === quality}
+                  onClick={() => update({ arcadeQuality: quality })}
                 >
                   <strong>{QUALITY_LABELS[quality]}</strong>
-                  <small>{quality === "ultra" ? "Maximum atmosphere" : quality === "smooth" ? "Balanced effects" : "Reduced effects"}</small>
+                  <small>{quality === "auto" ? "Adapts to live frame rate" : quality === "ultra" ? "Maximum atmosphere" : quality === "smooth" ? "Balanced effects" : "Reduced effects"}</small>
                 </button>
               ))}
             </div>
-            <p className={styles.controlFooter}>Tip: press <kbd>?</kbd> anywhere in a game to reopen this guide.</p>
+            <div className={styles.quickSettings} aria-label="Quick game settings">
+              <button type="button" aria-pressed={settings.soundEnabled} onClick={() => update({ soundEnabled: !settings.soundEnabled })}><span aria-hidden="true">♫</span><span><strong>Sound</strong><small>{settings.soundEnabled ? "On" : "Off"} · M</small></span></button>
+              <button type="button" aria-pressed={settings.hapticFeedback} onClick={() => update({ hapticFeedback: !settings.hapticFeedback })}><span aria-hidden="true">◉</span><span><strong>Haptics</strong><small>{settings.hapticFeedback ? "On" : "Off"}</small></span></button>
+              <button type="button" aria-pressed={settings.arcadeCinematic} onClick={() => update({ arcadeCinematic: !settings.arcadeCinematic })}><span aria-hidden="true">✦</span><span><strong>Cinematic</strong><small>{settings.arcadeCinematic ? "On" : "Off"}</small></span></button>
+              <button type="button" onClick={() => { closeControls(); openSettingsPanel("motion"); }}><span aria-hidden="true">⚙</span><span><strong>All settings</strong><small>Motion Studio</small></span></button>
+            </div>
+            <p className={styles.controlFooter}>Shortcuts: <kbd>?</kbd> guide · <kbd>F</kbd> fullscreen · <kbd>M</kbd> sound · <kbd>Q</kbd> quality</p>
           </section>
         </div>
       )}

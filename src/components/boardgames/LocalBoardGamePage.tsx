@@ -41,6 +41,12 @@ export interface LocalBoardGamePageProps<TMove, TState> {
 
 const noBot = () => null;
 
+function formatDuration(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 export function LocalBoardGamePage<TMove, TState>({
   title,
   blurb,
@@ -59,7 +65,10 @@ export function LocalBoardGamePage<TMove, TState>({
   const [humanSeat, setHumanSeat] = useState<Player>("a");
   const [difficultyIdx, setDifficultyIdx] = useState(defaultDifficultyIndex);
   const [showRules, setShowRules] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [sessionScore, setSessionScore] = useState({ a: 0, draws: 0, b: 0 });
   const reportedWinRef = useRef(false);
+  const resultCountedRef = useRef(false);
   const effectiveBotFn = useMemo(() => {
     if (!botFn) return undefined;
     if (!difficulties) return botFn;
@@ -67,12 +76,21 @@ export function LocalBoardGamePage<TMove, TState>({
     return (state: TState, player: Player) => botFn(state, player, depth);
   }, [botFn, difficulties, difficultyIdx]);
   const match = useLocalMatch(engine, mode, effectiveBotFn ?? noBot, humanSeat);
+  const gameOver = match.status !== null;
   const [showResult, setShowResult] = useState(false);
   const prevStatus = useRef<GameResult | null>(null);
 
   useEffect(() => {
     if (match.status && !prevStatus.current) {
       setShowResult(true);
+      if (!resultCountedRef.current) {
+        resultCountedRef.current = true;
+        setSessionScore((score) => match.status?.winner === null
+          ? { ...score, draws: score.draws + 1 }
+          : match.status?.winner === "a"
+            ? { ...score, a: score.a + 1 }
+            : { ...score, b: score.b + 1 });
+      }
       if (mode === "bot") {
         playArcadeSound(match.status.winner === null ? "draw" : match.status.winner === humanSeat ? "win" : "lose");
       } else {
@@ -81,6 +99,14 @@ export function LocalBoardGamePage<TMove, TState>({
     }
     prevStatus.current = match.status;
   }, [match.status, mode, humanSeat]);
+
+  useEffect(() => {
+    if (gameOver) return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) setElapsedSeconds((seconds) => seconds + 1);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [gameOver]);
 
   useEffect(() => {
     if (!gameKey || !session?.user || mode !== "bot" || reportedWinRef.current) return;
@@ -105,6 +131,8 @@ export function LocalBoardGamePage<TMove, TState>({
     match.reset();
     setShowResult(false);
     reportedWinRef.current = false;
+    resultCountedRef.current = false;
+    setElapsedSeconds(0);
   };
 
   const swapAndNewGame = () => {
@@ -112,12 +140,20 @@ export function LocalBoardGamePage<TMove, TState>({
     match.reset();
     setShowResult(false);
     reportedWinRef.current = false;
+    resultCountedRef.current = false;
+    setElapsedSeconds(0);
   };
 
   const undoMove = () => {
     match.undo();
     setShowResult(false);
     reportedWinRef.current = false;
+    playArcadeSound("click");
+  };
+
+  const redoMove = () => {
+    match.redo();
+    setShowResult(false);
     playArcadeSound("click");
   };
 
@@ -192,6 +228,9 @@ export function LocalBoardGamePage<TMove, TState>({
           <button className="btn btn-ghost !py-1.5 text-sm" onClick={undoMove} disabled={!match.canUndo} title={mode === "bot" ? "Undo the latest round" : "Undo the latest move"}>
             <span aria-hidden="true">↶</span> Undo
           </button>
+          <button className="btn btn-ghost !py-1.5 text-sm" onClick={redoMove} disabled={!match.canRedo} title={mode === "bot" ? "Restore the latest round" : "Restore the latest move"}>
+            <span aria-hidden="true">↷</span> Redo
+          </button>
           {mode === "bot" && (
             <button className="btn btn-ghost !py-1.5 text-sm" onClick={swapAndNewGame}>
               Swap sides
@@ -212,7 +251,13 @@ export function LocalBoardGamePage<TMove, TState>({
             )}
           </div>
           <div className="chip" title="Moves played"><span aria-hidden="true">◆</span> {match.moveCount} {match.moveCount === 1 ? "move" : "moves"}</div>
+          <div className="chip" title="Elapsed game time"><span aria-hidden="true">◷</span> {formatDuration(elapsedSeconds)}</div>
           {mode === "bot" && difficulties && <div className="chip"><span aria-hidden="true">◈</span> {difficulties[difficultyIdx]?.label}</div>}
+          <div className="chip game-series-score" title="Session score">
+            <span>{mode === "bot" ? "You" : seatLabel("a")} <b>{mode === "bot" && humanSeat === "b" ? sessionScore.b : sessionScore.a}</b></span>
+            <i>·</i><span>Draw <b>{sessionScore.draws}</b></span><i>·</i>
+            <span>{mode === "bot" ? "Bot" : seatLabel("b")} <b>{mode === "bot" && humanSeat === "b" ? sessionScore.a : sessionScore.b}</b></span>
+          </div>
         </div>
         <div className="game-board-stage" data-game-board>
           {renderBoard({
@@ -243,6 +288,11 @@ export function LocalBoardGamePage<TMove, TState>({
             </p>
             <p className="mt-1 text-sm text-[var(--text-muted)]">{match.status.reason}</p>
             <p className="mt-3 font-mono text-xs text-[var(--text-faint)]">Completed in {match.moveCount} {match.moveCount === 1 ? "move" : "moves"}</p>
+            <div className="game-result-series" aria-label="Session score">
+              <span><strong>{mode === "bot" ? "You" : seatLabel("a")}</strong><b>{mode === "bot" && humanSeat === "b" ? sessionScore.b : sessionScore.a}</b></span>
+              <span><strong>Draws</strong><b>{sessionScore.draws}</b></span>
+              <span><strong>{mode === "bot" ? "Bot" : seatLabel("b")}</strong><b>{mode === "bot" && humanSeat === "b" ? sessionScore.a : sessionScore.b}</b></span>
+            </div>
             <div className="mt-4 flex justify-center gap-2">
               <button className="btn btn-ghost" onClick={() => setShowResult(false)}>
                 View board

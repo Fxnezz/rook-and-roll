@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import { DEFAULT_THEME, type BoardThemeId } from "./themes";
 import type { PieceSetId } from "@/lib/pieces";
 import { setSoundEnabled, setSoundVolume, setUiVolume, setSoundPack, type SoundPack } from "./sound";
+import { setArcadeSoundEnabled, setArcadeSoundVolume } from "@/lib/arcade/sound";
 
 export type MoveInputMode = "drag" | "click" | "both";
 export type AnimationSpeed = "instant" | "fast" | "normal" | "slow";
@@ -16,6 +17,7 @@ export type PageTransition = "none" | "fade" | "slide" | "zoom" | "curtain";
 export type HoverMotion = "off" | "subtle" | "expressive";
 export type CelebrationIntensity = "off" | "subtle" | "full";
 export type AmbientScene = "aurora" | "chess" | "stars";
+export type ArcadeQuality = "auto" | "ultra" | "smooth" | "calm";
 
 export interface Settings {
   boardTheme: BoardThemeId;
@@ -118,6 +120,12 @@ export interface Settings {
   scrollReveal: boolean;
   /** Add pointer-responsive perspective and light to interactive surfaces. */
   cardTilt: boolean;
+  /** Shared rendering profile for every game outside the dedicated chess board. */
+  arcadeQuality: ArcadeQuality;
+  /** Enables the scene-specific lighting and atmosphere around games. */
+  arcadeCinematic: boolean;
+  /** Shows the small live performance/audio status dock in games. */
+  arcadePerformanceHud: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -178,6 +186,9 @@ const DEFAULTS: Settings = {
   cursorGlow: true,
   scrollReveal: true,
   cardTilt: true,
+  arcadeQuality: "auto",
+  arcadeCinematic: true,
+  arcadePerformanceHud: true,
 };
 
 const STORAGE_KEY = "rr.settings.v1";
@@ -232,6 +243,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSoundVolume(settings.volume);
     setUiVolume(settings.uiVolume);
     setSoundPack(settings.soundPack);
+    setArcadeSoundEnabled(settings.soundEnabled);
+    setArcadeSoundVolume(settings.volume);
   }, [settings, ready]);
 
   // Reflect the reduce-motion preference as a data attribute so globals.css

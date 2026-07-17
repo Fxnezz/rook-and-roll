@@ -38,6 +38,7 @@ export function BoardGamePage<TMove, TState>({
   const [tab, setTab] = useState<"moves" | "chat">("moves");
   const [inviteInput, setInviteInput] = useState("");
   const [showResult, setShowResult] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
 
   useEffect(() => {
     match.connect();
@@ -45,15 +46,28 @@ export function BoardGamePage<TMove, TState>({
   }, []);
 
   useEffect(() => {
-    if (state.status) setShowResult(true);
+    if (!state.status) return;
+    const frame = requestAnimationFrame(() => setShowResult(true));
+    return () => cancelAnimationFrame(frame);
   }, [state.status]);
 
   const loggedIn = !identity.guest;
 
+  const copyInviteCode = async () => {
+    if (!state.inviteCode) return;
+    try {
+      await navigator.clipboard.writeText(state.inviteCode);
+      setCopiedInvite(true);
+      window.setTimeout(() => setCopiedInvite(false), 1600);
+    } catch {
+      setCopiedInvite(false);
+    }
+  };
+
   if (state.phase === "idle") {
     return (
-      <div data-game-session data-session-phase="lobby" className="mx-auto max-w-md px-4 py-10">
-        <div className="mb-6 flex items-center gap-3">
+      <div data-game-session data-session-phase="lobby" className="board-lobby-shell mx-auto max-w-md px-4 py-10">
+        <div className="game-match-header mb-6 flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elev-2)] text-[var(--accent)]">
             <IconUsers width={22} height={22} />
           </span>
@@ -65,7 +79,7 @@ export function BoardGamePage<TMove, TState>({
 
         {ratedAvailable && (
           <label
-            className="mb-4 flex items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2"
+            className="game-lobby-option mb-4 flex items-center justify-between rounded-xl border border-[var(--border)] px-3 py-3"
             style={{ opacity: loggedIn ? 1 : 0.5 }}
           >
             <span className="text-sm">
@@ -87,7 +101,7 @@ export function BoardGamePage<TMove, TState>({
           Find a game
         </button>
 
-        <div className="mt-5 rounded-lg border border-[var(--border)] p-3">
+        <div className="game-invite-card mt-5 rounded-xl border border-[var(--border)] p-3">
           <span className="label mb-2 block">Play a friend</span>
           <button className="btn w-full" onClick={match.createInvite}>
             Create invite link
@@ -115,13 +129,13 @@ export function BoardGamePage<TMove, TState>({
 
   if (state.phase === "searching") {
     return (
-      <div data-game-session data-session-phase="searching" className="mx-auto flex max-w-sm flex-col items-center px-4 py-24 text-center">
+      <div data-game-session data-session-phase="searching" className="game-search-stage mx-auto flex max-w-sm flex-col items-center px-4 py-24 text-center">
         {state.inviteCode ? (
           <>
             <h1 className="text-xl font-bold">Share this code</h1>
-            <p className="mt-4 rounded-lg bg-[var(--bg-elev-2)] px-6 py-3 font-mono text-3xl font-black tracking-widest text-[var(--accent)]">
-              {state.inviteCode}
-            </p>
+            <button type="button" className="game-invite-code mt-4 rounded-xl bg-[var(--bg-elev-2)] px-6 py-3 font-mono text-3xl font-black tracking-widest text-[var(--accent)]" onClick={copyInviteCode} aria-label={`Copy invite code ${state.inviteCode}`}>
+              {state.inviteCode}<small>{copiedInvite ? "Copied!" : "Tap to copy"}</small>
+            </button>
             <p className="mt-3 text-sm text-[var(--text-muted)]">Waiting for your friend to join…</p>
           </>
         ) : (
@@ -161,10 +175,11 @@ export function BoardGamePage<TMove, TState>({
 
   return (
     <div data-game-session data-session-phase="playing" className="mx-auto max-w-4xl px-4 py-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <button className="btn btn-ghost" onClick={match.leave}>
-          ← Leave
-        </button>
+      <div className="game-match-header mb-4 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <button className="btn btn-ghost" onClick={match.leave}>← Leave</button>
+          <div className="min-w-0"><h1 className="truncate font-black">{title}</h1><p className="text-xs text-[var(--text-faint)]">Live online match · {rated ? "Rated" : "Casual"}</p></div>
+        </div>
         {state.phase === "spectating" && <span className="chip">👁 Spectating</span>}
         {state.phase === "playing" && !state.status && (
           <div className="flex gap-2">
@@ -178,6 +193,12 @@ export function BoardGamePage<TMove, TState>({
             </button>
           </div>
         )}
+      </div>
+
+      <div className="game-status-rail mb-4" aria-live="polite">
+        <div className="chip game-status-main"><span className="online-live-pulse" aria-hidden="true" />{statusText}</div>
+        <div className="chip"><span aria-hidden="true">◆</span> {state.moveCount} {state.moveCount === 1 ? "move" : "moves"}</div>
+        <div className="chip"><span aria-hidden="true">◉</span> {state.opponentConnected ? "Connected" : "Reconnecting"}</div>
       </div>
 
       {!state.opponentConnected && !state.status && (
@@ -203,19 +224,22 @@ export function BoardGamePage<TMove, TState>({
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         <div className="flex w-full flex-col gap-2 lg:max-w-[520px]">
           {oppInfo && <PlayerBar name={oppInfo.username} rating={oppInfo.rating} connected={oppInfo.connected} active={state.turn === opponentSeat} />}
-          {state.board &&
-            renderBoard({
+          {state.board && (
+            <div className="game-board-stage" data-game-board>
+              {renderBoard({
               state: state.board,
               mySeat: state.mySeat,
               interactive: state.phase === "playing",
               onMove: match.sendMove,
               status: state.status,
               lastMove: match.lastMove,
-            })}
+              })}
+            </div>
+          )}
           {meInfo && <PlayerBar name={meInfo.username} rating={meInfo.rating} connected={meInfo.connected} active={state.turn === state.mySeat} />}
         </div>
 
-        <div className="panel flex w-full flex-col lg:h-[480px] lg:w-[320px]">
+        <div className="panel game-match-sidebar flex w-full flex-col lg:h-[480px] lg:w-[320px]">
           <div className="border-b border-[var(--border)] px-4 py-3 text-sm font-semibold">{statusText}</div>
           <div className="flex border-b border-[var(--border)]">
             {(["moves", "chat"] as const).map((t) => (
@@ -247,10 +271,13 @@ export function BoardGamePage<TMove, TState>({
       </div>
 
       {showResult && state.status && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade">
-          <div className="panel w-full max-w-sm p-6 text-center animate-pop">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md" role="presentation">
+          <div className="panel game-result-card w-full max-w-sm p-6 text-center" role="dialog" aria-modal="true" aria-labelledby="online-result-title">
+            <div className="game-result-icon" aria-hidden="true">{state.status.winner === null ? "◇" : state.status.winner === state.mySeat ? "🏆" : "♟"}</div>
             <h2 className="text-2xl font-bold">
+              <span id="online-result-title">
               {state.status.winner === null ? "Draw" : state.status.winner === state.mySeat ? "You won!" : "You lost"}
+              </span>
             </h2>
             <p className="mt-1 text-sm text-[var(--text-muted)]">{state.status.reason}</p>
             {state.ratingDelta && state.mySeat && (
@@ -267,6 +294,9 @@ export function BoardGamePage<TMove, TState>({
               </p>
             )}
             <div className="mt-5 flex gap-2">
+              <button className="btn btn-ghost flex-1" onClick={() => setShowResult(false)}>
+                View board
+              </button>
               <button className="btn flex-1" onClick={match.leave}>
                 Lobby
               </button>
@@ -289,13 +319,12 @@ function fmtDelta(d: number) {
 
 function PlayerBar({ name, rating, connected, active }: { name: string; rating: number; connected: boolean; active: boolean }) {
   return (
-    <div className="flex items-center justify-between px-1">
+    <div className="game-player-bar flex items-center justify-between px-2 py-2" data-active={active ? "true" : "false"}>
       <div className="flex items-center gap-2">
-        <span className="h-2.5 w-2.5 rounded-full" style={{ background: connected ? "var(--good)" : "var(--bad)" }} />
-        <span className="text-sm font-semibold">{name}</span>
-        <span className="text-xs text-[var(--text-faint)]">{rating}</span>
+        <span className="game-player-avatar" aria-hidden="true">{name.charAt(0).toUpperCase()}</span>
+        <span className="grid"><strong className="text-sm">{name}</strong><small className="text-[0.65rem] text-[var(--text-faint)]">{rating} rating · {connected ? "online" : "disconnected"}</small></span>
       </div>
-      {active && <span className="chip !px-1.5 !py-0.5 text-[10px]">to move</span>}
+      {active ? <span className="chip game-status-main !px-2 !py-1 text-[10px]">to move</span> : <span className="h-2 w-2 rounded-full" style={{ background: connected ? "var(--good)" : "var(--bad)" }} />}
     </div>
   );
 }
