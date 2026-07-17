@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Piece } from "@/lib/pieces";
 import {
   FANTASY_PIECE_NAMES,
@@ -26,6 +26,31 @@ const CUSTOM_CROWNS: { kind: VariantPieceKind; label: string; detail: string }[]
   { kind: "c", label: "Chancellor", detail: "Rook + knight" },
   { kind: "w", label: "Wizard", detail: "Bishop + camel leap" },
 ];
+
+type MatchMode = "local" | "bot" | "exhibition";
+type Difficulty = 1 | 2 | 3;
+type BoardThemeId = "violet" | "maple" | "midnight" | "emerald";
+type PlaybackSpeed = 260 | 520 | 900;
+
+const BOARD_THEMES: Record<BoardThemeId, { label: string; light: string; dark: string; active: string; last: string; frame: string }> = {
+  violet: { label: "Violet", light: "#c7b9e8", dark: "#665888", active: "#a98bff", last: "#8f7ac9", frame: "#201c2d" },
+  maple: { label: "Maple", light: "#e9cfad", dark: "#9a6647", active: "#ffd166", last: "#c98d55", frame: "#38251d" },
+  midnight: { label: "Midnight", light: "#8aa0b6", dark: "#34485d", active: "#66d9ff", last: "#557d9b", frame: "#101923" },
+  emerald: { label: "Emerald", light: "#b9d5c5", dark: "#477a66", active: "#77e0b2", last: "#639f83", frame: "#17352c" },
+};
+
+const MATERIAL_VALUES: Record<VariantPieceKind, number> = {
+  p: 1,
+  n: 3,
+  b: 3,
+  r: 5,
+  q: 9,
+  k: 0,
+  a: 7,
+  c: 8,
+  w: 6,
+  d: 12,
+};
 
 function initialChess960State() {
   let seed = 960;
@@ -62,23 +87,43 @@ function pieceLabel(piece: VariantPiece | null) {
 export function VariantWorkshop() {
   const [variant, setVariant] = useState<VariantId>("chess960");
   const [crowns, setCrowns] = useState<Record<VariantColor, VariantPieceKind>>({ w: "d", b: "a" });
-  const [mode, setMode] = useState<"local" | "bot">("bot");
-  const [difficulty, setDifficulty] = useState<1 | 2 | 3>(2);
+  const [mode, setMode] = useState<MatchMode>("bot");
+  const [difficulty, setDifficulty] = useState<Difficulty>(2);
+  const [whiteDifficulty, setWhiteDifficulty] = useState<Difficulty>(2);
+  const [exhibitionRunning, setExhibitionRunning] = useState(true);
+  const [playbackSpeed, setPlaybackSpeed] = useState<PlaybackSpeed>(520);
+  const [boardTheme, setBoardTheme] = useState<BoardThemeId>("violet");
+  const [focusBoard, setFocusBoard] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [manualCopyText, setManualCopyText] = useState<string | null>(null);
   const [orientation, setOrientation] = useState<VariantColor>("w");
   const [state, setState] = useState<VariantState>(initialChess960State);
   const [past, setPast] = useState<VariantState[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
+  const copyTimer = useRef<number | null>(null);
 
   const preset = VARIANT_PRESETS.find((item) => item.id === variant) ?? VARIANT_PRESETS[0];
   const legal = useMemo(() => selected == null ? [] : legalVariantMoves(state, selected), [selected, state]);
   const legalTargets = useMemo(() => new Set(legal.map((move) => move.to)), [legal]);
   const castleMoves = useMemo(() => legalVariantMoves(state).filter((move) => move.castle), [state]);
   const inCheck = !state.winner && isVariantCheck(state);
-  const thinking = mode === "bot" && state.turn === "b" && !state.winner;
+  const botTurn = !state.winner && ((mode === "bot" && state.turn === "b") || (mode === "exhibition" && exhibitionRunning));
+  const thinking = Boolean(botTurn);
+  const activeBotDifficulty = state.turn === "w" ? whiteDifficulty : difficulty;
+  const theme = BOARD_THEMES[boardTheme];
+  const materialBalance = useMemo(() => state.board.reduce((total, piece) => {
+    if (!piece) return total;
+    return total + MATERIAL_VALUES[piece.kind] * (piece.color === "w" ? 1 : -1);
+  }, 0), [state.board]);
+  const materialLabel = materialBalance === 0 ? "Material even" : `${materialBalance > 0 ? "White" : "Black"} +${Math.abs(materialBalance)}`;
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setState(createVariantState("chess960")));
     return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => () => {
+    if (copyTimer.current != null) window.clearTimeout(copyTimer.current);
   }, []);
 
   const newGame = (nextVariant = variant, nextCrowns = crowns) => {
@@ -86,6 +131,9 @@ export function VariantWorkshop() {
     setState(createVariantState(nextVariant, nextVariant === "custom" ? nextCrowns : {}));
     setPast([]);
     setSelected(null);
+    setCopied(false);
+    setManualCopyText(null);
+    if (mode === "exhibition") setExhibitionRunning(true);
   };
 
   const commitMove = (move: VariantMove) => {
@@ -95,20 +143,20 @@ export function VariantWorkshop() {
   };
 
   useEffect(() => {
-    if (mode !== "bot" || state.turn !== "b" || state.winner) return;
+    if (!botTurn) return;
     const timer = window.setTimeout(() => {
-      const move = pickVariantBotMove(state, difficulty);
+      const move = pickVariantBotMove(state, activeBotDifficulty);
       if (move) {
         setPast((history) => [...history, state]);
         setState(playVariantMove(state, move));
       }
       setSelected(null);
-    }, 360);
+    }, mode === "exhibition" ? playbackSpeed : 360);
     return () => window.clearTimeout(timer);
-  }, [difficulty, mode, state]);
+  }, [activeBotDifficulty, botTurn, mode, playbackSpeed, state]);
 
   const chooseSquare = (index: number) => {
-    if (thinking || state.winner || (mode === "bot" && state.turn === "b")) return;
+    if (thinking || state.winner || mode === "exhibition" || (mode === "bot" && state.turn === "b")) return;
     const piece = state.board[index];
     if (selected != null) {
       if (selected === index) {
@@ -126,7 +174,8 @@ export function VariantWorkshop() {
   };
 
   const undo = () => {
-    if (!past.length || thinking) return;
+    if (!past.length || (thinking && mode !== "exhibition")) return;
+    if (mode === "exhibition") setExhibitionRunning(false);
     const steps = mode === "bot" && past.length >= 2 ? 2 : 1;
     setState(past[past.length - steps]);
     setPast((history) => history.slice(0, -steps));
@@ -137,16 +186,58 @@ export function VariantWorkshop() {
     ? "Draw by stalemate"
     : state.winner
       ? `${state.winner === "w" ? "White" : "Black"} wins by checkmate`
-      : thinking
-        ? "Arcade bot is thinking…"
+      : mode === "exhibition" && !exhibitionRunning
+        ? `Exhibition paused · ${state.turn === "w" ? "White" : "Black"} to move`
+        : thinking
+        ? mode === "exhibition" ? `${state.turn === "w" ? "White" : "Black"} bot is thinking…` : "Arcade bot is thinking…"
         : `${state.turn === "w" ? "White" : "Black"} to move${inCheck ? " · Check!" : ""}`;
 
   const selectedPiece = selected == null ? null : state.board[selected];
   const selectionHint = selectedPiece
     ? `${FANTASY_PIECE_NAMES[selectedPiece.kind]} on ${variantSquare(selected!)} · ${legal.length} legal ${legal.length === 1 ? "move" : "moves"}`
     : thinking
-      ? "The bot is choosing a move."
+      ? mode === "exhibition" ? "Two Arcade minds are playing this position live." : "The bot is choosing a move."
       : "Select one of your pieces. Legal destinations will glow teal.";
+
+  const copyMatchSummary = async () => {
+    const result = state.winner === "draw"
+      ? "Draw"
+      : state.winner
+        ? `${state.winner === "w" ? "White" : "Black"} won`
+        : `${state.turn === "w" ? "White" : "Black"} to move`;
+    const openingCode = state.board.slice(56, 64).map((piece) => piece ? piece.kind.toUpperCase() : "-").join("");
+    const summary = [
+      `Sam's Arcade · ${preset.name}`,
+      `${result} after ${state.moves.length} half-moves · ${materialLabel}`,
+      variant === "chess960" ? `Starting rank: ${openingCode}` : null,
+      state.moves.length ? `Moves: ${state.moves.join(" ")}` : "No moves played yet.",
+    ].filter(Boolean).join("\n");
+    let didCopy = false;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(summary);
+      didCopy = true;
+    } catch {
+      const field = document.createElement("textarea");
+      field.value = summary;
+      field.setAttribute("readonly", "");
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.appendChild(field);
+      field.select();
+      didCopy = document.execCommand("copy");
+      field.remove();
+    }
+    if (didCopy) {
+      setCopied(true);
+      setManualCopyText(null);
+      if (copyTimer.current != null) window.clearTimeout(copyTimer.current);
+      copyTimer.current = window.setTimeout(() => setCopied(false), 1800);
+    } else {
+      setCopied(false);
+      setManualCopyText(summary);
+    }
+  };
 
   return (
     <div data-variant-workshop className="mx-auto w-full max-w-[1180px] px-3 py-4 sm:px-5 sm:py-5">
@@ -158,7 +249,7 @@ export function VariantWorkshop() {
             <p className="mt-0.5 hidden text-xs text-[var(--text-faint)] sm:block">Chess960 and fantasy chess, with every rule handled on the board.</p>
           </div>
         </div>
-        <div className="flex gap-2"><button type="button" className="btn text-xs" onClick={() => setOrientation((color) => color === "w" ? "b" : "w")}>⇅ Flip</button><button type="button" className="btn btn-primary text-xs" onClick={() => newGame()}>{variant === "chess960" ? "Shuffle" : "New game"}</button></div>
+        <div className="flex flex-wrap justify-end gap-2"><button type="button" className={`btn text-xs ${focusBoard ? "border-[#9b7cff]/60 bg-[#9b7cff]/10" : ""}`} aria-pressed={focusBoard} onClick={() => setFocusBoard((focused) => !focused)}>{focusBoard ? "⊙ Exit focus" : "◎ Focus"}</button><button type="button" className="btn text-xs" onClick={() => setOrientation((color) => color === "w" ? "b" : "w")}>⇅ Flip</button><button type="button" className="btn btn-primary text-xs" onClick={() => newGame()}>{variant === "chess960" ? "Shuffle" : "New game"}</button></div>
       </header>
 
       <section className="-mx-3 mb-3 flex gap-1.5 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:grid-cols-5 sm:px-0" aria-label="Variant selection">
@@ -167,10 +258,10 @@ export function VariantWorkshop() {
 
       {variant === "custom" ? <section className="panel mb-3 grid gap-3 p-3 sm:grid-cols-2">{(["w", "b"] as VariantColor[]).map((color) => <label key={color}><span className="label mb-1 block">{color === "w" ? "White" : "Black"} crown piece</span><select className="input w-full" value={crowns[color]} onChange={(event) => { const next = { ...crowns, [color]: event.target.value as VariantPieceKind }; setCrowns(next); newGame("custom", next); }}>{CUSTOM_CROWNS.map((piece) => <option key={piece.kind} value={piece.kind}>{piece.label} · {piece.detail}</option>)}</select></label>)}</section> : null}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,650px)_minmax(18rem,1fr)] lg:items-start">
-        <section>
-          <div className="mb-2 flex min-h-12 items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 py-2"><div><p className="text-sm font-black">{status}</p><p className="mt-0.5 text-xs text-[var(--text-faint)]" aria-live="polite">{selectionHint}</p></div>{inCheck ? <span className="chip !border-[var(--bad)]/30 !bg-[var(--bad)]/10 !text-[var(--bad)]">Check</span> : <span className="hidden text-[0.65rem] font-bold uppercase tracking-wider text-[var(--text-faint)] sm:block">{mode === "bot" ? `Bot ${difficulty}` : "Local"}</span>}</div>
-          <div data-variant-board className="relative aspect-square w-full overflow-hidden rounded-xl border-4 border-[#201c2d] bg-[#201c2d] shadow-[0_20px_50px_rgba(0,0,0,.26)]" role="grid" aria-label={`${preset.name} board`}>
+      <div className={`grid gap-4 lg:items-start ${focusBoard ? "" : "lg:grid-cols-[minmax(0,650px)_minmax(18rem,1fr)]"}`}>
+        <section className={focusBoard ? "mx-auto w-full max-w-[760px]" : ""}>
+          <div className="mb-2 flex min-h-12 items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 py-2"><div><p className="text-sm font-black">{status}</p><p className="mt-0.5 text-xs text-[var(--text-faint)]" aria-live="polite">{selectionHint}</p></div>{inCheck ? <span className="chip !border-[var(--bad)]/30 !bg-[var(--bad)]/10 !text-[var(--bad)]">Check</span> : <span className="hidden shrink-0 text-right text-[0.65rem] font-bold uppercase tracking-wider text-[var(--text-faint)] sm:block">{mode === "exhibition" ? "Bot vs Bot" : mode === "bot" ? `Bot ${difficulty}` : "Local"}<br /><span className="normal-case tracking-normal">{materialLabel}</span></span>}</div>
+          <div data-variant-board className="relative aspect-square w-full overflow-hidden rounded-xl border-4 shadow-[0_20px_50px_rgba(0,0,0,.26)] transition-[border-color,background-color] duration-300" style={{ borderColor: theme.frame, background: theme.frame }} role="grid" aria-label={`${preset.name} board`}>
             <div className="grid h-full w-full grid-cols-8 grid-rows-[repeat(8,minmax(0,1fr))]">
               {Array.from({ length: 64 }, (_, displayIndex) => {
                 const index = orientation === "w" ? displayIndex : 63 - displayIndex;
@@ -185,7 +276,7 @@ export function VariantWorkshop() {
                   : target
                     ? `, legal ${piece ? "capture" : "move"}`
                     : "";
-                return <button key={index} type="button" role="gridcell" aria-selected={active} data-legal-target={target ? "true" : undefined} aria-label={`${variantSquare(index)}, ${pieceLabel(piece)}${active ? ", selected" : moveLabel}`} onClick={() => chooseSquare(index)} className="relative grid h-full min-h-0 w-full min-w-0 place-items-center overflow-hidden p-0 leading-none transition duration-150" style={{ background: active ? "#a98bff" : last ? "#8f7ac9" : light ? "#c7b9e8" : "#665888" }}>
+                return <button key={index} type="button" role="gridcell" aria-selected={active} data-legal-target={target ? "true" : undefined} aria-label={`${variantSquare(index)}, ${pieceLabel(piece)}${active ? ", selected" : moveLabel}`} onClick={() => chooseSquare(index)} className="relative grid h-full min-h-0 w-full min-w-0 place-items-center overflow-hidden p-0 leading-none transition-[background-color,transform] duration-300" style={{ background: active ? theme.active : last ? theme.last : light ? theme.light : theme.dark }}>
                   {target ? <span className={`absolute z-0 rounded-full ${piece ? "inset-[7%] border-[4px] border-[#45e0cf]/85" : "h-[25%] w-[25%] bg-[#173f43]/65 ring-2 ring-[#6bf1e3]/45"}`} /> : null}
                   {piece ? <span className={`relative z-10 block h-[88%] w-[88%] transition duration-200 ${active ? "-translate-y-1 scale-105 drop-shadow-[0_8px_8px_rgba(0,0,0,.35)]" : "hover:scale-105"}`}><FantasyPiece piece={piece} /></span> : null}
                   {(displayIndex % 8 === 0) ? <span className="absolute left-1 top-0.5 text-[9px] font-black text-black/45">{orientation === "w" ? 8 - Math.floor(displayIndex / 8) : 1 + Math.floor(displayIndex / 8)}</span> : null}
@@ -194,13 +285,14 @@ export function VariantWorkshop() {
               })}
             </div>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2"><button type="button" className="btn text-xs" disabled={!past.length || thinking} onClick={undo}>↶ Undo {mode === "bot" ? "round" : "move"}</button><button type="button" className="btn text-xs" onClick={() => newGame()}>↻ Restart</button>{castleMoves.map((move) => <button key={move.castle} type="button" className="btn border-[#9b7cff]/45 bg-[#9b7cff]/10 text-xs" disabled={thinking} onClick={() => commitMove(move)}>Castle {move.castle === "king" ? "kingside · O-O" : "queenside · O-O-O"}</button>)}<div className="ml-auto hidden gap-3 text-[0.65rem] font-semibold text-[var(--text-faint)] sm:flex"><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-[#45e0cf]" />Move</span><span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-[#8f7ac9]" />Last</span></div></div>
+          <div className="mt-2 flex flex-wrap items-center gap-2"><button type="button" className="btn text-xs" disabled={!past.length || (thinking && mode !== "exhibition")} onClick={undo}>↶ Undo {mode === "bot" ? "round" : "move"}</button><button type="button" className="btn text-xs" onClick={() => newGame()}>↻ Restart</button>{mode === "exhibition" && !state.winner ? <button type="button" className={`btn text-xs ${exhibitionRunning ? "" : "btn-primary"}`} onClick={() => setExhibitionRunning((running) => !running)}>{exhibitionRunning ? "Ⅱ Pause bots" : "▶ Resume bots"}</button> : null}<button type="button" className="btn text-xs" onClick={copyMatchSummary}>{copied ? "✓ Copied" : "⧉ Copy match"}</button>{castleMoves.map((move) => <button key={move.castle} type="button" className="btn border-[#9b7cff]/45 bg-[#9b7cff]/10 text-xs" disabled={thinking} onClick={() => commitMove(move)}>Castle {move.castle === "king" ? "kingside · O-O" : "queenside · O-O-O"}</button>)}<div className="ml-auto hidden gap-3 text-[0.65rem] font-semibold text-[var(--text-faint)] sm:flex"><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-[#45e0cf]" />Move</span><span><i className="mr-1 inline-block h-2 w-2 rounded-sm" style={{ background: theme.last }} />Last</span></div></div>
+          {manualCopyText ? <div className="mt-2 rounded-lg border border-[#9b7cff]/35 bg-[#9b7cff]/8 p-3"><div className="mb-2 flex items-center justify-between gap-3"><p className="text-xs font-bold text-[#d5caff]">Clipboard access is blocked here. Select and copy this recap:</p><button type="button" className="text-lg leading-none text-[var(--text-faint)] hover:text-white" aria-label="Close match summary" onClick={() => setManualCopyText(null)}>×</button></div><textarea className="input min-h-28 w-full resize-y font-mono text-xs leading-5" readOnly value={manualCopyText} aria-label="Match summary ready to copy" onFocus={(event) => event.currentTarget.select()} /></div> : null}
         </section>
 
-        <aside className="space-y-3">
-          <section className="panel p-3.5"><div className="flex items-center justify-between gap-2"><h2 className="font-black">Match</h2><span className="text-[0.65rem] font-bold uppercase tracking-wider text-[var(--text-faint)]">{preset.icon} {preset.name}</span></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" className={`btn text-xs ${mode === "bot" ? "btn-primary" : ""}`} onClick={() => { setMode("bot"); newGame(); }}>vs Bot</button><button type="button" className={`btn text-xs ${mode === "local" ? "btn-primary" : ""}`} onClick={() => { setMode("local"); newGame(); }}>Pass & Play</button></div>{mode === "bot" ? <label className="mt-3 block"><span className="label mb-1 block">Bot strength</span><select className="input w-full" value={difficulty} onChange={(event) => setDifficulty(Number(event.target.value) as 1 | 2 | 3)}><option value={1}>1 · Apprentice</option><option value={2}>2 · Tactician</option><option value={3}>3 · Oracle</option></select></label> : null}<details className="mt-3 border-t border-[var(--border)] pt-3"><summary className="cursor-pointer text-xs font-black text-[#bda8ff]">How {preset.name} works</summary><p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">{preset.rules}</p></details></section>
+        {!focusBoard ? <aside className="space-y-3">
+          <section className="panel p-3.5"><div className="flex items-center justify-between gap-2"><h2 className="font-black">Match</h2><span className="text-[0.65rem] font-bold uppercase tracking-wider text-[var(--text-faint)]">{preset.icon} {preset.name}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><button type="button" className={`btn px-2 text-xs ${mode === "bot" ? "btn-primary" : ""}`} onClick={() => { setMode("bot"); newGame(); }}>vs Bot</button><button type="button" className={`btn px-2 text-xs ${mode === "local" ? "btn-primary" : ""}`} onClick={() => { setMode("local"); newGame(); }}>Local</button><button type="button" className={`btn px-2 text-xs ${mode === "exhibition" ? "btn-primary" : ""}`} onClick={() => { setMode("exhibition"); setExhibitionRunning(true); newGame(); }}>Bot vs Bot</button></div>{mode === "bot" ? <label className="mt-3 block"><span className="label mb-1 block">Bot strength</span><select className="input w-full" value={difficulty} onChange={(event) => setDifficulty(Number(event.target.value) as Difficulty)}><option value={1}>1 · Apprentice</option><option value={2}>2 · Tactician</option><option value={3}>3 · Oracle</option></select></label> : null}{mode === "exhibition" ? <div className="mt-3 grid grid-cols-2 gap-2"><label><span className="label mb-1 block">White bot</span><select className="input w-full" value={whiteDifficulty} onChange={(event) => setWhiteDifficulty(Number(event.target.value) as Difficulty)}><option value={1}>Apprentice</option><option value={2}>Tactician</option><option value={3}>Oracle</option></select></label><label><span className="label mb-1 block">Black bot</span><select className="input w-full" value={difficulty} onChange={(event) => setDifficulty(Number(event.target.value) as Difficulty)}><option value={1}>Apprentice</option><option value={2}>Tactician</option><option value={3}>Oracle</option></select></label><label className="col-span-2"><span className="label mb-1 block">Match speed</span><select className="input w-full" value={playbackSpeed} onChange={(event) => setPlaybackSpeed(Number(event.target.value) as PlaybackSpeed)}><option value={900}>Relaxed</option><option value={520}>Live</option><option value={260}>Blitz</option></select></label><button type="button" className={`btn col-span-2 text-xs ${exhibitionRunning ? "" : "btn-primary"}`} onClick={() => setExhibitionRunning((running) => !running)}>{exhibitionRunning ? "Ⅱ Pause exhibition" : "▶ Resume exhibition"}</button></div> : null}<div className="mt-3 grid grid-cols-2 gap-2"><label><span className="label mb-1 block">Board theme</span><select className="input w-full" value={boardTheme} onChange={(event) => setBoardTheme(event.target.value as BoardThemeId)}>{Object.entries(BOARD_THEMES).map(([id, colors]) => <option key={id} value={id}>{colors.label}</option>)}</select></label><div><span className="label mb-1 block">Material</span><div className="input flex min-h-10 items-center font-bold">{materialLabel}</div></div></div><details className="mt-3 border-t border-[var(--border)] pt-3"><summary className="cursor-pointer text-xs font-black text-[#bda8ff]">How {preset.name} works</summary><p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">{preset.rules}</p></details></section>
           <section className="panel overflow-hidden"><div className="flex items-center justify-between border-b border-[var(--border)] px-3.5 py-3"><h2 className="font-black">Moves</h2><span className="text-[0.65rem] text-[var(--text-faint)]">D · A · C · W</span></div><div className="max-h-56 overflow-y-auto p-3.5"><div className="grid grid-cols-[2rem_1fr_1fr] gap-x-2 gap-y-1 text-sm">{Array.from({ length: Math.ceil(state.moves.length / 2) }, (_, index) => <div key={index} className="contents"><span className="text-[var(--text-faint)]">{index + 1}.</span><span className="font-semibold">{state.moves[index * 2]}</span><span className="font-semibold">{state.moves[index * 2 + 1] ?? ""}</span></div>)}</div>{!state.moves.length ? <p className="text-sm leading-5 text-[var(--text-faint)]">Your moves will appear here.</p> : null}</div></section>
-        </aside>
+        </aside> : null}
       </div>
     </div>
   );
