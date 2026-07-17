@@ -615,7 +615,7 @@ main {
 .motion-ambient-layer {
   position: fixed;
   z-index: 0;
-  inset: 0 0 0 232px;
+  inset: 0 0 0 216px;
   overflow: hidden;
   pointer-events: none;
   contain: strict;
@@ -865,17 +865,11 @@ main {
 .home-quick-link:hover > span:first-child { transform: rotate(-4deg) scale(1.08); box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 18%, transparent); }
 .home-quick-link > span:first-child { transition: transform var(--motion-duration) var(--ease-spring), box-shadow var(--motion-duration) ease; }
 
-.home-proof-strip {
-  background:
-    linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 5%, transparent), transparent),
-    color-mix(in srgb, var(--bg-elev) 46%, transparent);
-}
-
 .home-path-card {
   --path-color: var(--accent);
   position: relative;
   display: flex;
-  min-height: 27rem;
+  min-height: 21rem;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -948,6 +942,11 @@ main {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 11%, var(--bg-elev));
 }
+.website-guide-trigger {
+  min-width: 3.25rem;
+  justify-content: center;
+}
+.website-guide-label { display: none; }
 @media (max-width: 767px) {
   body:has(.mobile-command-dock) main { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
   body:has(.mobile-command-dock) .website-page-dock { bottom: calc(5.7rem + env(safe-area-inset-bottom)); }
@@ -1087,7 +1086,7 @@ main {
   position: fixed;
   z-index: 89;
   top: calc(var(--website-pointer-y, 50vh) - 1.3rem);
-  left: 232px;
+  left: 216px;
   right: 0;
   height: 2.6rem;
   border-block: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
@@ -1265,7 +1264,7 @@ main {
   bottom: max(1rem, env(safe-area-inset-bottom));
 }
 @media (min-width: 768px) {
-  [data-website-safe-area="true"] .website-guide-trigger { left: calc(232px + max(1rem, env(safe-area-inset-left))); }
+  [data-website-safe-area="true"] .website-guide-trigger { left: calc(216px + max(1rem, env(safe-area-inset-left))); }
 }
 @media (max-width: 767px) {
   body:has(.mobile-command-dock) .website-guide-trigger,

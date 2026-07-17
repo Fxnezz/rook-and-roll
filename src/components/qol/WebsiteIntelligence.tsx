@@ -443,13 +443,14 @@ export function WebsiteIntelligenceLayer() {
     <>
       <button
         type="button"
-        className={`website-guide-trigger btn fixed bottom-4 left-4 z-[92] gap-2 bg-[var(--panel)] shadow-xl md:left-[248px] ${open ? "btn-primary" : ""}`}
+        className={`website-guide-trigger btn fixed bottom-4 left-4 z-[92] gap-2 bg-[var(--panel)] shadow-xl md:left-[232px] ${open ? "btn-primary" : ""}`}
         onClick={() => setOpen(true)}
         aria-expanded={open}
         aria-label="Open Page Guide"
+        title="Page Guide"
       >
         <span aria-hidden="true">☰</span>
-        <span>Page Guide</span>
+        <span className="website-guide-label">Page Guide</span>
         {website.readingInsights && <span className="font-mono text-[0.64rem] opacity-70">{scrollPercent}%</span>}
       </button>
 

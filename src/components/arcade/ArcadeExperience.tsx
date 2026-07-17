@@ -300,20 +300,12 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
             <div className={styles.gameIdentity}>
               <span className={styles.liveDot} aria-hidden="true" />
               <span>
-                <strong>{profile.eyebrow}</strong>
-                <small>{titleFromSlug(slug)} · {profile.material}</small>
+                <strong>{titleFromSlug(slug)}</strong>
+                <small>{profile.eyebrow} · {profile.material}</small>
               </span>
             </div>
           </div>
           <div className={styles.commands}>
-            <button type="button" aria-pressed={settings.arcadeCinematic} onClick={() => update({ arcadeCinematic: !settings.arcadeCinematic })}>
-              <span aria-hidden="true">✦</span>
-              <span className={styles.commandLabel}>{cinematic ? "Cinematic" : "Calm light"}</span>
-            </button>
-            <button type="button" onClick={cycleVisualQuality} aria-label={`Visual quality: ${QUALITY_LABELS[settings.arcadeQuality]}${settings.arcadeQuality === "auto" ? `, currently ${QUALITY_LABELS[visualQuality]}` : ""}`}>
-              <span aria-hidden="true">◈</span>
-              <span className={styles.commandLabel}>{settings.arcadeQuality === "auto" ? `Auto · ${QUALITY_LABELS[visualQuality]}` : QUALITY_LABELS[visualQuality]}</span>
-            </button>
             <button type="button" onClick={openControls} aria-haspopup="dialog">
               <span aria-hidden="true">?</span>
               <span className={styles.commandLabel}>Controls</span>

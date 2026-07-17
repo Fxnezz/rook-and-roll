@@ -529,8 +529,8 @@ export function WebsiteEnhancementLayer() {
           {website.sessionClock && (
             <button type="button" className="chip bg-[var(--panel)] font-mono shadow-lg" title="Reset session clock" onClick={() => { setSessionSeconds(0); sessionSecondsRef.current = 0; sessionStorage.setItem("rr.website.sessionSeconds", "0"); }}>◷ {formatDuration(sessionSeconds)}</button>
           )}
-          {website.backToTop && showTop && <button type="button" className="btn bg-[var(--panel)] shadow-lg" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Back to top">↑ Top</button>}
-          {website.pageTools && <button type="button" className={`btn shadow-lg ${toolsOpen ? "btn-primary" : "bg-[var(--panel)]"}`} onClick={() => setToolsOpen((current) => !current)} aria-expanded={toolsOpen}>Page tools</button>}
+          {website.backToTop && showTop && <button type="button" className="btn bg-[var(--panel)] shadow-lg" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Back to top" title="Back to top">↑</button>}
+          {website.pageTools && <button type="button" className={`btn min-w-10 shadow-lg ${toolsOpen ? "btn-primary" : "bg-[var(--panel)]"}`} onClick={() => setToolsOpen((current) => !current)} aria-expanded={toolsOpen} aria-label="Page tools" title="Page tools">•••</button>}
         </div>
 
         {website.pageTools && toolsOpen && (
@@ -560,7 +560,7 @@ export function WebsiteEnhancementLayer() {
       </div>
 
       {breakDue && (
-        <aside role="status" className="website-break-reminder fixed bottom-4 left-4 right-4 z-[104] rounded-2xl border border-[var(--accent)]/40 bg-[var(--panel)] p-4 shadow-2xl md:left-[248px] md:right-auto md:max-w-md">
+        <aside role="status" className="website-break-reminder fixed bottom-4 left-4 right-4 z-[104] rounded-2xl border border-[var(--accent)]/40 bg-[var(--panel)] p-4 shadow-2xl md:left-[232px] md:right-auto md:max-w-md">
           <p className="font-extrabold">Good moment for a short break</p>
           <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">Look away from the screen, stretch, and return when you are ready. Nothing has been paused or changed.</p>
           <button type="button" className="btn btn-primary mt-3 !py-2 text-xs" onClick={() => setBreakDue(false)}>I&apos;m refreshed</button>

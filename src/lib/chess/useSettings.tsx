@@ -188,7 +188,7 @@ const DEFAULTS: Settings = {
   cardTilt: true,
   arcadeQuality: "auto",
   arcadeCinematic: true,
-  arcadePerformanceHud: true,
+  arcadePerformanceHud: false,
 };
 
 const STORAGE_KEY = "rr.settings.v1";

@@ -482,7 +482,7 @@ function ConnectionBanner() {
   const { online } = useQol();
   if (online) return null;
   return (
-    <div role="status" className="fixed bottom-3 left-3 right-3 z-[105] flex items-center justify-between gap-3 rounded-xl border border-[var(--danger)]/40 bg-[var(--panel)] px-4 py-3 shadow-2xl md:left-[248px]">
+    <div role="status" className="fixed bottom-3 left-3 right-3 z-[105] flex items-center justify-between gap-3 rounded-xl border border-[var(--danger)]/40 bg-[var(--panel)] px-4 py-3 shadow-2xl md:left-[232px]">
       <div>
         <p className="text-sm font-extrabold">You&apos;re offline</p>
         <p className="text-xs text-[var(--text-faint)]">Local preferences still work. Online games will reconnect when the network returns.</p>

@@ -129,14 +129,14 @@ function GameCardView({
     <article
       data-game-card
       data-category={game.category}
-      className="group panel flex min-h-64 flex-col overflow-hidden transition duration-200 hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-[var(--shadow)]"
+      className="group panel flex min-h-56 flex-col overflow-hidden transition duration-200 hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-[var(--shadow)]"
     >
       <div className="game-visual" aria-hidden="true">
         <span className="game-visual-icon">{game.emoji}</span>
       </div>
-      <div className="flex flex-1 flex-col p-5">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <span className="chip !border-white/10 !bg-white/[0.035] !text-[0.66rem] !font-black !uppercase !tracking-[0.14em]">{game.category}</span>
+      <div className="flex flex-1 flex-col p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <span className="text-[0.66rem] font-black uppercase tracking-[0.13em] text-[var(--text-faint)]">{game.pace} pace</span>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -150,13 +150,12 @@ function GameCardView({
             {game.links.length > 1 && <span className="chip !px-2 !py-1 !text-[0.68rem]">{game.links.length} modes</span>}
           </div>
         </div>
-        <div className="mb-2 flex items-center gap-2 text-[0.66rem] font-bold uppercase tracking-wider text-[var(--text-faint)]">
-          <span>{game.pace} pace</span>
-          {playCount > 0 && <><span>·</span><span>{playCount} {playCount === 1 ? "play" : "plays"}</span></>}
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-extrabold tracking-tight">{game.title}</h3>
+          {playCount > 0 && <span className="shrink-0 text-[0.65rem] font-bold text-[var(--text-faint)]">{playCount} {playCount === 1 ? "play" : "plays"}</span>}
         </div>
-        <h3 className="text-lg font-extrabold tracking-tight">{game.title}</h3>
         <p className="mt-2 flex-1 text-sm leading-6 text-[var(--text-muted)]">{game.blurb}</p>
-        <div className="mt-4 flex gap-2">
+        <div className="mt-3 flex gap-2">
           <button type="button" onClick={onQuickView} className="btn flex-1 !py-2 text-xs">Quick view</button>
           <button
             type="button"
@@ -249,7 +248,6 @@ export function GamesHub({ sections }: GamesHubProps) {
     toggleFavorite,
     addSearch,
     clearSearchHistory,
-    openCenter,
     setLastSurprise,
   } = useQol();
   const [query, setQuery] = useState("");
@@ -258,6 +256,7 @@ export function GamesHub({ sections }: GamesHubProps) {
   const [paceFilter, setPaceFilter] = useState<PaceFilter>("all");
   const [sortMode, setSortMode] = useState<SortMode>("recommended");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<QolGame | null>(null);
   const [compareHrefs, setCompareHrefs] = useState<string[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -324,6 +323,7 @@ export function GamesHub({ sections }: GamesHubProps) {
   const compareGames = compareHrefs.map((href) => games.find((game) => game.links[0]?.href === href)).filter(Boolean) as QolGame[];
   const recommended = [...games].sort((a, b) => scoreRecommendation(b, state.favorites, state.playCounts, recentHrefs) - scoreRecommendation(a, state.favorites, state.playCounts, recentHrefs))[0];
   const hasActiveFilters = Boolean(query || activeFilter !== "all" || modeFilter !== "all" || paceFilter !== "all" || favoritesOnly || sortMode !== "recommended");
+  const advancedFilterCount = [modeFilter !== "all", paceFilter !== "all", favoritesOnly, sortMode !== "recommended"].filter(Boolean).length;
 
   const resetFilters = () => {
     setQuery("");
@@ -332,6 +332,7 @@ export function GamesHub({ sections }: GamesHubProps) {
     setPaceFilter("all");
     setFavoritesOnly(false);
     setSortMode("recommended");
+    setAdvancedFiltersOpen(false);
   };
 
   const surprise = () => {
@@ -357,7 +358,7 @@ export function GamesHub({ sections }: GamesHubProps) {
           <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
               <h1 className="text-4xl font-black tracking-[-0.04em] sm:text-5xl">Games Hub</h1>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--text-muted)] sm:text-lg">Search deeply, save favorites, build collections, compare choices, and let the arcade learn what you enjoy.</p>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--text-muted)] sm:text-lg">Find a game quickly, or fine-tune the library when you need more control.</p>
             </div>
             <dl className="grid grid-cols-3 gap-2 sm:gap-3">
               {[["Games", totalGames, "var(--accent)"], ["Online", onlineGames, "var(--info)"], ["Favorites", Object.keys(state.favorites).length, "var(--good)"]].map(([label, value, color]) => (
@@ -372,7 +373,7 @@ export function GamesHub({ sections }: GamesHubProps) {
       </section>
 
       <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
-        <section aria-label="Personal game dashboard" className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <section aria-label="Personal game dashboard" className="mb-6 grid gap-3 sm:grid-cols-3">
           {state.lastPlayed ? (
             <Link href={state.lastPlayed.href} className="rounded-2xl border border-[var(--accent)]/35 bg-[var(--accent)]/10 p-4 transition hover:border-[var(--accent)]">
               <span className="text-[0.66rem] font-black uppercase tracking-wider text-[var(--accent)]">Continue</span>
@@ -391,11 +392,6 @@ export function GamesHub({ sections }: GamesHubProps) {
             <span className="text-[0.66rem] font-black uppercase tracking-wider text-[var(--accent)]">Surprise me</span>
             <span className="mt-2 block font-extrabold">Choose from {visibleGames.length || games.length} matches</span>
             <span className="mt-1 block text-xs text-[var(--text-faint)]">Respects the active filters →</span>
-          </button>
-          <button type="button" onClick={() => openCenter("overview")} className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-4 text-left transition hover:border-[var(--good)] hover:bg-[var(--good)]/5">
-            <span className="text-[0.66rem] font-black uppercase tracking-wider text-[var(--good)]">Daily goal</span>
-            <span className="mt-2 block font-extrabold">{state.dailyGoal.progress} / {state.dailyGoal.target} sessions</span>
-            <span className="mt-1 block text-xs text-[var(--text-faint)]">{state.dailyGoal.streak} day streak · open tools →</span>
           </button>
         </section>
 
@@ -428,18 +424,25 @@ export function GamesHub({ sections }: GamesHubProps) {
             </div>
           )}
 
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Game categories">
-            {FILTERS.map((filter) => (
-              <button key={filter.id} type="button" onClick={() => setActiveFilter(filter.id)} aria-pressed={activeFilter === filter.id} className={`btn shrink-0 !rounded-full !px-4 !py-2 text-sm ${activeFilter === filter.id ? "btn-primary" : "btn-ghost"}`}>{filter.label}</button>
-            ))}
+          <div className="mt-3 flex items-center gap-2">
+            <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1" role="group" aria-label="Game categories">
+              {FILTERS.map((filter) => (
+                <button key={filter.id} type="button" onClick={() => setActiveFilter(filter.id)} aria-pressed={activeFilter === filter.id} className={`btn shrink-0 !rounded-full !px-4 !py-2 text-sm ${activeFilter === filter.id ? "btn-primary" : "btn-ghost"}`}>{filter.label}</button>
+              ))}
+            </div>
+            <button type="button" onClick={() => setAdvancedFiltersOpen((value) => !value)} aria-expanded={advancedFiltersOpen} className={`btn shrink-0 !py-2 text-sm ${advancedFiltersOpen || advancedFilterCount ? "btn-good" : "btn-ghost"}`}>
+              Filters{advancedFilterCount > 0 ? ` · ${advancedFilterCount}` : ""} <span aria-hidden="true">{advancedFiltersOpen ? "−" : "+"}</span>
+            </button>
           </div>
 
-          <div className="mt-3 grid gap-2 border-t border-[var(--border)] pt-3 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="grid gap-1 text-[0.66rem] font-black uppercase tracking-wider text-[var(--text-faint)]">Mode<select value={modeFilter} onChange={(event) => setModeFilter(event.target.value as ModeFilter)} className="input !h-10 !font-sans !text-sm normal-case tracking-normal text-[var(--text)]"><option value="all">Any mode</option><option value="online">Online</option><option value="bot">Vs bot</option><option value="local">Pass & play</option><option value="solo">Solo</option></select></label>
-            <label className="grid gap-1 text-[0.66rem] font-black uppercase tracking-wider text-[var(--text-faint)]">Pace<select value={paceFilter} onChange={(event) => setPaceFilter(event.target.value as PaceFilter)} className="input !h-10 !font-sans !text-sm normal-case tracking-normal text-[var(--text)]"><option value="all">Any pace</option><option value="quick">Quick</option><option value="medium">Medium</option><option value="deep">Deep</option></select></label>
-            <label className="grid gap-1 text-[0.66rem] font-black uppercase tracking-wider text-[var(--text-faint)]">Sort<select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} className="input !h-10 !font-sans !text-sm normal-case tracking-normal text-[var(--text)]"><option value="recommended">Recommended</option><option value="favorites">Favorites first</option><option value="most-played">Most played</option><option value="recent">Recently played</option><option value="az">A–Z</option></select></label>
-            <button type="button" onClick={() => setFavoritesOnly((value) => !value)} aria-pressed={favoritesOnly} className={`btn self-end !h-10 ${favoritesOnly ? "btn-good" : "btn-ghost"}`}><HeartIcon filled={favoritesOnly} /> Favorites only</button>
-          </div>
+          {advancedFiltersOpen && (
+            <div className="mt-3 grid gap-2 border-t border-[var(--border)] pt-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="grid gap-1 text-[0.66rem] font-black uppercase tracking-wider text-[var(--text-faint)]">Mode<select value={modeFilter} onChange={(event) => setModeFilter(event.target.value as ModeFilter)} className="input !h-10 !font-sans !text-sm normal-case tracking-normal text-[var(--text)]"><option value="all">Any mode</option><option value="online">Online</option><option value="bot">Vs bot</option><option value="local">Pass & play</option><option value="solo">Solo</option></select></label>
+              <label className="grid gap-1 text-[0.66rem] font-black uppercase tracking-wider text-[var(--text-faint)]">Pace<select value={paceFilter} onChange={(event) => setPaceFilter(event.target.value as PaceFilter)} className="input !h-10 !font-sans !text-sm normal-case tracking-normal text-[var(--text)]"><option value="all">Any pace</option><option value="quick">Quick</option><option value="medium">Medium</option><option value="deep">Deep</option></select></label>
+              <label className="grid gap-1 text-[0.66rem] font-black uppercase tracking-wider text-[var(--text-faint)]">Sort<select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} className="input !h-10 !font-sans !text-sm normal-case tracking-normal text-[var(--text)]"><option value="recommended">Recommended</option><option value="favorites">Favorites first</option><option value="most-played">Most played</option><option value="recent">Recently played</option><option value="az">A–Z</option></select></label>
+              <button type="button" onClick={() => setFavoritesOnly((value) => !value)} aria-pressed={favoritesOnly} className={`btn self-end !h-10 ${favoritesOnly ? "btn-good" : "btn-ghost"}`}><HeartIcon filled={favoritesOnly} /> Favorites only</button>
+            </div>
+          )}
         </section>
 
         <div className="mb-6 flex items-center justify-between gap-4">
@@ -448,7 +451,7 @@ export function GamesHub({ sections }: GamesHubProps) {
         </div>
 
         {visibleSections.length > 0 ? visibleSections.map((section) => (
-          <section key={section.id} className="mb-12 scroll-mt-24">
+          <section key={section.id} className="mb-10 scroll-mt-24">
             <div className="mb-5 flex items-end justify-between gap-4 border-b border-[var(--border)] pb-4">
               <div><h2 className="text-2xl font-black tracking-tight">{section.title}</h2><p className="mt-1 text-sm text-[var(--text-muted)]">{section.description}</p></div>
               <span className="chip shrink-0">{section.games.length}</span>
@@ -473,7 +476,7 @@ export function GamesHub({ sections }: GamesHubProps) {
       {selectedGame && <GameQuickView game={selectedGame} onClose={() => setSelectedGame(null)} />}
 
       {compareGames.length > 0 && (
-        <aside aria-label="Game comparison" className="fixed bottom-3 left-3 right-3 z-[70] rounded-2xl border border-[var(--border-strong)] bg-[var(--panel)] p-3 shadow-2xl md:left-[248px]">
+        <aside aria-label="Game comparison" className="fixed bottom-3 left-3 right-3 z-[70] rounded-2xl border border-[var(--border-strong)] bg-[var(--panel)] p-3 shadow-2xl md:left-[232px]">
           <div className="mx-auto flex max-w-5xl items-center gap-3 overflow-x-auto">
             <div className="shrink-0 px-2"><p className="text-xs font-black uppercase tracking-wider text-[var(--accent)]">Compare</p><p className="text-[0.65rem] text-[var(--text-faint)]">{compareGames.length}/3 selected</p></div>
             {compareGames.map((game) => (

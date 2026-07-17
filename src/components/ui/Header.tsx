@@ -44,16 +44,21 @@ const ShieldCenter = dynamic(
 );
 
 const NAV = [
-  { href: "/chess", label: "Chess Home", icon: IconRook },
-  { href: "/play/online", label: "Play Chess", icon: IconChess },
-  { href: "/play/bot", label: "Bots", icon: IconRobot },
-  { href: "/play/local", label: "Pass & Play", icon: IconUsers },
-  { href: "/play", label: "Games Hub", icon: IconGrid },
-  { href: "/puzzles", label: "Puzzles", icon: IconPuzzle },
-  { href: "/training", label: "Training", icon: IconTraining },
-  { href: "/analysis", label: "Analysis", icon: IconSparkles },
-  { href: "/leaderboard", label: "Leaderboard", icon: IconTrophy },
-];
+  { href: "/play", label: "Games Hub", icon: IconGrid, section: "Play" },
+  { href: "/play/online", label: "Play Chess", icon: IconChess, section: "Play" },
+  { href: "/play/bot", label: "Chess Bots", icon: IconRobot, section: "Play" },
+  { href: "/play/local", label: "Pass & Play", icon: IconUsers, section: "Play" },
+  { href: "/chess", label: "Chess Home", icon: IconRook, section: "Learn" },
+  { href: "/puzzles", label: "Puzzles", icon: IconPuzzle, section: "Learn" },
+  { href: "/training", label: "Training", icon: IconTraining, section: "Learn" },
+  { href: "/analysis", label: "Analysis", icon: IconSparkles, section: "Learn" },
+  { href: "/leaderboard", label: "Leaderboard", icon: IconTrophy, section: "Learn" },
+] as const;
+
+const NAV_SECTIONS = [
+  { id: "Play", label: "Play" },
+  { id: "Learn", label: "Learn & review" },
+] as const;
 
 const MOBILE_NAV = [
   { href: "/", label: "Home", icon: IconRook },
@@ -142,7 +147,7 @@ export function Header() {
 
   return (
     <>
-      <aside aria-label="Site navigation" className="qol-focus-dim fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-[var(--border)] bg-[var(--bg)]/95 px-3 pb-3 pt-4 shadow-[var(--shadow-sm)] backdrop-blur md:flex">
+      <aside aria-label="Site navigation" className="qol-focus-dim fixed inset-y-0 left-0 z-40 hidden w-[216px] flex-col border-r border-[var(--border)] bg-[var(--bg)]/95 px-3 pb-3 pt-4 shadow-[var(--shadow-sm)] backdrop-blur md:flex">
         <Link href="/" className="group mb-5 flex px-2 transition-transform duration-200 hover:translate-x-0.5">
           <Wordmark />
         </Link>
@@ -157,37 +162,34 @@ export function Header() {
           <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[0.58rem] text-[var(--text-faint)]">⌘K</kbd>
         </button>
 
-        <Link href="/play" className="group mb-4 flex items-center gap-3 rounded-xl border border-[var(--accent)]/25 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_14%,var(--panel)),var(--panel))] p-3 transition hover:border-[var(--accent)]/55 hover:shadow-[0_12px_32px_color-mix(in_srgb,var(--accent)_10%,transparent)]">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] shadow-[0_8px_20px_color-mix(in_srgb,var(--accent)_20%,transparent)]"><IconGrid width={19} height={19} /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-black">Open the arcade</span>
-            <span className="block text-[0.68rem] font-semibold text-[var(--text-faint)]">73 games · 26 online</span>
-          </span>
-          <span className="text-[var(--accent)] transition-transform group-hover:translate-x-0.5">›</span>
-        </Link>
-
-        <nav aria-label="Primary navigation" className="min-h-0 flex-1 overflow-y-auto flex flex-col gap-1">
-          <p className="mb-1 px-3 text-[0.6rem] font-black uppercase tracking-[0.16em] text-[var(--text-faint)]">Play and improve</p>
-          {visibleNav.map((item) => {
-            const active = isNavActive(pathname, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-colors ${
-                  active
-                    ? "bg-[var(--bg-elev-2)] text-[var(--accent)] shadow-sm"
-                    : "text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
-                }`}
-              >
-                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${active ? "bg-[var(--accent)] text-[var(--accent-contrast)]" : "bg-[var(--bg-elev)] text-[var(--text-faint)] group-hover:text-[var(--accent)]"}`}>
-                  <item.icon width={17} height={17} />
-                </span>
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav aria-label="Primary navigation" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+          {NAV_SECTIONS.map((section) => (
+            <div key={section.id}>
+              <p className="mb-1 px-3 text-[0.6rem] font-black uppercase tracking-[0.16em] text-[var(--text-faint)]">{section.label}</p>
+              <div className="flex flex-col gap-0.5">
+                {visibleNav.filter((item) => item.section === section.id).map((item) => {
+                  const active = isNavActive(pathname, item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      className={`group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-bold transition-colors ${
+                        active
+                          ? "bg-[var(--bg-elev-2)] text-[var(--accent)] shadow-sm"
+                          : "text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
+                      }`}
+                    >
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors ${active ? "bg-[var(--accent)] text-[var(--accent-contrast)]" : "text-[var(--text-faint)] group-hover:text-[var(--accent)]"}`}>
+                        <item.icon width={16} height={16} />
+                      </span>
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
 
           {qol.pins.length > 0 && (
             <div className="mt-3 border-t border-[var(--border)] pt-3">
@@ -217,25 +219,14 @@ export function Header() {
               Shield Center
             </button>
           )}
-          <Link
-            href="/quality-of-life"
-            className="group mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
-          >
-            <span className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-elev)] text-[var(--accent)]">
-              ✦
-              <span className="absolute -right-2 -top-1 rounded-full bg-[var(--good)] px-1 text-[7px] font-black uppercase text-white">New</span>
-            </span>
-            Patch Notes
-          </Link>
-          <button
-            className="group mb-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
-            onClick={() => openSettings()}
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-elev)] text-[var(--text-faint)] transition-transform duration-500 group-hover:rotate-90 group-hover:text-[var(--accent)]">
-              <IconSettings width={17} height={17} />
-            </span>
-            Settings
-          </button>
+          <div className="mb-2 grid grid-cols-2 gap-1 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-1">
+            <Link href="/quality-of-life" className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-bold text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]">
+              <span className="text-[var(--accent)]">✦</span> Notes
+            </Link>
+            <button className="group flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-bold text-[var(--text-muted)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]" onClick={() => openSettings()}>
+              <span className="inline-flex transition-transform duration-500 group-hover:rotate-90"><IconSettings width={15} height={15} /></span> Settings
+            </button>
+          </div>
           {session?.user ? (
             <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--panel)] px-2.5 py-2">
               <NotificationBell />

@@ -75,7 +75,7 @@ export const DEFAULT_WEBSITE_PREFERENCES: WebsitePreferences = {
   restoreScroll: true,
   backToTop: true,
   breadcrumbs: false,
-  pageTools: true,
+  pageTools: false,
   pageNotes: true,
   readingRuler: false,
   focusSpotlight: false,

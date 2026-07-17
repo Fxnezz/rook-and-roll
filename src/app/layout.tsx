@@ -77,15 +77,15 @@ export default async function RootLayout({
             <MaintenanceScreen />
           ) : (
             <>
-              {broadcast && <div className="md:pl-[232px]"><BroadcastBanner broadcast={broadcast} /></div>}
+              {broadcast && <div className="md:pl-[216px]"><BroadcastBanner broadcast={broadcast} /></div>}
               <a
                 href="#main-content"
-                className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-[var(--accent)] focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-[var(--accent-contrast)] focus:shadow-[var(--shadow-md)] md:focus:left-[248px]"
+                className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-[var(--accent)] focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-[var(--accent-contrast)] focus:shadow-[var(--shadow-md)] md:focus:left-[232px]"
               >
                 Skip to main content
               </a>
               <Header />
-              <main id="main-content" tabIndex={-1} className="flex-1 md:pl-[232px]">{children}</main>
+              <main id="main-content" tabIndex={-1} className="flex-1 md:pl-[216px]">{children}</main>
               <SiteFooter />
             </>
           )}

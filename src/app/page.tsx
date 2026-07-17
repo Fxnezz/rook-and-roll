@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { BotAvatar } from "@/components/bot/BotAvatar";
-import { HomeQolRail } from "@/components/qol/HomeQolRail";
 import {
   IconChevronRight,
   IconGrid,
@@ -56,12 +55,6 @@ const PLAYER_PATHS = [
     tone: "info",
     metric: "73 games",
   },
-] as const;
-
-const LATEST_NOTES = [
-  "The new Page Guide adds live outlines, reading progress, sharing, focus view and support checks everywhere.",
-  "Settings now include text scaling, contrast, readable fonts, cursor, touch, draft recovery and power controls.",
-  "The shipped ledger now documents 75 substantial systems and 300 finished improvements.",
 ] as const;
 
 const GAME_SHELF = [
@@ -167,7 +160,7 @@ export default function Home() {
     <div className="overflow-hidden">
       <section className="relative border-b border-[var(--border)]">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_22%_32%,color-mix(in_srgb,var(--accent)_12%,transparent),transparent_30%)]" />
-        <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] items-center gap-14 px-4 py-12 md:py-16 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-16 lg:py-20">
+        <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] items-center gap-12 px-4 py-10 md:py-14 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-14 lg:py-16">
           <div className="order-2 min-w-0 lg:order-1">
             <HeroBoard />
           </div>
@@ -176,14 +169,14 @@ export default function Home() {
             <span className="chip mb-5 !border-[var(--accent)]/25 !bg-[var(--accent)]/10 !text-[var(--accent-strong)]">
               ♜ Your next game starts here
             </span>
-            <h1 className="max-w-xl text-5xl font-black leading-[0.98] tracking-[-0.05em] sm:text-6xl lg:text-7xl">
+            <h1 className="max-w-xl text-5xl font-black leading-[0.98] tracking-[-0.05em] sm:text-6xl">
               Play chess <span className="home-title-accent">your way.</span>
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-8 text-[var(--text-muted)] sm:text-xl">
               Find a live opponent, challenge a bot with a real personality, or train until the hard moves feel obvious.
             </p>
 
-            <div className="mt-8 flex max-w-xl flex-col gap-3">
+            <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-2">
               <Link href="/play/online" className="btn btn-primary btn-cta w-full !justify-between !rounded-xl !px-5">
                 <span className="flex items-center gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent-contrast)]/10">
@@ -204,10 +197,10 @@ export default function Home() {
                   </span>
                   <span className="text-left">
                     <span className="block text-lg leading-tight">Play a Bot</span>
-                    <span className="block text-xs font-semibold text-[var(--text-faint)]">25 bot families · 40 level branches · engine lab</span>
+                    <span className="block text-xs font-semibold text-[var(--text-faint)]">25 bot families</span>
                   </span>
                 </span>
-                <span className="flex shrink-0 -space-x-2" aria-hidden="true">
+                <span className="hidden shrink-0 -space-x-2 xl:flex" aria-hidden="true">
                   {BOT_PREVIEW.map((tierId) => (
                     <BotAvatar key={tierId} tierId={tierId} size={34} rounded="full" className="ring-2 ring-[var(--bg-elev)]" />
                   ))}
@@ -215,7 +208,7 @@ export default function Home() {
               </Link>
             </div>
 
-            <div className="mt-4 grid max-w-xl grid-cols-2 gap-2">
+            <div className="mt-4 grid max-w-xl grid-cols-2 gap-2 sm:grid-cols-4">
               {QUICK_LINKS.map((item) => (
                 <Link key={item.href} href={item.href} className="motion-card home-quick-link group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-3 transition hover:border-[var(--border-strong)] hover:bg-[var(--bg-elev)]">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-elev-2)] text-[var(--accent)]">
@@ -223,7 +216,7 @@ export default function Home() {
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-extrabold">{item.label}</span>
-                    <span className="block truncate text-xs text-[var(--text-faint)]">{item.detail}</span>
+                    <span className="hidden truncate text-xs text-[var(--text-faint)] xl:block">{item.detail}</span>
                   </span>
                 </Link>
               ))}
@@ -232,28 +225,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="home-proof-strip border-b border-[var(--border)]" aria-label="Sam's Arcade highlights">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 divide-x divide-y divide-[var(--border)] px-4 sm:grid-cols-4 sm:divide-y-0">
-          {[
-            ["73", "playable games"],
-            ["26", "online modes"],
-            ["25", "bot families"],
-            ["300+", "player improvements"],
-          ].map(([value, label]) => (
-            <div key={label} className="px-3 py-5 text-center sm:py-6">
-              <strong className="block text-2xl font-black tracking-tight text-[var(--accent)] sm:text-3xl">{value}</strong>
-              <span className="mt-1 block text-[0.68rem] font-black uppercase tracking-[0.13em] text-[var(--text-faint)]">{label}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <HomeQolRail />
-
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:py-20" data-motion-reveal>
+      <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16" data-motion-reveal>
         <div className="mb-8 max-w-2xl">
           <span className="chip mb-4"><IconSparkles width={14} height={14} /> One arcade, three ways in</span>
-          <h2 className="text-3xl font-black tracking-[-0.03em] sm:text-5xl">Whatever mood you&apos;re in, there&apos;s a strong next move.</h2>
+          <h2 className="text-3xl font-black tracking-[-0.03em] sm:text-4xl">Whatever mood you&apos;re in, there&apos;s a strong next move.</h2>
           <p className="mt-4 text-base leading-7 text-[var(--text-muted)] sm:text-lg">Jump straight into competition, shape a custom challenge, or roam the full games library.</p>
         </div>
         <div className="grid gap-4 lg:grid-cols-3">
@@ -263,7 +238,7 @@ export default function Home() {
                 <span className="home-path-icon"><path.icon width={23} height={23} /></span>
                 <span className="chip !bg-[var(--bg)]/50">{path.metric}</span>
               </div>
-              <div className="mt-12">
+              <div className="mt-8">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--path-color)]">0{index + 1} · {path.eyebrow}</p>
                 <h3 className="mt-3 text-2xl font-black leading-tight tracking-tight">{path.title}</h3>
                 <p className="mt-3 text-sm leading-6 text-[var(--text-muted)]">{path.detail}</p>
@@ -276,7 +251,7 @@ export default function Home() {
       </section>
 
       <section className="border-y border-[var(--border)] bg-[var(--bg-elev)]/20" data-motion-reveal>
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
         <div className="panel overflow-hidden">
           <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[0.75fr_1.25fr] lg:items-center">
             <div>
@@ -310,22 +285,14 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16" data-motion-reveal>
-        <div className="grid gap-6 rounded-[1.5rem] border border-[var(--border)] bg-[var(--panel)] p-5 sm:p-7 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
-          <div>
-            <span className="chip mb-3 !border-[var(--good)]/25 !bg-[var(--good)]/10 !text-[var(--good)]">Latest release</span>
-            <h2 className="text-2xl font-black tracking-tight">The arcade keeps getting better.</h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">The full history stays compact in Patch Notes. Player-controlled changes live in Settings.</p>
-            <Link href="/quality-of-life" className="mt-5 inline-flex items-center gap-2 text-sm font-black text-[var(--accent)] hover:underline">Read patch notes <IconChevronRight width={16} height={16} /></Link>
+      <section className="mx-auto max-w-6xl px-4 py-8 sm:py-10" data-motion-reveal>
+        <div className="flex flex-col gap-4 rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <span className="text-xs font-black uppercase tracking-[0.14em] text-[var(--good)]">Latest release</span>
+            <h2 className="mt-1 text-xl font-black tracking-tight">Cleaner games, adaptive graphics, better match controls.</h2>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">The full history stays in one compact Patch Notes page.</p>
           </div>
-          <ul className="grid gap-2" aria-label="Latest improvements">
-            {LATEST_NOTES.map((note) => (
-              <li key={note} className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg)]/60 px-4 py-3 text-sm leading-6">
-                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[var(--good)]/15 text-[0.65rem] font-black text-[var(--good)]">✓</span>
-                {note}
-              </li>
-            ))}
-          </ul>
+          <Link href="/quality-of-life" className="btn shrink-0 !py-2.5 text-sm">Patch notes <IconChevronRight width={16} height={16} /></Link>
         </div>
       </section>
     </div>

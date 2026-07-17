@@ -11,7 +11,6 @@ const EXPLORE_LINKS = [
   { href: "/play/bot", label: "Chess bots" },
   { href: "/puzzles", label: "Puzzles" },
   { href: "/training", label: "Training" },
-  { href: "/improvements", label: "300 improvements" },
 ];
 
 const PLAYER_LINKS = [
@@ -29,8 +28,8 @@ export function SiteFooter() {
   if (immersive || privateSurface) return null;
 
   return (
-    <footer className="site-footer border-t border-[var(--border)] md:ml-[232px]">
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:grid-cols-[1.4fr_0.8fr_0.8fr] sm:py-14">
+    <footer className="site-footer border-t border-[var(--border)] md:ml-[216px]">
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-10 sm:grid-cols-[1.4fr_0.8fr_0.8fr] sm:py-12">
         <div className="max-w-md">
           <Link href="/" className="inline-flex items-center gap-3" aria-label="Sam's Arcade home">
             <Logo size={36} />
