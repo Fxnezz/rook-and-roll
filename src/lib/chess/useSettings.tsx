@@ -193,6 +193,24 @@ const DEFAULTS: Settings = {
 
 const STORAGE_KEY = "rr.settings.v1";
 
+function parseHexColor(value: string): [number, number, number] | null {
+  const match = /^#([0-9a-f]{6})$/i.exec(value);
+  if (!match) return null;
+  const numeric = Number.parseInt(match[1], 16);
+  return [(numeric >> 16) & 255, (numeric >> 8) & 255, numeric & 255];
+}
+
+/** Prevent a persisted custom pair from turning the board into one dark block. */
+export function isUsableSquareColorOverride(value: Settings["squareColorOverride"]): boolean {
+  if (!value) return false;
+  const light = parseHexColor(value.light);
+  const dark = parseHexColor(value.dark);
+  if (!light || !dark) return false;
+  const distance = Math.hypot(light[0] - dark[0], light[1] - dark[1], light[2] - dark[2]);
+  const brightest = Math.max(...light, ...dark);
+  return distance >= 42 && brightest >= 36;
+}
+
 /** Multiplier applied to piece-slide animation durations (see globals.css `--anim-speed-scale`). */
 const ANIM_SPEED_SCALE: Record<AnimationSpeed, number> = {
   instant: 0,
@@ -221,6 +239,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) {
           const parsed = JSON.parse(raw) as Partial<Settings>;
+          if (parsed.squareColorOverride && !isUsableSquareColorOverride(parsed.squareColorOverride)) {
+            parsed.squareColorOverride = null;
+          }
           setSettings((s) => ({ ...s, ...parsed }));
         }
       } catch {

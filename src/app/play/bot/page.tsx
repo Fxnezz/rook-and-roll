@@ -109,7 +109,7 @@ function BotGame({
 }) {
   const game = useChessGame(config.startFen);
   const { snapshot } = game;
-  const { settings } = useSettings();
+  const { settings, update: updateSettings } = useSettings();
   const theme = getTheme(settings.boardTheme);
   const tier = useMemo(() => {
     const base = applyLevelPreset(getTier(config.tierId), config.botLevelId);
@@ -926,6 +926,12 @@ function BotGame({
           )}
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <PlayerBar side={botColor} />
+            {settings.blindfoldBot && (
+              <div className="panel flex items-center justify-between gap-3 border-[#f2b544]/35 px-3 py-2 text-xs">
+                <span><strong className="text-[#f2b544]">Blindfold mode is on.</strong> Pieces are intentionally hidden.</span>
+                <button type="button" className="btn shrink-0 !py-1 !text-xs" onClick={() => updateSettings({ blindfoldBot: false })}>Show pieces</button>
+              </div>
+            )}
             <div ref={boardWrapperRef} id="board-anchor" tabIndex={-1} className="relative outline-none">
               <Board
                 snapshot={snapshot}

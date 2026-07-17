@@ -129,6 +129,10 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
   const gameRef = useRef<Chess>(new Chess(initialFen));
   const startFenRef = useRef<string>(initialFen);
   const [viewPly, setViewPly] = useState<number>(0);
+  // Async engine/training replies may run after the render that scheduled them.
+  // Keep the current viewed ply in a ref so those callbacks never branch from
+  // a stale render and silently rewind the underlying game.
+  const viewPlyRef = useRef<number>(0);
   // Version counter: bumped whenever the underlying Chess instance mutates in
   // a way viewPly alone doesn't capture (loadFen/loadPgn/reset/undo).
   const [version, setVersion] = useState(0);
@@ -170,45 +174,51 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
       const game = gameRef.current;
       const moves = game.history({ verbose: true }) as Move[];
       // If viewing history, truncate the mainline to the viewed ply (branch).
-      if (viewPly < moves.length) {
-        gameRef.current = rebuildAt(startFenRef.current, moves, viewPly);
+      const currentPly = Math.min(viewPlyRef.current, moves.length);
+      if (currentPly < moves.length) {
+        gameRef.current = rebuildAt(startFenRef.current, moves, currentPly);
       }
       try {
         const move = gameRef.current.move({ from, to, promotion });
-        setViewPly(gameRef.current.history().length);
+        const nextPly = gameRef.current.history().length;
+        viewPlyRef.current = nextPly;
+        setViewPly(nextPly);
         bump();
         return move;
       } catch {
         return null;
       }
     },
-    [viewPly, bump],
+    [bump, setViewPly],
   );
 
   const makeSanMove = useCallback<UseChessGame["makeSanMove"]>(
     (san) => {
       const game = gameRef.current;
       const moves = game.history({ verbose: true }) as Move[];
-      if (viewPly < moves.length) {
-        gameRef.current = rebuildAt(startFenRef.current, moves, viewPly);
+      const currentPly = Math.min(viewPlyRef.current, moves.length);
+      if (currentPly < moves.length) {
+        gameRef.current = rebuildAt(startFenRef.current, moves, currentPly);
       }
       try {
         const move = gameRef.current.move(san.trim());
-        setViewPly(gameRef.current.history().length);
+        const nextPly = gameRef.current.history().length;
+        viewPlyRef.current = nextPly;
+        setViewPly(nextPly);
         bump();
         return move;
       } catch {
         return null;
       }
     },
-    [viewPly, bump],
+    [bump, setViewPly],
   );
 
   const legalMovesFrom = useCallback(
     (sq: Square): Move[] => {
       const game = gameRef.current;
       const moves = game.history({ verbose: true }) as Move[];
-      const ply = Math.min(viewPly, moves.length);
+      const ply = Math.min(viewPlyRef.current, moves.length);
       const src = ply === moves.length ? game : rebuildAt(startFenRef.current, moves, ply);
       try {
         return src.moves({ square: sq, verbose: true }) as Move[];
@@ -216,35 +226,52 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
         return [];
       }
     },
-    [viewPly],
+    [],
   );
 
   const goToPly = useCallback((ply: number) => {
     const len = gameRef.current.history().length;
-    setViewPly(Math.max(0, Math.min(ply, len)));
-  }, []);
-  const stepBack = useCallback(() => setViewPly((p) => Math.max(0, p - 1)), []);
-  const stepForward = useCallback(
-    () => setViewPly((p) => Math.min(gameRef.current.history().length, p + 1)),
-    [],
-  );
-  const goStart = useCallback(() => setViewPly(0), []);
-  const goLive = useCallback(() => setViewPly(gameRef.current.history().length), []);
+    const nextPly = Math.max(0, Math.min(ply, len));
+    viewPlyRef.current = nextPly;
+    setViewPly(nextPly);
+  }, [setViewPly]);
+  const stepBack = useCallback(() => {
+    const nextPly = Math.max(0, viewPlyRef.current - 1);
+    viewPlyRef.current = nextPly;
+    setViewPly(nextPly);
+  }, [setViewPly]);
+  const stepForward = useCallback(() => {
+    const nextPly = Math.min(gameRef.current.history().length, viewPlyRef.current + 1);
+    viewPlyRef.current = nextPly;
+    setViewPly(nextPly);
+  }, [setViewPly]);
+  const goStart = useCallback(() => {
+    viewPlyRef.current = 0;
+    setViewPly(0);
+  }, [setViewPly]);
+  const goLive = useCallback(() => {
+    const nextPly = gameRef.current.history().length;
+    viewPlyRef.current = nextPly;
+    setViewPly(nextPly);
+  }, [setViewPly]);
 
   const undo = useCallback(() => {
     gameRef.current.undo();
-    setViewPly(gameRef.current.history().length);
+    const nextPly = gameRef.current.history().length;
+    viewPlyRef.current = nextPly;
+    setViewPly(nextPly);
     bump();
-  }, [bump]);
+  }, [bump, setViewPly]);
 
   const reset = useCallback(
     (fen: string = START_FEN) => {
       startFenRef.current = fen;
       gameRef.current = new Chess(fen);
+      viewPlyRef.current = 0;
       setViewPly(0);
       bump();
     },
-    [bump],
+    [bump, setViewPly],
   );
 
   const loadFen = useCallback(
@@ -253,6 +280,7 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
         const g = new Chess(fen);
         startFenRef.current = g.fen();
         gameRef.current = g;
+        viewPlyRef.current = 0;
         setViewPly(0);
         bump();
         return true;
@@ -260,7 +288,7 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
         return false;
       }
     },
-    [bump],
+    [bump, setViewPly],
   );
 
   const loadPgn = useCallback(
@@ -270,14 +298,16 @@ export function useChessGame(initialFen: string = START_FEN): UseChessGame {
         g.loadPgn(pgn);
         startFenRef.current = START_FEN;
         gameRef.current = g;
-        setViewPly(g.history().length);
+        const nextPly = g.history().length;
+        viewPlyRef.current = nextPly;
+        setViewPly(nextPly);
         bump();
         return true;
       } catch {
         return false;
       }
     },
-    [bump],
+    [bump, setViewPly],
   );
 
   const getPgn = useCallback(() => gameRef.current.pgn(), []);

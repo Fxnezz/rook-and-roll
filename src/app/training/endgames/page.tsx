@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Color, PieceSymbol, Square } from "chess.js";
+import { Chess, type Color, type Move, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "@/components/board/Board";
 import { GameControls } from "@/components/game/GameControls";
 import { useChessGame } from "@/lib/chess/useChessGame";
@@ -13,7 +13,17 @@ import { ENDGAME_DRILLS, type EndgameDrill } from "@/lib/training/endgames";
 
 export default function EndgameTrainerPage() {
   const game = useChessGame();
-  const { snapshot } = game;
+  const {
+    snapshot,
+    legalMovesFrom,
+    makeMove,
+    reset: resetGame,
+    loadFen,
+    goStart,
+    stepBack,
+    stepForward,
+    goLive,
+  } = game;
   const { settings } = useSettings();
   const theme = getTheme(settings.boardTheme);
 
@@ -26,13 +36,13 @@ export default function EndgameTrainerPage() {
   const load = useCallback(
     (idx: number) => {
       setDrillIdx(idx);
-      game.reset(ENDGAME_DRILLS[idx].fen);
+      resetGame(ENDGAME_DRILLS[idx].fen);
     },
-    [game],
+    [resetGame],
   );
 
   useEffect(() => {
-    game.loadFen(drill.fen);
+    loadFen(drill.fen);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -40,14 +50,29 @@ export default function EndgameTrainerPage() {
   useEffect(() => {
     if (snapshot.status.over || !snapshot.isLive || snapshot.turn === traineeColor) return;
     let cancelled = false;
-    setThinking(true);
     (async () => {
       try {
-        const res = await getEngine().go(snapshot.fen, { depth: settings.analysisDepth });
+        await Promise.resolve();
         if (cancelled) return;
-        const uci = res.bestmove || res.lines[0]?.move;
+        setThinking(true);
+        const engine = getEngine();
+        let timeoutId = 0;
+        const res = await Promise.race([
+          engine.go(snapshot.fen, { depth: settings.analysisDepth }),
+          new Promise<null>((resolve) => {
+            timeoutId = window.setTimeout(() => resolve(null), 6500);
+          }),
+        ]);
+        window.clearTimeout(timeoutId);
+        if (cancelled) return;
+        let uci = res?.bestmove || res?.lines[0]?.move;
+        if (!uci) {
+          engine.stop();
+          const fallback = (new Chess(snapshot.fen).moves({ verbose: true }) as Move[])[0];
+          if (fallback) uci = `${fallback.from}${fallback.to}${fallback.promotion ?? ""}`;
+        }
         if (uci && uci.length >= 4) {
-          const mv = game.makeMove({
+          const mv = makeMove({
             from: uci.slice(0, 2) as Square,
             to: uci.slice(2, 4) as Square,
             promotion: uci.length > 4 ? (uci[4] as PieceSymbol) : undefined,
@@ -61,20 +86,20 @@ export default function EndgameTrainerPage() {
     return () => {
       cancelled = true;
     };
-  }, [snapshot.fen, snapshot.turn, snapshot.status.over, snapshot.isLive, traineeColor, settings.analysisDepth, game]);
+  }, [snapshot.fen, snapshot.turn, snapshot.status.over, snapshot.isLive, traineeColor, settings.analysisDepth, makeMove]);
 
   const onMove = useCallback(
     (from: Square, to: Square, promotion?: PieceSymbol) => {
       if (snapshot.turn !== traineeColor || thinking) return;
       primeAudio();
-      const mv = game.makeMove({ from, to, promotion });
+      const mv = makeMove({ from, to, promotion });
       if (!mv) {
         playSound("illegal");
         return;
       }
       playSound(mv.san.includes("x") ? "capture" : mv.san.includes("+") ? "check" : "move");
     },
-    [game, snapshot.turn, traineeColor, thinking],
+    [makeMove, snapshot.turn, traineeColor, thinking],
   );
 
   const outcome = snapshot.status.over
@@ -95,7 +120,7 @@ export default function EndgameTrainerPage() {
             orientation={orientation}
             theme={theme}
             pieceSet={settings.pieceSet}
-            legalMovesFrom={game.legalMovesFrom}
+            legalMovesFrom={legalMovesFrom}
             onMove={onMove}
             movableColor={traineeColor}
             interactive={!snapshot.status.over && !thinking}
@@ -113,10 +138,10 @@ export default function EndgameTrainerPage() {
           />
           <div className="panel flex items-center gap-2 p-2">
             <GameControls
-              onFirst={game.goStart}
-              onPrev={game.stepBack}
-              onNext={game.stepForward}
-              onLast={game.goLive}
+              onFirst={goStart}
+              onPrev={stepBack}
+              onNext={stepForward}
+              onLast={goLive}
               onFlip={() => {}}
               canBack={snapshot.viewPly > 0}
               canForward={snapshot.viewPly < snapshot.moves.length}

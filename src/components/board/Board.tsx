@@ -5,7 +5,7 @@ import type { Color, PieceSymbol, Square } from "chess.js";
 import { Piece, type PieceSetId } from "@/lib/pieces";
 import type { BoardTheme } from "@/lib/chess/themes";
 import type { GameSnapshot } from "@/lib/chess/useChessGame";
-import type { CoordinateStyle } from "@/lib/chess/useSettings";
+import { isUsableSquareColorOverride, type CoordinateStyle } from "@/lib/chess/useSettings";
 import {
   isLightSquare,
   pointToSquare,
@@ -152,7 +152,7 @@ export function Board({
 }: BoardProps) {
   const effTheme: BoardTheme = {
     ...theme,
-    ...(squareColorOverride ? { light: squareColorOverride.light, dark: squareColorOverride.dark } : {}),
+    ...(isUsableSquareColorOverride(squareColorOverride) ? { light: squareColorOverride!.light, dark: squareColorOverride!.dark } : {}),
     ...(colorblindMode ? { check: "#4a7fd6" } : {}),
   };
   const animScale = ANIM_SCALE[animationSpeed];
@@ -372,6 +372,9 @@ export function Board({
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (promo) return;
+    // Pointer/touch focus must not activate the keyboard cursor. Previously the
+    // board's default keyboard square (e4) appeared highlighted after any tap.
+    setBoardFocused(false);
     const sq = squareFromEvent(e);
     if (!sq) return;
 
@@ -596,7 +599,6 @@ export function Board({
       onContextMenu={(e) => e.preventDefault()}
       tabIndex={interactive ? 0 : -1}
       onKeyDown={onBoardKeyDown}
-      onFocus={() => setBoardFocused(true)}
       onBlur={() => setBoardFocused(false)}
       aria-label="Chess board. Use arrow keys to move the cursor, Enter or Space to select a piece and move it."
     >

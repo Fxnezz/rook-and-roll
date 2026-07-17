@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Color } from "chess.js";
 import { Board } from "@/components/board/Board";
@@ -27,7 +27,7 @@ const SPEEDS = [
 
 export default function ExhibitionPage() {
   const game = useChessGame();
-  const { snapshot } = game;
+  const { snapshot, legalMovesFrom, makeMove, reset: resetGame, goToPly } = game;
   const { settings } = useSettings();
   const theme = getTheme(settings.boardTheme);
   const [orientation, setOrientation] = useState<Color>("w");
@@ -35,60 +35,51 @@ export default function ExhibitionPage() {
   const [skillB, setSkillB] = useState(8);
   const [speedMs, setSpeedMs] = useState(900);
   const [running, setRunning] = useState(false);
+  const [thinking, setThinking] = useState(false);
   const [evalScore, setEvalScore] = useState<{ cp: number | null; mate: number | null }>({ cp: 0, mate: null });
-  const runningRef = useRef(false);
-  runningRef.current = running;
 
   const noop = useCallback(() => {}, []);
 
-  const step = useCallback(async () => {
-    if (!runningRef.current || snapshot.status.over) {
-      setRunning(false);
-      return;
-    }
-    const engine = getEngine();
-    const skill = snapshot.turn === "w" ? skillW : skillB;
-    await engine.setSkillLevel(skill);
-    const res = await engine.go(snapshot.fen, { depth: 12 });
-    if (!runningRef.current) return;
-    const uci = res.bestmove || res.lines[0]?.move;
-    if (!uci) {
-      setRunning(false);
-      return;
-    }
-    const move = game.makeMove({
-      from: uci.slice(0, 2) as import("chess.js").Square,
-      to: uci.slice(2, 4) as import("chess.js").Square,
-      promotion: uci.length > 4 ? (uci[4] as import("chess.js").PieceSymbol) : undefined,
-    });
-    if (move) {
-      playSound(move.flags.includes("e") || move.flags.includes("c") ? "capture" : move.san.includes("+") ? "check" : "move");
-      const cpEval = await engine.evaluate(move.after, { depth: 10 }).catch(() => null);
-      if (cpEval && runningRef.current) setEvalScore({ cp: cpEval.cp, mate: cpEval.mate });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot.fen, snapshot.turn, snapshot.status.over, skillW, skillB, game]);
-
   useEffect(() => {
-    if (!running) return;
+    if (!running || snapshot.status.over) return;
     let cancelled = false;
-    const loop = async () => {
-      while (!cancelled && runningRef.current) {
-        await step();
-        if (cancelled || snapshot.status.over) break;
-        await new Promise((r) => setTimeout(r, speedMs));
+    const timer = window.setTimeout(async () => {
+      setThinking(true);
+      try {
+        const engine = getEngine();
+        const skill = snapshot.turn === "w" ? skillW : skillB;
+        await engine.setSkillLevel(skill);
+        const res = await engine.go(snapshot.fen, { depth: 12 });
+        if (cancelled) return;
+        const uci = res.bestmove || res.lines[0]?.move;
+        if (!uci) {
+          setRunning(false);
+          return;
+        }
+        const move = makeMove({
+          from: uci.slice(0, 2) as import("chess.js").Square,
+          to: uci.slice(2, 4) as import("chess.js").Square,
+          promotion: uci.length > 4 ? (uci[4] as import("chess.js").PieceSymbol) : undefined,
+        });
+        if (move) {
+          playSound(move.flags.includes("e") || move.flags.includes("c") ? "capture" : move.san.includes("+") ? "check" : "move");
+          const cpEval = await engine.evaluate(move.after, { depth: 10 }).catch(() => null);
+          if (cpEval && !cancelled) setEvalScore({ cp: cpEval.cp, mate: cpEval.mate });
+        }
+      } finally {
+        if (!cancelled) setThinking(false);
       }
-    };
-    loop();
+    }, speedMs);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running]);
+  }, [makeMove, running, skillB, skillW, snapshot.fen, snapshot.status.over, snapshot.turn, speedMs]);
 
   const reset = () => {
     setRunning(false);
-    game.reset();
+    setThinking(false);
+    resetGame();
     setEvalScore({ cp: 0, mate: null });
   };
 
@@ -116,7 +107,7 @@ export default function ExhibitionPage() {
               orientation={orientation}
               theme={theme}
               pieceSet={settings.pieceSet}
-              legalMovesFrom={game.legalMovesFrom}
+              legalMovesFrom={legalMovesFrom}
               onMove={noop}
               interactive={false}
               showCoordinates={settings.showCoordinates}
@@ -133,6 +124,7 @@ export default function ExhibitionPage() {
               <button className="btn btn-primary !text-xs" onClick={() => setRunning((r) => !r)} disabled={snapshot.status.over}>
                 {running ? "Pause" : "Play"}
               </button>
+              {thinking && <span className="chip">Engine thinking…</span>}
               <button className="btn !text-xs" onClick={reset}>
                 Reset
               </button>
@@ -180,7 +172,7 @@ export default function ExhibitionPage() {
             </p>
           )}
           <div className="min-h-0 flex-1 overflow-y-auto border-t border-[var(--border)] pt-2">
-            <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={game.goToPly} compact={settings.compactMoveList} />
+            <MoveList moves={snapshot.moves} viewPly={snapshot.viewPly} onGoToPly={goToPly} compact={settings.compactMoveList} />
           </div>
         </div>
       </div>
