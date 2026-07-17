@@ -321,6 +321,7 @@ export function WebsiteEnhancementLayer() {
   const sessionSecondsRef = useRef(sessionSeconds);
   const scrollFrame = useRef<number | null>(null);
   const privateSurface = pathname.startsWith("/admin");
+  const immersiveSurface = pathname.startsWith("/play/") || pathname.startsWith("/watch/");
   const lowPower = website.lowDataMode || (website.autoDataSaver && dataSaverDetected) || (website.batterySaver && batteryLow);
   const note = state.pageNotes[pathname] ?? "";
 
@@ -523,7 +524,7 @@ export function WebsiteEnhancementLayer() {
       {website.focusSpotlight && <div className="website-focus-spotlight" aria-hidden="true" />}
       {website.routeAnnouncements && <p className="sr-only" aria-live="polite">Opened {routeLabel(pathname)}</p>}
 
-      <div className="website-page-dock fixed bottom-4 right-4 z-[92] flex flex-col items-end gap-2 md:right-5">
+      {!immersiveSurface && <div className="website-page-dock fixed bottom-4 right-4 z-[92] flex flex-col items-end gap-2 md:right-5">
         <div className="flex flex-wrap justify-end gap-2">
           {lowPower && <span className="chip border-[var(--good)]/30 bg-[var(--panel)] shadow-lg">⚡ Saver active</span>}
           {website.sessionClock && (
@@ -557,9 +558,9 @@ export function WebsiteEnhancementLayer() {
             )}
           </section>
         )}
-      </div>
+      </div>}
 
-      {breakDue && (
+      {!immersiveSurface && breakDue && (
         <aside role="status" className="website-break-reminder fixed bottom-4 left-4 right-4 z-[104] rounded-2xl border border-[var(--accent)]/40 bg-[var(--panel)] p-4 shadow-2xl md:left-[232px] md:right-auto md:max-w-md">
           <p className="font-extrabold">Good moment for a short break</p>
           <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">Look away from the screen, stretch, and return when you are ready. Nothing has been paused or changed.</p>

@@ -13,6 +13,7 @@ import {
   variantSquare,
   type VariantColor,
   type VariantId,
+  type VariantMove,
   type VariantPiece,
   type VariantPieceKind,
   type VariantState,
@@ -71,13 +72,25 @@ export function VariantWorkshop() {
   const preset = VARIANT_PRESETS.find((item) => item.id === variant) ?? VARIANT_PRESETS[0];
   const legal = useMemo(() => selected == null ? [] : legalVariantMoves(state, selected), [selected, state]);
   const legalTargets = useMemo(() => new Set(legal.map((move) => move.to)), [legal]);
+  const castleMoves = useMemo(() => legalVariantMoves(state).filter((move) => move.castle), [state]);
   const inCheck = !state.winner && isVariantCheck(state);
   const thinking = mode === "bot" && state.turn === "b" && !state.winner;
 
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setState(createVariantState("chess960")));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   const newGame = (nextVariant = variant, nextCrowns = crowns) => {
     setVariant(nextVariant);
-    setState(createVariantState(nextVariant, nextCrowns));
+    setState(createVariantState(nextVariant, nextVariant === "custom" ? nextCrowns : {}));
     setPast([]);
+    setSelected(null);
+  };
+
+  const commitMove = (move: VariantMove) => {
+    setPast((history) => [...history, state]);
+    setState(playVariantMove(state, move));
     setSelected(null);
   };
 
@@ -98,11 +111,14 @@ export function VariantWorkshop() {
     if (thinking || state.winner || (mode === "bot" && state.turn === "b")) return;
     const piece = state.board[index];
     if (selected != null) {
-      const move = legal.find((candidate) => candidate.to === index);
-      if (move) {
-        setPast((history) => [...history, state]);
-        setState(playVariantMove(state, move));
+      if (selected === index) {
         setSelected(null);
+        return;
+      }
+      const move = legal.find((candidate) => candidate.to === index && !candidate.castle)
+        ?? legal.find((candidate) => candidate.to === index);
+      if (move) {
+        commitMove(move);
         return;
       }
     }
@@ -125,26 +141,33 @@ export function VariantWorkshop() {
         ? "Arcade bot is thinking…"
         : `${state.turn === "w" ? "White" : "Black"} to move${inCheck ? " · Check!" : ""}`;
 
+  const selectedPiece = selected == null ? null : state.board[selected];
+  const selectionHint = selectedPiece
+    ? `${FANTASY_PIECE_NAMES[selectedPiece.kind]} on ${variantSquare(selected!)} · ${legal.length} legal ${legal.length === 1 ? "move" : "moves"}`
+    : thinking
+      ? "The bot is choosing a move."
+      : "Select one of your pieces. Legal destinations will glow teal.";
+
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-10">
-      <header className="mb-6 overflow-hidden rounded-3xl border border-[#9b7cff]/30 bg-[radial-gradient(circle_at_85%_0%,rgba(155,124,255,.22),transparent_38%),linear-gradient(135deg,var(--panel),var(--bg-elev))] p-5 sm:p-7">
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+      <header className="mb-5 border-b border-[var(--border)] pb-5">
         <span className="chip !border-[#9b7cff]/35 !bg-[#9b7cff]/10 !text-[#c8b8ff]">♞ Variant Workshop</span>
         <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
-          <div><h1 className="text-3xl font-black tracking-tight sm:text-5xl">Forge your own chess.</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-muted)]">Play Chess960 or command Dragons, Archbishops, Chancellors, and Wizards—with real legal-move, check, checkmate, promotion, castling, undo, and bot support.</p></div>
-          <div className="flex gap-2"><button type="button" className="btn text-xs" onClick={() => setOrientation((color) => color === "w" ? "b" : "w")}>Flip board</button><button type="button" className="btn btn-primary text-xs" onClick={() => newGame()}>New position</button></div>
+          <div><h1 className="text-3xl font-black tracking-tight sm:text-4xl">Play chess beyond the standard board.</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-muted)]">Chess960 castling, fantasy armies, legal-move guidance, promotion, undo, and a built-in opponent—all in one focused board.</p></div>
+          <div className="flex gap-2"><button type="button" className="btn text-xs" onClick={() => setOrientation((color) => color === "w" ? "b" : "w")}>⇅ Flip</button><button type="button" className="btn btn-primary text-xs" onClick={() => newGame()}>{variant === "chess960" ? "Shuffle position" : "New position"}</button></div>
         </div>
       </header>
 
-      <section className="mb-5 grid gap-2 sm:grid-cols-5" aria-label="Variant selection">
-        {VARIANT_PRESETS.map((item) => <button key={item.id} type="button" onClick={() => newGame(item.id)} aria-pressed={variant === item.id} className={`rounded-2xl border p-3 text-left transition duration-200 hover:-translate-y-0.5 ${variant === item.id ? "border-[#9b7cff] bg-[#9b7cff]/12 shadow-[0_0_28px_rgba(155,124,255,.14)]" : "border-[var(--border)] bg-[var(--panel)] hover:border-[var(--border-strong)]"}`}><span className="text-xl" aria-hidden>{item.icon}</span><span className="mt-2 block text-sm font-black">{item.name}</span><span className="mt-1 block text-[0.68rem] leading-4 text-[var(--text-faint)]">{item.blurb}</span></button>)}
+      <section className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-5 sm:px-0" aria-label="Variant selection">
+        {VARIANT_PRESETS.map((item) => <button key={item.id} type="button" onClick={() => newGame(item.id)} aria-pressed={variant === item.id} className={`min-w-36 rounded-xl border px-3 py-2.5 text-left transition duration-200 hover:-translate-y-0.5 sm:min-w-0 ${variant === item.id ? "border-[#9b7cff] bg-[#9b7cff]/12 shadow-[0_0_24px_rgba(155,124,255,.12)]" : "border-[var(--border)] bg-[var(--panel)] hover:border-[var(--border-strong)]"}`}><span className="flex items-center gap-2"><span className="text-lg" aria-hidden>{item.icon}</span><span className="text-sm font-black">{item.name}</span></span><span className="mt-1 hidden text-[0.68rem] leading-4 text-[var(--text-faint)] sm:block">{item.blurb}</span></button>)}
       </section>
 
       {variant === "custom" ? <section className="panel mb-5 grid gap-4 p-4 sm:grid-cols-2 sm:p-5">{(["w", "b"] as VariantColor[]).map((color) => <label key={color}><span className="label mb-1 block">{color === "w" ? "White" : "Black"} crown piece</span><select className="input w-full" value={crowns[color]} onChange={(event) => { const next = { ...crowns, [color]: event.target.value as VariantPieceKind }; setCrowns(next); newGame("custom", next); }}>{CUSTOM_CROWNS.map((piece) => <option key={piece.kind} value={piece.kind}>{piece.label} · {piece.detail}</option>)}</select></label>)}</section> : null}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,760px)_minmax(19rem,1fr)] lg:items-start">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,700px)_minmax(19rem,1fr)] lg:items-start">
         <section>
-          <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--panel)] px-3 py-2"><div><p className="text-sm font-black">{status}</p><p className="text-xs text-[var(--text-faint)]">{preset.name} · {mode === "bot" ? `Bot level ${difficulty}` : "Pass & play"}</p></div>{inCheck ? <span className="chip !border-[var(--bad)]/30 !bg-[var(--bad)]/10 !text-[var(--bad)]">Check</span> : null}</div>
-          <div className="relative aspect-square w-full overflow-hidden rounded-2xl border-[10px] border-[#201c2d] bg-[#201c2d] shadow-[0_28px_70px_rgba(0,0,0,.32)]" role="grid" aria-label={`${preset.name} board`}>
+          <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--panel)] px-3 py-2.5"><div><p className="text-sm font-black">{status}</p><p className="mt-0.5 text-xs text-[var(--text-faint)]" aria-live="polite">{selectionHint}</p></div>{inCheck ? <span className="chip !border-[var(--bad)]/30 !bg-[var(--bad)]/10 !text-[var(--bad)]">Check</span> : null}</div>
+          <div data-variant-board className="relative aspect-square w-full overflow-hidden rounded-2xl border-[6px] border-[#201c2d] bg-[#201c2d] shadow-[0_24px_60px_rgba(0,0,0,.28)]" role="grid" aria-label={`${preset.name} board`}>
             <div className="grid h-full w-full grid-cols-8">
               {Array.from({ length: 64 }, (_, displayIndex) => {
                 const index = orientation === "w" ? displayIndex : 63 - displayIndex;
@@ -152,9 +175,15 @@ export function VariantWorkshop() {
                 const light = (Math.floor(displayIndex / 8) + displayIndex % 8) % 2 === 0;
                 const active = selected === index;
                 const target = legalTargets.has(index);
+                const targetMove = legal.find((candidate) => candidate.to === index);
                 const last = state.lastMove?.from === index || state.lastMove?.to === index;
-                return <button key={index} type="button" role="gridcell" aria-label={`${variantSquare(index)}, ${pieceLabel(piece)}`} onClick={() => chooseSquare(index)} className="relative grid place-items-center overflow-hidden transition duration-150" style={{ background: active ? "#a98bff" : last ? "#8f7ac9" : light ? "#c7b9e8" : "#665888" }}>
-                  {target ? <span className={`absolute z-0 rounded-full ${piece ? "inset-1 border-[4px] border-[#52d6c8]/75" : "h-[24%] w-[24%] bg-[#183e44]/55"}`} /> : null}
+                const moveLabel = targetMove?.castle
+                  ? `, castle ${targetMove.castle === "king" ? "kingside" : "queenside"}`
+                  : target
+                    ? `, legal ${piece ? "capture" : "move"}`
+                    : "";
+                return <button key={index} type="button" role="gridcell" aria-selected={active} data-legal-target={target ? "true" : undefined} aria-label={`${variantSquare(index)}, ${pieceLabel(piece)}${active ? ", selected" : moveLabel}`} onClick={() => chooseSquare(index)} className="relative grid min-h-0 min-w-0 place-items-center overflow-hidden transition duration-150" style={{ background: active ? "#a98bff" : last ? "#8f7ac9" : light ? "#c7b9e8" : "#665888" }}>
+                  {target ? <span className={`absolute z-0 rounded-full ${piece ? "inset-[7%] border-[4px] border-[#45e0cf]/85" : "h-[25%] w-[25%] bg-[#173f43]/65 ring-2 ring-[#6bf1e3]/45"}`} /> : null}
                   {piece ? <span className={`relative z-10 block h-[88%] w-[88%] transition duration-200 ${active ? "-translate-y-1 scale-105 drop-shadow-[0_8px_8px_rgba(0,0,0,.35)]" : "hover:scale-105"}`}><FantasyPiece piece={piece} /></span> : null}
                   {(displayIndex % 8 === 0) ? <span className="absolute left-1 top-0.5 text-[9px] font-black text-black/45">{orientation === "w" ? 8 - Math.floor(displayIndex / 8) : 1 + Math.floor(displayIndex / 8)}</span> : null}
                   {displayIndex >= 56 ? <span className="absolute bottom-0.5 right-1 text-[9px] font-black text-black/45">{orientation === "w" ? "abcdefgh"[displayIndex % 8] : "hgfedcba"[displayIndex % 8]}</span> : null}
@@ -162,15 +191,15 @@ export function VariantWorkshop() {
               })}
             </div>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2"><button type="button" className="btn text-xs" disabled={!past.length || thinking} onClick={undo}>↶ Undo {mode === "bot" ? "round" : "move"}</button><button type="button" className="btn text-xs" onClick={() => newGame()}>↻ Restart</button></div>
+          <div className="mt-3 flex flex-wrap items-center gap-2"><button type="button" className="btn text-xs" disabled={!past.length || thinking} onClick={undo}>↶ Undo {mode === "bot" ? "round" : "move"}</button><button type="button" className="btn text-xs" onClick={() => newGame()}>↻ Restart</button>{castleMoves.map((move) => <button key={move.castle} type="button" className="btn border-[#9b7cff]/45 bg-[#9b7cff]/10 text-xs" disabled={thinking} onClick={() => commitMove(move)}>Castle {move.castle === "king" ? "kingside · O-O" : "queenside · O-O-O"}</button>)}</div>
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[0.68rem] font-semibold text-[var(--text-faint)]"><span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-[#45e0cf]" />Legal move</span><span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full border-2 border-[#45e0cf]" />Capture</span><span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-[#8f7ac9]" />Last move</span></div>
         </section>
 
         <aside className="space-y-4">
-          <section className="panel p-4"><h2 className="font-black">Match setup</h2><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" className={`btn text-xs ${mode === "bot" ? "btn-primary" : ""}`} onClick={() => { setMode("bot"); newGame(); }}>vs Arcade Bot</button><button type="button" className={`btn text-xs ${mode === "local" ? "btn-primary" : ""}`} onClick={() => { setMode("local"); newGame(); }}>Pass & Play</button></div>{mode === "bot" ? <label className="mt-4 block"><span className="label mb-1 block">Bot strength</span><select className="input w-full" value={difficulty} onChange={(event) => setDifficulty(Number(event.target.value) as 1 | 2 | 3)}><option value={1}>1 · Apprentice</option><option value={2}>2 · Tactician</option><option value={3}>3 · Oracle</option></select></label> : null}</section>
-          <section className="panel p-4"><p className="text-xs font-black uppercase tracking-[0.14em] text-[#bda8ff]">How this variant works</p><h2 className="mt-1 text-lg font-black">{preset.icon} {preset.name}</h2><p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">{preset.rules}</p></section>
-          <section className="panel overflow-hidden"><div className="border-b border-[var(--border)] p-4"><h2 className="font-black">Move log</h2><p className="text-xs text-[var(--text-faint)]">Fantasy notation uses D, A, C, and W.</p></div><div className="max-h-72 overflow-y-auto p-4"><div className="grid grid-cols-[2rem_1fr_1fr] gap-x-2 gap-y-1 text-sm">{Array.from({ length: Math.ceil(state.moves.length / 2) }, (_, index) => <div key={index} className="contents"><span className="text-[var(--text-faint)]">{index + 1}.</span><span className="font-semibold">{state.moves[index * 2]}</span><span className="font-semibold">{state.moves[index * 2 + 1] ?? ""}</span></div>)}</div>{!state.moves.length ? <p className="text-sm text-[var(--text-faint)]">Choose a piece to see its legal moves.</p> : null}</div></section>
+          <section className="panel p-4"><h2 className="font-black">Match setup</h2><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" className={`btn text-xs ${mode === "bot" ? "btn-primary" : ""}`} onClick={() => { setMode("bot"); newGame(); }}>vs Arcade Bot</button><button type="button" className={`btn text-xs ${mode === "local" ? "btn-primary" : ""}`} onClick={() => { setMode("local"); newGame(); }}>Pass & Play</button></div>{mode === "bot" ? <label className="mt-4 block"><span className="label mb-1 block">Bot strength</span><select className="input w-full" value={difficulty} onChange={(event) => setDifficulty(Number(event.target.value) as 1 | 2 | 3)}><option value={1}>1 · Apprentice</option><option value={2}>2 · Tactician</option><option value={3}>3 · Oracle</option></select></label> : null}<div className="mt-4 border-t border-[var(--border)] pt-4"><p className="text-xs font-black uppercase tracking-[0.14em] text-[#bda8ff]">{preset.icon} {preset.name} rules</p><p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">{preset.rules}</p></div></section>
+          <section className="panel overflow-hidden"><div className="border-b border-[var(--border)] p-4"><h2 className="font-black">Move log</h2><p className="text-xs text-[var(--text-faint)]">Fantasy notation uses D, A, C, and W.</p></div><div className="max-h-72 overflow-y-auto p-4"><div className="grid grid-cols-[2rem_1fr_1fr] gap-x-2 gap-y-1 text-sm">{Array.from({ length: Math.ceil(state.moves.length / 2) }, (_, index) => <div key={index} className="contents"><span className="text-[var(--text-faint)]">{index + 1}.</span><span className="font-semibold">{state.moves[index * 2]}</span><span className="font-semibold">{state.moves[index * 2 + 1] ?? ""}</span></div>)}</div>{!state.moves.length ? <p className="text-sm leading-5 text-[var(--text-faint)]">{selectionHint}</p> : null}</div></section>
         </aside>
       </div>
-    </main>
+    </div>
   );
 }

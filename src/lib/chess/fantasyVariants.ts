@@ -5,7 +5,7 @@ export type VariantPieceKind = StandardKind | FantasyKind;
 export type VariantId = "chess960" | "dragon" | "archon" | "knightmare" | "custom";
 
 export type VariantPiece = { color: VariantColor; kind: VariantPieceKind };
-export type VariantMove = { from: number; to: number; promotion?: VariantPieceKind; castle?: "king" | "queen" };
+export type VariantMove = { from: number; to: number; promotion?: VariantPieceKind; castle?: "king" | "queen"; enPassant?: boolean };
 export type CastleSide = { kingStart: number; kingRook: number; queenRook: number; king: boolean; queen: boolean };
 export type VariantState = {
   board: (VariantPiece | null)[];
@@ -13,6 +13,7 @@ export type VariantState = {
   variant: VariantId;
   crown: Record<VariantColor, VariantPieceKind>;
   castling: Record<VariantColor, CastleSide>;
+  enPassant: number | null;
   lastMove: VariantMove | null;
   moves: string[];
   winner: VariantColor | "draw" | null;
@@ -93,7 +94,10 @@ export function createVariantState(
   crowns: Partial<Record<VariantColor, VariantPieceKind>> = {},
   rng: () => number = Math.random,
 ): VariantState {
-  const crown = { w: crowns.w ?? "d", b: crowns.b ?? "d" } satisfies Record<VariantColor, VariantPieceKind>;
+  const standardCrown: VariantPieceKind = variant === "dragon" ? "d" : "q";
+  const crown: Record<VariantColor, VariantPieceKind> = variant === "custom"
+    ? { w: crowns.w ?? "q", b: crowns.b ?? "q" }
+    : { w: standardCrown, b: standardCrown };
   const whiteRank = presetBackRank(variant, crown.w, rng);
   const blackRank = variant === "custom" ? presetBackRank(variant, crown.b, rng) : [...whiteRank];
   const board: (VariantPiece | null)[] = Array(64).fill(null);
@@ -105,7 +109,7 @@ export function createVariantState(
   }
   return {
     board, turn: "w", variant, crown,
-    castling: { w: castleInfo(whiteRank, "w"), b: castleInfo(blackRank, "b") },
+    castling: { w: castleInfo(whiteRank, "w"), b: castleInfo(blackRank, "b") }, enPassant: null,
     lastMove: null, moves: [], winner: null,
   };
 }
@@ -163,8 +167,16 @@ function pseudoMoves(state: VariantState, from: number, attacksOnly = false): Va
       const r = row(from) + direction;
       const c = col(from) + dc;
       if (!inside(r, c)) continue;
-      const target = state.board[at(r, c)];
-      if (attacksOnly || (target && target.color !== piece.color)) output.push({ from, to: at(r, c), ...(r === promotionRow ? { promotion: state.crown[piece.color] } : {}) });
+      const targetSquare = at(r, c);
+      const target = state.board[targetSquare];
+      if (attacksOnly || (target && target.color !== piece.color) || (!target && state.enPassant === targetSquare)) {
+        output.push({
+          from,
+          to: targetSquare,
+          ...(!attacksOnly && !target && state.enPassant === targetSquare ? { enPassant: true } : {}),
+          ...(r === promotionRow ? { promotion: state.crown[piece.color] } : {}),
+        });
+      }
     }
     return output;
   }
@@ -216,8 +228,32 @@ function castleMoves(state: VariantState, color: VariantColor): VariantMove[] {
     if (!clear) continue;
     let safe = true;
     const direction = Math.sign(col(kingTo) - col(info.kingStart));
-    if (direction === 0) safe = !isVariantSquareAttacked(state, kingTo, other(color));
-    else for (let file = col(info.kingStart); file !== col(kingTo) + direction; file += direction) if (isVariantSquareAttacked(state, at(rank, file), other(color))) safe = false;
+    const pathFiles = direction === 0
+      ? [col(info.kingStart)]
+      : Array.from({ length: Math.abs(col(kingTo) - col(info.kingStart)) + 1 }, (_, index) => col(info.kingStart) + index * direction);
+    for (const file of pathFiles) {
+      const square = at(rank, file);
+      if (square === info.kingStart) continue;
+      const safetyBoard = state.board.map((piece) => piece ? { ...piece } : null);
+      safetyBoard[info.kingStart] = null;
+      if (square === kingTo) {
+        safetyBoard[rookFrom] = null;
+        safetyBoard[kingTo] = king;
+        safetyBoard[rookTo] = rook;
+      } else {
+        if (square === rookFrom) safetyBoard[rookFrom] = null;
+        safetyBoard[square] = king;
+      }
+      if (isVariantSquareAttacked({ ...state, board: safetyBoard }, square, other(color))) safe = false;
+    }
+    if (direction === 0) {
+      const finalBoard = state.board.map((piece) => piece ? { ...piece } : null);
+      finalBoard[info.kingStart] = null;
+      finalBoard[rookFrom] = null;
+      finalBoard[kingTo] = king;
+      finalBoard[rookTo] = rook;
+      safe = !isVariantSquareAttacked({ ...state, board: finalBoard }, kingTo, other(color));
+    }
     if (safe) output.push({ from: info.kingStart, to: kingTo, castle: side });
   }
   return output;
@@ -228,7 +264,8 @@ function applyUnchecked(state: VariantState, move: VariantMove): VariantState {
   const piece = board[move.from];
   if (!piece) return state;
   const castling = { w: { ...state.castling.w }, b: { ...state.castling.b } };
-  const captured = board[move.to];
+  const captureSquare = move.enPassant ? move.to + (piece.color === "w" ? 8 : -8) : move.to;
+  const captured = board[captureSquare];
   if (move.castle) {
     const info = castling[piece.color];
     const rookFrom = move.castle === "king" ? info.kingRook : info.queenRook;
@@ -240,6 +277,7 @@ function applyUnchecked(state: VariantState, move: VariantMove): VariantState {
     board[rookTo] = rook;
   } else {
     board[move.from] = null;
+    if (move.enPassant) board[captureSquare] = null;
     board[move.to] = { ...piece, ...(move.promotion ? { kind: move.promotion } : {}) };
   }
   if (piece.kind === "k") { castling[piece.color].king = false; castling[piece.color].queen = false; }
@@ -249,7 +287,8 @@ function applyUnchecked(state: VariantState, move: VariantMove): VariantState {
     if (move.to === castling[captured.color].kingRook) castling[captured.color].king = false;
     if (move.to === castling[captured.color].queenRook) castling[captured.color].queen = false;
   }
-  return { ...state, board, castling, turn: other(piece.color), lastMove: move };
+  const enPassant = piece.kind === "p" && Math.abs(move.to - move.from) === 16 ? (move.from + move.to) / 2 : null;
+  return { ...state, board, castling, enPassant, turn: other(piece.color), lastMove: move };
 }
 
 export function legalVariantMoves(state: VariantState, from?: number): VariantMove[] {
@@ -261,7 +300,7 @@ export function legalVariantMoves(state: VariantState, from?: number): VariantMo
     if (!piece || piece.color !== state.turn) continue;
     const candidates = [...pseudoMoves(state, source), ...(piece.kind === "k" ? castleMoves(state, piece.color) : [])];
     for (const move of candidates) {
-      if (state.board[move.to]?.kind === "k") continue;
+      if (!move.castle && state.board[move.to]?.kind === "k") continue;
       const next = applyUnchecked(state, move);
       const king = kingIndex(next, piece.color);
       if (king >= 0 && !isVariantSquareAttacked(next, king, other(piece.color))) output.push(move);
@@ -274,8 +313,8 @@ function moveNotation(state: VariantState, move: VariantMove) {
   if (move.castle === "king") return "O-O";
   if (move.castle === "queen") return "O-O-O";
   const piece = state.board[move.from];
-  const capture = Boolean(state.board[move.to]);
-  const name = piece?.kind === "p" ? "" : piece?.kind.toUpperCase();
+  const capture = Boolean(state.board[move.to]) || move.enPassant;
+  const name = piece?.kind === "p" ? (capture ? FILES[col(move.from)] : "") : piece?.kind.toUpperCase();
   return `${name}${capture ? "x" : ""}${variantSquare(move.to)}${move.promotion ? `=${move.promotion.toUpperCase()}` : ""}`;
 }
 

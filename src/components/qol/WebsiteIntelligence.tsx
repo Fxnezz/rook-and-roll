@@ -114,6 +114,7 @@ export function WebsiteIntelligenceLayer() {
   const copyTimer = useRef<number | null>(null);
   const scrollFrame = useRef<number | null>(null);
   const privateSurface = pathname.startsWith("/admin") || pathname.startsWith("/mod");
+  const immersiveSurface = pathname.startsWith("/play/") || pathname.startsWith("/watch/");
 
   const showCopied = useCallback((key: string) => {
     if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
@@ -435,7 +436,7 @@ export function WebsiteIntelligenceLayer() {
     await copyText(report);
   };
 
-  if (!ready || privateSurface || !website.pageGuide) return focusMode ? (
+  if (!ready || privateSurface || immersiveSurface || !website.pageGuide) return focusMode ? (
     <button type="button" className="website-focus-exit btn btn-primary fixed right-4 top-4 z-[120] shadow-2xl" onClick={() => setFocusMode(false)}>Exit focus view <kbd className="ml-2 text-[0.62rem] opacity-70">ESC</kbd></button>
   ) : null;
 
