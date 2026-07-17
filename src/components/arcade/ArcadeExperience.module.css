@@ -314,7 +314,7 @@
   box-shadow: 0 18px 55px rgb(0 0 0 / 0.28), inset 0 1px rgb(255 255 255 / 0.06), inset 0 -1px rgb(0 0 0 / 0.38);
 }
 
-.stage :global(canvas) {
+.stage :global(canvas:not([data-game-overlay])) {
   display: block;
   max-width: 100%;
   height: auto;
@@ -331,7 +331,7 @@
   transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.stage :global(canvas:hover) {
+.stage :global(canvas:not([data-game-overlay]):hover) {
   border-color: color-mix(in srgb, rgb(var(--scene-accent)) 18%, rgb(var(--scene-deep)) 82%);
   box-shadow:
     0 2px 0 rgb(255 255 255 / 0.18) inset,

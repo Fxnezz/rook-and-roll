@@ -85,7 +85,7 @@ export function TrollEffectOverlay({
   return (
     <>
       {confettiActive && (
-        <canvas ref={canvasRef} width={300} height={300} className="pointer-events-none absolute inset-0 z-40 h-full w-full" />
+        <canvas data-game-overlay ref={canvasRef} width={300} height={300} className="pointer-events-none absolute inset-0 z-40 h-full w-full" />
       )}
       {watchedBanner && (
         <div className="pointer-events-none absolute inset-x-0 top-2 z-30 flex justify-center">
