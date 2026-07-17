@@ -14,6 +14,13 @@ export interface LocalMatchState<TMove, TState> {
   thinking: boolean;
 }
 
+interface MatchSnapshot<TMove, TState> {
+  state: TState;
+  lastMove: { move: TMove; by: Player; seq: number } | null;
+  moveCount: number;
+  sequence: number;
+}
+
 /**
  * Drives one local (no-socket) game against the shared BotCapableEngine
  * interface. Two modes share this same state machine:
@@ -30,24 +37,31 @@ export function useLocalMatch<TMove, TState>(
   const [state, setState] = useState<TState>(() => engine.initialState());
   const [lastMove, setLastMove] = useState<{ move: TMove; by: Player; seq: number } | null>(null);
   const [moveCount, setMoveCount] = useState(0);
-  const [thinking, setThinking] = useState(false);
   const moveSeq = useRef(0);
+  const historyRef = useRef<MatchSnapshot<TMove, TState>[]>([]);
 
   const status = engine.getResult(state);
   const turn = engine.turnOf(state);
+  const thinking = mode === "bot" && !status && turn !== humanSeat;
 
   const applyMove = useCallback(
     (move: TMove, by: Player) => {
       if (engine.getResult(state)) return false;
       const res = engine.applyMove(state, by, move);
       if (!res.ok || !res.state) return false;
+      historyRef.current.push({
+        state,
+        lastMove,
+        moveCount,
+        sequence: moveSeq.current,
+      });
       setState(res.state);
       moveSeq.current += 1;
       setLastMove({ move, by, seq: moveSeq.current });
       setMoveCount((c) => c + 1);
       return true;
     },
-    [engine, state],
+    [engine, state, lastMove, moveCount],
   );
 
   // Bot's turn: think for a moment, then move (purely cosmetic delay).
@@ -55,11 +69,9 @@ export function useLocalMatch<TMove, TState>(
     if (mode !== "bot" || status) return;
     const botSeat: Player = humanSeat === "a" ? "b" : "a";
     if (turn !== botSeat) return;
-    setThinking(true);
     const delay = 350 + Math.random() * 450;
     const t = setTimeout(() => {
       const move = botFn(state, botSeat);
-      setThinking(false);
       if (move) applyMove(move, botSeat);
     }, delay);
     return () => clearTimeout(t);
@@ -79,9 +91,25 @@ export function useLocalMatch<TMove, TState>(
     setLastMove(null);
     setMoveCount(0);
     moveSeq.current = 0;
-    setThinking(false);
+    historyRef.current = [];
   }, [engine]);
 
+  const undo = useCallback(() => {
+    if (historyRef.current.length === 0) return;
+
+    // In bot mode, undo a complete human+bot round when both plies exist.
+    // If the bot is still thinking, only the human move needs to be undone.
+    const steps = mode === "bot" && !thinking ? Math.min(2, historyRef.current.length) : 1;
+    let target = historyRef.current.pop();
+    for (let i = 1; i < steps; i += 1) target = historyRef.current.pop() ?? target;
+    if (!target) return;
+
+    setState(target.state);
+    setLastMove(target.lastMove);
+    setMoveCount(target.moveCount);
+    moveSeq.current = target.sequence;
+  }, [mode, thinking]);
+
   const result: LocalMatchState<TMove, TState> = { state, turn, status, lastMove, moveCount, thinking };
-  return { ...result, sendMove, reset };
+  return { ...result, sendMove, reset, undo, canUndo: moveCount > 0 };
 }

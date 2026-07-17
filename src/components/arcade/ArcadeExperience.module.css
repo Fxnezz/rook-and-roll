@@ -31,6 +31,45 @@
 
 .environment { z-index: -1; overflow: hidden; }
 
+.aurora {
+  inset: -18% -12% auto !important;
+  height: 58%;
+  opacity: 0.46;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgb(var(--scene-accent) / 0.2), transparent 52%),
+    radial-gradient(ellipse at 78% 8%, rgb(var(--scene-secondary) / 0.18), transparent 48%);
+  filter: blur(44px) saturate(1.3);
+  transform-origin: 50% 20%;
+  animation: scene-aurora 11s ease-in-out infinite alternate;
+}
+
+.particles {
+  inset: -10% !important;
+  width: 120%;
+  height: 120%;
+  opacity: 0.42;
+  background-image:
+    radial-gradient(circle, rgb(255 255 255 / 0.72) 0 1px, transparent 1.4px),
+    radial-gradient(circle, rgb(var(--scene-accent) / 0.72) 0 1px, transparent 1.6px),
+    radial-gradient(circle, rgb(var(--scene-secondary) / 0.5) 0 1.2px, transparent 1.8px);
+  background-position: 0 0, 43px 67px, 91px 24px;
+  background-size: 137px 131px, 181px 173px, 223px 211px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+  animation: scene-particles 24s linear infinite;
+}
+
+.scanlines {
+  opacity: 0.045;
+  background: repeating-linear-gradient(to bottom, transparent 0 3px, rgb(255 255 255 / 0.38) 4px);
+  mix-blend-mode: overlay;
+}
+
+.vignette {
+  background:
+    linear-gradient(90deg, rgb(var(--scene-deep) / 0.36), transparent 15% 85%, rgb(var(--scene-deep) / 0.36)),
+    linear-gradient(180deg, transparent 55%, rgb(var(--scene-deep) / 0.52));
+}
+
 .spotlight {
   left: 50% !important;
   width: min(1100px, 115vw);
@@ -102,7 +141,23 @@
 
 .experience[data-cinematic="false"] .orbOne,
 .experience[data-cinematic="false"] .orbTwo,
+.experience[data-cinematic="false"] .aurora,
+.experience[data-cinematic="false"] .particles,
 .experience[data-cinematic="false"] .grain { animation: none; opacity: 0.025; }
+
+.experience[data-page-visible="false"] .environment > span { animation-play-state: paused !important; }
+.experience[data-visual-quality="smooth"] .grain,
+.experience[data-visual-quality="smooth"] .scanlines { display: none; }
+.experience[data-visual-quality="smooth"] .particles { opacity: 0.2; animation-duration: 38s; }
+.experience[data-visual-quality="smooth"] .orbOne,
+.experience[data-visual-quality="smooth"] .orbTwo { filter: blur(90px); }
+.experience[data-visual-quality="calm"] .aurora,
+.experience[data-visual-quality="calm"] .orbOne,
+.experience[data-visual-quality="calm"] .orbTwo,
+.experience[data-visual-quality="calm"] .particles,
+.experience[data-visual-quality="calm"] .grain,
+.experience[data-visual-quality="calm"] .scanlines { display: none; }
+.experience[data-visual-quality="calm"] .floor { opacity: 0.16; }
 
 .commandBar {
   position: relative;
@@ -111,10 +166,39 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  width: min(100% - 1.5rem, 1120px);
+  width: min(100% - 1.5rem, 1220px);
   margin: 0 auto;
   padding: 0.72rem 0.8rem 0;
 }
+
+.identityCluster {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.48rem;
+}
+
+.backButton {
+  display: inline-flex;
+  min-height: 2.35rem;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid rgb(255 255 255 / 0.09);
+  border-radius: 999px;
+  padding: 0.42rem 0.68rem;
+  color: rgb(255 255 255 / 0.62);
+  background: rgb(7 10 15 / 0.52);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.05), 0 9px 24px rgb(0 0 0 / 0.18);
+  font-size: 0.72rem;
+  font-weight: 760;
+  text-decoration: none;
+  backdrop-filter: blur(16px);
+  transition: 170ms ease;
+}
+
+.backButton > span:first-child { font-size: 1.25rem; line-height: 0; transform: translateY(-1px); }
+.backButton:hover { border-color: rgb(var(--scene-accent) / 0.42); color: white; background: rgb(var(--scene-accent) / 0.1); transform: translateY(-1px); }
+.backButton:focus-visible { outline: 2px solid rgb(var(--scene-accent)); outline-offset: 2px; }
 
 .gameIdentity {
   display: flex;
@@ -149,7 +233,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.42rem;
-  min-height: 2.25rem;
+  min-height: 2.35rem;
   border: 1px solid rgb(255 255 255 / 0.1);
   border-radius: 999px;
   padding: 0.45rem 0.72rem;
@@ -171,6 +255,15 @@
   min-height: calc(100dvh - 108px);
   animation: stage-arrive 650ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
+.experience:fullscreen {
+  min-height: 100dvh;
+  overflow: auto;
+  background: rgb(var(--scene-deep));
+}
+
+.experience:fullscreen .commandBar { position: sticky; top: 0; padding-bottom: 0.5rem; background: linear-gradient(rgb(var(--scene-deep) / 0.82), transparent); backdrop-filter: blur(10px); }
+.experience:fullscreen .stage { min-height: calc(100dvh - 64px); }
 
 .stage::before {
   content: "";
@@ -196,7 +289,9 @@
 }
 
 .stage :global(canvas) {
+  display: block;
   max-width: 100%;
+  height: auto;
   border: 7px solid color-mix(in srgb, rgb(var(--scene-deep)) 86%, white 14%);
   border-radius: 16px;
   background: rgb(var(--scene-deep));
@@ -205,11 +300,48 @@
     0 -3px 0 rgb(0 0 0 / 0.46) inset,
     0 22px 65px rgb(0 0 0 / 0.48),
     0 0 48px rgb(var(--scene-accent) / 0.12);
+  touch-action: none;
+  user-select: none;
+  transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.stage :global(canvas:hover) {
+  border-color: color-mix(in srgb, rgb(var(--scene-accent)) 18%, rgb(var(--scene-deep)) 82%);
+  box-shadow:
+    0 2px 0 rgb(255 255 255 / 0.18) inset,
+    0 -3px 0 rgb(0 0 0 / 0.5) inset,
+    0 26px 72px rgb(0 0 0 / 0.52),
+    0 0 58px rgb(var(--scene-accent) / 0.18);
 }
 
 .stage :global([role="grid"]) {
   filter: drop-shadow(0 24px 30px rgb(0 0 0 / 0.28));
+  touch-action: manipulation;
+  user-select: none;
 }
+
+.stage :global([role="grid"] button),
+.stage :global([data-game-board] button) {
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 130ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.stage :global([role="grid"] button:enabled:hover),
+.stage :global([data-game-board] button:enabled:hover) {
+  z-index: 2;
+  filter: brightness(1.08) saturate(1.08);
+  transform: translateY(-1px) scale(1.025);
+}
+
+.stage :global([role="grid"] button:enabled:active),
+.stage :global([data-game-board] button:enabled:active) { transform: scale(0.965); transition-duration: 45ms; }
+
+.stage :global([role="grid"] button:focus-visible),
+.stage :global([data-game-board] button:focus-visible) { outline: 3px solid rgb(var(--scene-accent)); outline-offset: -3px; }
 
 .stage :global(.btn) { box-shadow: inset 0 1px rgb(255 255 255 / 0.06), 0 5px 14px rgb(0 0 0 / 0.18); }
 .stage :global(.btn-primary) { box-shadow: 0 4px 0 var(--accent-dim), 0 12px 28px rgb(0 0 0 / 0.28), 0 0 28px rgb(var(--scene-accent) / 0.12); }
@@ -217,6 +349,177 @@
 .stage :global([data-game-session]) {
   position: relative;
 }
+
+.stage :global(.game-match-header) {
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 1.25rem;
+  padding: 0.9rem 1rem;
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.065), rgb(var(--scene-deep) / 0.38));
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.07), 0 18px 42px rgb(0 0 0 / 0.2);
+  backdrop-filter: blur(16px) saturate(1.2);
+}
+
+.stage :global(.game-status-rail) {
+  display: flex;
+  width: min(100%, 46rem);
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.stage :global(.game-status-main) {
+  min-height: 2rem;
+  border-color: rgb(var(--scene-accent) / 0.3);
+  color: color-mix(in srgb, rgb(var(--scene-accent)) 84%, white);
+  background: rgb(var(--scene-accent) / 0.1);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.07), 0 0 24px rgb(var(--scene-accent) / 0.08);
+  font-weight: 800;
+}
+
+.stage :global(.game-board-stage) {
+  position: relative;
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  place-items: center;
+  isolation: isolate;
+}
+
+.stage :global(.game-board-stage)::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 7% -8% -10%;
+  border-radius: 42%;
+  background: radial-gradient(ellipse, rgb(var(--scene-accent) / 0.19), transparent 68%);
+  filter: blur(28px);
+  opacity: 0.68;
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+.stage :global(.game-board-stage:hover)::before { opacity: 0.95; transform: scale(1.035); }
+
+.stage :global(.game-thinking-dots) { display: inline-flex; gap: 0.18rem; margin-left: 0.2rem; }
+.stage :global(.game-thinking-dots i) { width: 0.27rem; height: 0.27rem; border-radius: 50%; background: currentColor; animation: thinking-dot 900ms ease-in-out infinite; }
+.stage :global(.game-thinking-dots i:nth-child(2)) { animation-delay: 120ms; }
+.stage :global(.game-thinking-dots i:nth-child(3)) { animation-delay: 240ms; }
+
+.stage :global(.game-result-card) {
+  overflow: hidden;
+  border-color: rgb(var(--scene-accent) / 0.32);
+  background:
+    radial-gradient(circle at 50% -10%, rgb(var(--scene-accent) / 0.24), transparent 42%),
+    linear-gradient(160deg, color-mix(in srgb, var(--panel) 88%, rgb(var(--scene-accent)) 12%), var(--panel));
+  box-shadow: 0 35px 110px rgb(0 0 0 / 0.62), inset 0 1px rgb(255 255 255 / 0.1);
+  animation: result-arrive 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.stage :global(.game-result-icon) {
+  display: grid;
+  width: 4.25rem;
+  height: 4.25rem;
+  margin: 0 auto 0.8rem;
+  place-items: center;
+  border: 1px solid rgb(var(--scene-accent) / 0.34);
+  border-radius: 1.35rem;
+  background: linear-gradient(145deg, rgb(var(--scene-accent) / 0.28), rgb(var(--scene-accent) / 0.07));
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.14), 0 16px 36px rgb(0 0 0 / 0.3), 0 0 38px rgb(var(--scene-accent) / 0.16);
+  font-size: 2rem;
+}
+
+.controlOverlay {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(1 4 10 / 0.76);
+  backdrop-filter: blur(12px) saturate(0.85);
+  animation: overlay-arrive 180ms ease-out both;
+}
+
+.controlPanel {
+  width: min(100%, 42rem);
+  max-height: min(90dvh, 46rem);
+  overflow: auto;
+  border: 1px solid rgb(var(--scene-accent) / 0.28);
+  border-radius: 1.6rem;
+  padding: 1.25rem;
+  color: white;
+  background:
+    radial-gradient(circle at 12% 0%, rgb(var(--scene-accent) / 0.22), transparent 34%),
+    radial-gradient(circle at 92% 12%, rgb(var(--scene-secondary) / 0.13), transparent 32%),
+    linear-gradient(155deg, rgb(23 28 39 / 0.98), rgb(var(--scene-deep) / 0.98));
+  box-shadow: 0 38px 130px rgb(0 0 0 / 0.72), inset 0 1px rgb(255 255 255 / 0.1);
+  animation: control-panel-arrive 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.controlHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.controlHeader span { color: rgb(var(--scene-accent)); font-size: 0.67rem; font-weight: 850; letter-spacing: 0.16em; text-transform: uppercase; }
+.controlHeader h2 { margin: 0.24rem 0 0; font-size: clamp(1.4rem, 4vw, 2rem); line-height: 1.05; }
+.controlHeader > button {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 0.11);
+  border-radius: 999px;
+  color: rgb(255 255 255 / 0.68);
+  background: rgb(255 255 255 / 0.055);
+  font-size: 1.4rem;
+  transition: 160ms ease;
+}
+.controlHeader > button:hover { border-color: rgb(var(--scene-accent) / 0.42); color: white; transform: rotate(4deg) scale(1.04); }
+
+.controlGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.65rem; margin-top: 1.25rem; }
+.controlGrid article {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.65rem;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 1rem;
+  padding: 0.8rem;
+  background: rgb(255 255 255 / 0.038);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.05);
+}
+.controlGrid kbd,
+.controlFooter kbd {
+  min-width: 2.2rem;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-bottom-width: 3px;
+  border-radius: 0.48rem;
+  padding: 0.28rem 0.42rem;
+  color: rgb(var(--scene-accent));
+  background: rgb(0 0 0 / 0.26);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.66rem;
+  font-weight: 850;
+  text-align: center;
+}
+.controlGrid strong { display: block; font-size: 0.82rem; }
+.controlGrid p { margin: 0.2rem 0 0; color: rgb(255 255 255 / 0.48); font-size: 0.7rem; line-height: 1.4; }
+
+.qualityPicker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.55rem; margin-top: 0.8rem; }
+.qualityPicker button {
+  display: grid;
+  gap: 0.15rem;
+  border: 1px solid rgb(255 255 255 / 0.09);
+  border-radius: 0.85rem;
+  padding: 0.72rem;
+  color: rgb(255 255 255 / 0.62);
+  background: rgb(255 255 255 / 0.035);
+  text-align: left;
+  transition: 160ms ease;
+}
+.qualityPicker button:hover { border-color: rgb(var(--scene-accent) / 0.32); color: white; transform: translateY(-1px); }
+.qualityPicker button[aria-pressed="true"] { border-color: rgb(var(--scene-accent) / 0.52); color: white; background: rgb(var(--scene-accent) / 0.12); box-shadow: inset 0 1px rgb(255 255 255 / 0.08), 0 0 28px rgb(var(--scene-accent) / 0.08); }
+.qualityPicker strong { font-size: 0.78rem; }
+.qualityPicker small { color: rgb(255 255 255 / 0.42); font-size: 0.65rem; }
+.controlFooter { margin: 0.95rem 0 0; color: rgb(255 255 255 / 0.42); font-size: 0.7rem; text-align: center; }
+.controlFooter kbd { display: inline-block; min-width: 1.5rem; margin-inline: 0.18rem; padding: 0.08rem 0.3rem; }
 
 .stage :global(.game-visual) {
   position: relative;
@@ -260,20 +563,35 @@
 
 @keyframes scene-drift-one { 0%, 100% { transform: translate3d(-4%, -5%, 0) scale(0.92); } 50% { transform: translate3d(19%, 12%, 0) scale(1.15); } }
 @keyframes scene-drift-two { 0%, 100% { transform: translate3d(4%, 7%, 0) scale(1.1); } 50% { transform: translate3d(-20%, -12%, 0) scale(0.9); } }
+@keyframes scene-aurora { from { transform: translate3d(-3%, -2%, 0) rotate(-2deg) scale(0.96); } to { transform: translate3d(4%, 5%, 0) rotate(3deg) scale(1.06); } }
+@keyframes scene-particles { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-4%, 8%, 0); } }
 @keyframes scene-grain { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(0.7%, -0.4%); } 50% { transform: translate(-0.5%, 0.8%); } 75% { transform: translate(0.4%, 0.5%); } }
 @keyframes live-breathe { 0%, 100% { opacity: 0.72; transform: scale(0.88); } 50% { opacity: 1; transform: scale(1); } }
 @keyframes stage-arrive { from { opacity: 0; transform: translateY(12px) scale(0.992); } to { opacity: 1; transform: none; } }
+@keyframes thinking-dot { 0%, 100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+@keyframes overlay-arrive { from { opacity: 0; } to { opacity: 1; } }
+@keyframes control-panel-arrive { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes result-arrive { from { opacity: 0; transform: translateY(18px) scale(0.94); } to { opacity: 1; transform: none; } }
 
 @media (max-width: 640px) {
   .commandBar { width: calc(100% - 0.75rem); padding-inline: 0.2rem; }
-  .gameIdentity { max-width: calc(100% - 5.75rem); }
+  .identityCluster { max-width: calc(100% - 9.5rem); }
+  .gameIdentity { max-width: calc(100% - 2.8rem); }
   .commandLabel { display: none; }
   .commands button { width: 2.35rem; justify-content: center; padding-inline: 0; font-size: 0.95rem; }
+  .backButton { width: 2.35rem; justify-content: center; padding-inline: 0; }
   .stage { min-height: calc(100dvh - 96px); }
   .stage :global(canvas) { border-width: 4px; border-radius: 11px; }
+  .controlGrid { grid-template-columns: 1fr; }
+  .qualityPicker { grid-template-columns: 1fr; }
+  .qualityPicker button { text-align: center; }
+  .controlPanel { border-radius: 1.2rem; padding: 1rem; }
+  .stage :global(.game-status-rail) { flex-wrap: wrap; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .orbOne, .orbTwo, .grain, .liveDot, .stage { animation: none !important; }
-  .stage :global(.game-visual-icon), .commands button { transition-duration: 0.01ms !important; }
+  .aurora, .orbOne, .orbTwo, .particles, .grain, .liveDot, .stage,
+  .controlOverlay, .controlPanel, .stage :global(.game-result-card), .stage :global(.game-thinking-dots i) { animation: none !important; }
+  .stage :global(.game-visual-icon), .commands button, .backButton,
+  .stage :global(canvas), .stage :global([role="grid"] button), .stage :global([data-game-board] button) { transition-duration: 0.01ms !important; }
 }

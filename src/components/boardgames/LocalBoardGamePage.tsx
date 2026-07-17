@@ -114,6 +114,13 @@ export function LocalBoardGamePage<TMove, TState>({
     reportedWinRef.current = false;
   };
 
+  const undoMove = () => {
+    match.undo();
+    setShowResult(false);
+    reportedWinRef.current = false;
+    playArcadeSound("click");
+  };
+
   const mySeatForBoard = mode === "passplay" ? match.turn : humanSeat;
 
   const statusText = match.status
@@ -132,15 +139,21 @@ export function LocalBoardGamePage<TMove, TState>({
           : "Bot's move"
       : `${seatLabel(match.turn)} to move`;
 
+  const resultIcon = match.status?.winner === null
+    ? "◇"
+    : mode === "bot" && match.status?.winner !== humanSeat
+      ? "♟"
+      : "🏆";
+
   return (
     <div data-game-session data-session-phase={mode} className="mx-auto max-w-4xl px-4 py-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="game-match-header mb-4 flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">{title}</h1>
+            <h1 className="text-2xl font-black tracking-tight">{title}</h1>
             {rules && (
               <button
-                className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border)] text-xs font-bold text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border)] text-xs font-bold text-[var(--text-muted)] transition-all hover:-translate-y-0.5 hover:border-[var(--accent)] hover:text-[var(--accent)]"
                 onClick={() => setShowRules(true)}
                 aria-label="How to play"
                 title="How to play"
@@ -160,6 +173,7 @@ export function LocalBoardGamePage<TMove, TState>({
                 <button
                   key={d.label}
                   className="rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors"
+                  aria-pressed={i === difficultyIdx}
                   style={{
                     borderColor: i === difficultyIdx ? "var(--accent)" : "var(--border)",
                     background: i === difficultyIdx ? "var(--bg-elev-2)" : "transparent",
@@ -175,6 +189,9 @@ export function LocalBoardGamePage<TMove, TState>({
               ))}
             </div>
           )}
+          <button className="btn btn-ghost !py-1.5 text-sm" onClick={undoMove} disabled={!match.canUndo} title={mode === "bot" ? "Undo the latest round" : "Undo the latest move"}>
+            <span aria-hidden="true">↶</span> Undo
+          </button>
           {mode === "bot" && (
             <button className="btn btn-ghost !py-1.5 text-sm" onClick={swapAndNewGame}>
               Swap sides
@@ -187,21 +204,34 @@ export function LocalBoardGamePage<TMove, TState>({
       </div>
 
       <div className="flex flex-col items-center gap-3">
-        <div className="chip">{statusText}</div>
-        {renderBoard({
-          state: match.state,
-          mySeat: mySeatForBoard,
-          interactive: !match.status,
-          onMove: match.sendMove,
-          status: match.status,
-          lastMove: match.lastMove,
-        })}
+        <div className="game-status-rail" aria-live="polite">
+          <div className="chip game-status-main">
+            {statusText}
+            {match.thinking && (
+              <span className="game-thinking-dots" aria-hidden="true"><i /><i /><i /></span>
+            )}
+          </div>
+          <div className="chip" title="Moves played"><span aria-hidden="true">◆</span> {match.moveCount} {match.moveCount === 1 ? "move" : "moves"}</div>
+          {mode === "bot" && difficulties && <div className="chip"><span aria-hidden="true">◈</span> {difficulties[difficultyIdx]?.label}</div>}
+        </div>
+        <div className="game-board-stage" data-game-board>
+          {renderBoard({
+            state: match.state,
+            mySeat: mySeatForBoard,
+            interactive: !match.status,
+            onMove: match.sendMove,
+            status: match.status,
+            lastMove: match.lastMove,
+          })}
+        </div>
       </div>
 
       {showResult && match.status && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
-          <div className="panel w-full max-w-sm p-6 text-center">
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md" role="presentation">
+          <div className="panel game-result-card w-full max-w-sm p-6 text-center" role="dialog" aria-modal="true" aria-labelledby="match-result-title">
+            <div className="game-result-icon" aria-hidden="true">{resultIcon}</div>
             <p className="text-xl font-bold">
+              <span id="match-result-title">
               {match.status.winner === null
                 ? "Draw"
                 : mode === "bot"
@@ -209,9 +239,14 @@ export function LocalBoardGamePage<TMove, TState>({
                     ? "You won!"
                     : "Bot won"
                   : `${seatLabel(match.status.winner)} wins!`}
+              </span>
             </p>
             <p className="mt-1 text-sm text-[var(--text-muted)]">{match.status.reason}</p>
+            <p className="mt-3 font-mono text-xs text-[var(--text-faint)]">Completed in {match.moveCount} {match.moveCount === 1 ? "move" : "moves"}</p>
             <div className="mt-4 flex justify-center gap-2">
+              <button className="btn btn-ghost" onClick={() => setShowResult(false)}>
+                View board
+              </button>
               {mode === "bot" && (
                 <button className="btn" onClick={swapAndNewGame}>
                   Swap sides
