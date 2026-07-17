@@ -128,7 +128,7 @@ export function CheatEffects({
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
-      <canvas data-game-overlay ref={canvasRef} width={600} height={600} className="absolute inset-0 h-full w-full" />
+      <canvas data-game-overlay ref={canvasRef} width={600} height={600} className="hidden" aria-hidden="true" />
       {bubble && (
         <div className="animate-pop absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-white px-3 py-1 text-xs font-bold text-black shadow-lg">
           {bubble}
