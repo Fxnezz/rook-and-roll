@@ -151,7 +151,7 @@ function BotGame({
   const boardWrapperRef = useRef<HTMLDivElement>(null);
   /** Per-ply think time in ms, index 0 = move 1 — recorded for the postgame time-usage graph. */
   const moveTimesRef = useRef<number[]>([]);
-  const lastMoveAtRef = useRef(performance.now());
+  const lastMoveAtRef = useRef(0);
 
   // Deep link: /play/bot?fen=… starts from a custom position (the analysis
   // board's "Play out vs bot" and the replay viewer's practice button).
@@ -272,10 +272,19 @@ function BotGame({
     const engine = getPlayingEngine(tier.id);
     primeAudio();
     playSound("gameStart");
-    (async () => {
-      await engine.init();
-      await engine.newGame();
-      await configurePlayingEngine(engine, tier.id, tier.skill);
+    void (async () => {
+      try {
+        await engine.init();
+        await engine.newGame();
+        await configurePlayingEngine(engine, tier.id, tier.skill);
+      } catch (error) {
+        // React development mode intentionally mounts, cleans up, and mounts
+        // again. Stopping that first worker is expected and must not become a
+        // user-facing runtime error; genuine engine failures still surface.
+        if (!(error instanceof Error && error.message === "Sam Core search stopped")) {
+          console.error("Bot engine failed to start", error);
+        }
+      }
     })();
     clock.reset();
     clock.start("w");
@@ -293,10 +302,11 @@ function BotGame({
   useEffect(() => {
     if (status.over) {
       clock.stop();
-      setShowResult(true);
+      const frame = window.requestAnimationFrame(() => setShowResult(true));
       playSound("gameEnd");
       saveGame(status);
       onGameEnd(status.result === "1/2-1/2" ? "draw" : status.winner === humanColor ? "win" : "loss");
+      return () => window.cancelAnimationFrame(frame);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.over]);
@@ -323,7 +333,7 @@ function BotGame({
 
       return move;
     },
-    [clock, moveSoundOverride],
+    [clock, game, moveSoundOverride, settings.hapticFeedback],
   );
 
   const applyMove = useCallback(
@@ -363,13 +373,16 @@ function BotGame({
   const premove = premoveQueue[0] ?? null;
   useEffect(() => {
     if (!premove || status.over || paused || snapshot.turn !== humanColor) return;
-    const options = game.legalMovesFrom(premove.from).filter((mv) => mv.to === premove.to);
-    if (options.length === 0) {
-      setPremoveQueue([]);
-      return;
-    }
-    setPremoveQueue((q) => q.slice(1));
-    onHumanMove(premove.from, premove.to, options.some((mv) => mv.promotion) ? "q" : undefined);
+    const frame = window.requestAnimationFrame(() => {
+      const options = game.legalMovesFrom(premove.from).filter((mv) => mv.to === premove.to);
+      if (options.length === 0) {
+        setPremoveQueue([]);
+        return;
+      }
+      setPremoveQueue((q) => q.slice(1));
+      onHumanMove(premove.from, premove.to, options.some((mv) => mv.promotion) ? "q" : undefined);
+    });
+    return () => window.cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot.fen, snapshot.turn, status.over, paused, humanColor]);
 
@@ -397,8 +410,8 @@ function BotGame({
   // Auto-hint: recompute the suggested move whenever it becomes the human's
   // turn, instead of waiting for a manual click.
   useEffect(() => {
-    setHintArrow(null);
-    if (!autoHint || status.over || snapshot.turn !== humanColor) return;
+    const frame = window.requestAnimationFrame(() => setHintArrow(null));
+    if (!autoHint || status.over || snapshot.turn !== humanColor) return () => window.cancelAnimationFrame(frame);
     let cancelled = false;
     const wantsSecondBest = settings.hintMode === "second-best";
     (async () => {
@@ -409,6 +422,7 @@ function BotGame({
     })();
     return () => {
       cancelled = true;
+      window.cancelAnimationFrame(frame);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot.fen, autoHint, status.over, humanColor, settings.hintMode]);
@@ -528,17 +542,17 @@ function BotGame({
   // this is just a per-player Settings preference rather than something
   // server-enforced (contrast with the online game's room-level cap).
   const TAKEBACK_CAP = 3;
-  const takebacksUsedRef = useRef(0);
-  const takebacksRemaining = settings.unlimitedTakebacks ? Infinity : TAKEBACK_CAP - takebacksUsedRef.current;
+  const [takebacksUsed, setTakebacksUsed] = useState(0);
+  const takebacksRemaining = settings.unlimitedTakebacks ? Infinity : TAKEBACK_CAP - takebacksUsed;
 
   /** Undo takes back a full round trip (bot's reply + our move) so it's our turn again. */
   const undoLastRound = useCallback(() => {
     if (status.over || snapshot.moves.length === 0) return;
-    if (!settings.unlimitedTakebacks && takebacksUsedRef.current >= TAKEBACK_CAP) return;
-    takebacksUsedRef.current += 1;
+    if (!settings.unlimitedTakebacks && takebacksUsed >= TAKEBACK_CAP) return;
+    setTakebacksUsed((used) => used + 1);
     game.undo();
     if (snapshot.moves.length > 1) game.undo();
-  }, [game, status.over, snapshot.moves.length, settings.unlimitedTakebacks]);
+  }, [game, status.over, snapshot.moves.length, settings.unlimitedTakebacks, takebacksUsed]);
 
   // --- cheat panel action handlers (bot games only) ---
   const cheatIllegalCastle = useCallback(
@@ -739,7 +753,8 @@ function BotGame({
   const annotated = parseAnnotation(snapshot.commentsByPly[snapshot.viewPly]);
   const [annotationText, setAnnotationText] = useState(annotated.text);
   useEffect(() => {
-    setAnnotationText(parseAnnotation(snapshot.commentsByPly[snapshot.viewPly]).text);
+    const frame = window.requestAnimationFrame(() => setAnnotationText(parseAnnotation(snapshot.commentsByPly[snapshot.viewPly]).text));
+    return () => window.cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot.viewPly]);
   const setNag = (nag: NagSymbol | null) => {
@@ -866,11 +881,11 @@ function BotGame({
           onAutoHintChange={setAutoHint}
         />
       )}
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <button className="btn btn-ghost" onClick={onExit}>
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <button className="btn btn-ghost self-start" onClick={onExit}>
           ← New opponent
         </button>
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           {!status.over && (
             <>
               <button
@@ -881,27 +896,19 @@ function BotGame({
               >
                 <IconSparkles width={16} height={16} /> {hintLoading ? "Thinking…" : "Hint"}
               </button>
-              <button
-                className={`btn ${autoHint ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`}
-                onClick={() => setAutoHint((v) => !v)}
-                title="Always show the suggested move on your turn"
-              >
-                Auto-hint
-              </button>
-              <button
-                className={`btn ${showThreats ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`}
-                onClick={() => setShowThreats((v) => !v)}
-                title="Highlight your pieces currently under attack"
-              >
-                Threats
-              </button>
-              <button
-                className={`btn hidden sm:inline-flex ${evalVisible ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`}
-                onClick={() => setEvalVisible((v) => !v)}
-                title="Show/hide the live evaluation bar"
-              >
-                Eval bar
-              </button>
+              <span className="hidden flex-wrap gap-2 sm:flex">
+                <button className={`btn ${autoHint ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`} onClick={() => setAutoHint((v) => !v)} title="Always show the suggested move on your turn">Auto-hint</button>
+                <button className={`btn ${showThreats ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`} onClick={() => setShowThreats((v) => !v)} title="Highlight your pieces currently under attack">Threats</button>
+                <button className={`btn ${evalVisible ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`} onClick={() => setEvalVisible((v) => !v)} title="Show/hide the live evaluation bar">Eval bar</button>
+              </span>
+              <details className="group relative sm:hidden">
+                <summary className="btn cursor-pointer list-none marker:hidden">Tools <span className="text-[var(--text-faint)] transition-transform group-open:rotate-180">⌄</span></summary>
+                <div className="absolute right-0 top-[calc(100%+0.45rem)] z-40 grid w-48 gap-1 rounded-xl border border-[var(--border-strong)] bg-[var(--panel)] p-2 shadow-2xl">
+                  <button className={`btn !justify-start ${autoHint ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`} onClick={() => setAutoHint((v) => !v)}>Auto-hint {autoHint ? "on" : "off"}</button>
+                  <button className={`btn !justify-start ${showThreats ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`} onClick={() => setShowThreats((v) => !v)}>Threats {showThreats ? "on" : "off"}</button>
+                  <button className={`btn !justify-start ${evalVisible ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`} onClick={() => setEvalVisible((v) => !v)}>Eval bar {evalVisible ? "on" : "off"}</button>
+                </div>
+              </details>
             </>
           )}
           {!status.over && snapshot.moves.length > 0 && (
@@ -917,8 +924,13 @@ function BotGame({
         </div>
       </div>
 
+      <div className={`mb-4 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 lg:hidden ${snapshot.turn === humanColor && !status.over ? "border-[var(--accent)]/35 bg-[var(--accent)]/8" : "border-[var(--border)] bg-[var(--panel)]"}`} role="status" aria-live="polite">
+        <span className="flex min-w-0 items-center gap-2.5"><BotAvatar tierId={tier.id} size={30} rounded="full" /><span className="truncate text-sm font-black">{statusText}</span></span>
+        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${thinking ? "animate-pulse bg-[var(--accent)]" : status.over ? "bg-[var(--text-faint)]" : snapshot.turn === humanColor ? "bg-[var(--good)]" : "bg-[var(--info)]"}`} aria-hidden="true" />
+      </div>
+
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-        <div className="flex w-full gap-2 lg:max-w-[min(72vh,640px)]">
+        <div className="mx-auto flex w-full max-w-[640px] gap-2 lg:mx-0 lg:max-w-[min(72vh,640px)]">
           {evalVisible && (
             <div className="hidden sm:block" style={{ width: 14 }}>
               <EvalBar cp={evalScore.cp} mate={evalScore.mate} orientation={orientation} />

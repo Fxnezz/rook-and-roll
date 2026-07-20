@@ -12,6 +12,8 @@ interface PageSection {
   id: string;
   label: string;
   level: 2 | 3;
+  anchorId: string | null;
+  element: HTMLElement;
 }
 
 interface PageMetrics {
@@ -143,26 +145,24 @@ export function WebsiteIntelligenceLayer() {
     const main = document.getElementById("main-content");
     if (!main) return;
     let scanFrame: number | null = null;
-    const generated: HTMLElement[] = [];
-
     const scan = () => {
       scanFrame = null;
       const used = new Set<string>();
       const nextOutline = [...main.querySelectorAll<HTMLElement>("h2, h3")]
         .filter((heading) => heading.offsetParent !== null && Boolean(heading.textContent?.trim()))
-        .map((heading) => {
-          let id = heading.id;
-          if (!id) {
-            const base = slugifyHeading(heading.textContent?.trim() ?? "section");
-            id = base;
-            let suffix = 2;
-            while (used.has(id) || document.getElementById(id)) id = `${base}-${suffix++}`;
-            heading.id = id;
-            heading.dataset.pageGuideId = "true";
-            generated.push(heading);
-          }
+        .map((heading, index) => {
+          const base = heading.id || slugifyHeading(heading.textContent?.trim() ?? "section");
+          let id = base;
+          let suffix = 2;
+          while (used.has(id)) id = `${base}-${suffix++}`;
           used.add(id);
-          return { id, label: heading.textContent?.trim() ?? "Section", level: Number(heading.tagName.slice(1)) as 2 | 3 };
+          return {
+            id: heading.id || `${id}-${index + 1}`,
+            anchorId: heading.id || null,
+            element: heading,
+            label: heading.textContent?.trim() ?? "Section",
+            level: Number(heading.tagName.slice(1)) as 2 | 3,
+          };
         });
       const text = main.innerText.replace(/\s+/g, " ").trim();
       const words = text ? text.split(" ").length : 0;
@@ -191,12 +191,6 @@ export function WebsiteIntelligenceLayer() {
     return () => {
       observer.disconnect();
       if (scanFrame !== null) window.cancelAnimationFrame(scanFrame);
-      generated.forEach((heading) => {
-        if (heading.dataset.pageGuideId === "true") {
-          heading.removeAttribute("id");
-          delete heading.dataset.pageGuideId;
-        }
-      });
     };
   }, [pathname]);
 
@@ -207,7 +201,7 @@ export function WebsiteIntelligenceLayer() {
         const available = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
         setScrollPercent(Math.min(100, Math.round((window.scrollY / available) * 100)));
         const candidates = outline
-          .map((section) => ({ id: section.id, top: document.getElementById(section.id)?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY }))
+          .map((section) => ({ id: section.id, top: section.element.isConnected ? section.element.getBoundingClientRect().top : Number.POSITIVE_INFINITY }))
           .filter((section) => Number.isFinite(section.top));
         const current = candidates.filter((section) => section.top <= Math.min(180, window.innerHeight * 0.25)).at(-1) ?? candidates[0];
         setActiveSection(current?.id ?? null);
@@ -396,13 +390,13 @@ export function WebsiteIntelligenceLayer() {
   const recent = useMemo(() => state.recent.filter((item) => item.href !== pathname).slice(0, 4), [pathname, state.recent]);
 
   const goToSection = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    outline.find((section) => section.id === id)?.element.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     setActiveSection(id);
   };
 
   const copySection = async (section: PageSection) => {
     const url = new URL(window.location.href);
-    url.hash = section.id;
+    if (section.anchorId) url.hash = section.anchorId;
     showCopied(section.id);
     await copyText(url.toString());
   };
@@ -487,7 +481,7 @@ export function WebsiteIntelligenceLayer() {
                 {website.pageOutline && filteredOutline.map((section) => (
                   <div key={section.id} className={`group flex items-center gap-1 rounded-xl border p-1 ${activeSection === section.id ? "border-[var(--accent)]/45 bg-[var(--accent)]/10" : "border-transparent hover:bg-[var(--bg-elev)]"}`} style={{ marginLeft: section.level === 3 ? "0.75rem" : 0 }}>
                     <button type="button" className="min-w-0 flex-1 truncate px-2 py-2 text-left text-sm font-bold" onClick={() => goToSection(section.id)} aria-current={activeSection === section.id ? "location" : undefined}>{section.label}</button>
-                    {website.sectionDeepLinks && <button type="button" className="rounded-lg px-2 py-2 text-xs font-black text-[var(--text-faint)] opacity-70 hover:bg-[var(--bg)] hover:text-[var(--accent)] group-hover:opacity-100" onClick={() => copySection(section)} aria-label={`Copy link to ${section.label}`}>{copied === section.id ? "✓" : "#"}</button>}
+                    {website.sectionDeepLinks && section.anchorId && <button type="button" className="rounded-lg px-2 py-2 text-xs font-black text-[var(--text-faint)] opacity-70 hover:bg-[var(--bg)] hover:text-[var(--accent)] group-hover:opacity-100" onClick={() => copySection(section)} aria-label={`Copy link to ${section.label}`}>{copied === section.id ? "✓" : "#"}</button>}
                   </div>
                 ))}
                 {website.pageOutline && !filteredOutline.length && <p className="rounded-xl border border-dashed border-[var(--border)] p-7 text-center text-sm text-[var(--text-faint)]">{outline.length ? "No section matches that search." : "This page is short enough to explore without an outline."}</p>}

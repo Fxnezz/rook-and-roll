@@ -1,15 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-interface Particle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  color: string;
-}
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 export interface CheatEffectsToggles {
   explodeCaptures: boolean;
@@ -39,10 +30,9 @@ export function CheatEffects({
   toggles: CheatEffectsToggles;
   zoomTargetRef?: React.RefObject<HTMLElement | null>;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const particlesRef = useRef<Particle[]>([]);
-  const confettiRef = useRef<Particle[]>([]);
   const [bubble, setBubble] = useState<string | null>(null);
+  const [captureBurst, setCaptureBurst] = useState<number | null>(null);
+  const [confettiBurst, setConfettiBurst] = useState<number | null>(null);
   const prevCapture = useRef(captureSeq);
   const prevCheckmate = useRef(checkmateSeq);
   const prevZoom = useRef(zoomSeq);
@@ -50,27 +40,20 @@ export function CheatEffects({
 
   useEffect(() => {
     if (toggles.explodeCaptures && captureSeq !== prevCapture.current) {
-      for (let i = 0; i < 16; i++) {
-        const a = (Math.PI * 2 * i) / 16;
-        particlesRef.current.push({ x: 50, y: 50, vx: Math.cos(a) * 2.2, vy: Math.sin(a) * 2.2, life: 1, color: i % 2 ? "#e9a23b" : "#e5604d" });
-      }
+      setCaptureBurst(captureSeq);
+      const timer = window.setTimeout(() => setCaptureBurst(null), 850);
+      prevCapture.current = captureSeq;
+      return () => window.clearTimeout(timer);
     }
     prevCapture.current = captureSeq;
   }, [captureSeq, toggles.explodeCaptures]);
 
   useEffect(() => {
     if (toggles.confettiOnCheckmate && checkmateSeq !== prevCheckmate.current) {
-      const colors = ["#e9a23b", "#5bbf7a", "#5aa8e0", "#e5604d", "#b06fe0"];
-      for (let i = 0; i < 90; i++) {
-        confettiRef.current.push({
-          x: Math.random() * 100,
-          y: -10,
-          vx: (Math.random() - 0.5) * 0.7,
-          vy: Math.random() * 1 + 0.6,
-          life: 1,
-          color: colors[i % colors.length],
-        });
-      }
+      setConfettiBurst(checkmateSeq);
+      const timer = window.setTimeout(() => setConfettiBurst(null), 1800);
+      prevCheckmate.current = checkmateSeq;
+      return () => window.clearTimeout(timer);
     }
     prevCheckmate.current = checkmateSeq;
   }, [checkmateSeq, toggles.confettiOnCheckmate]);
@@ -99,36 +82,21 @@ export function CheatEffects({
     prevVoiceSeq.current = voiceLine?.seq ?? prevVoiceSeq.current;
   }, [voiceLine, toggles.pieceVoiceLines]);
 
-  useEffect(() => {
-    let raf: number;
-    const draw = () => {
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext("2d");
-      if (ctx && canvas) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const scale = canvas.width / 100;
-        particlesRef.current = particlesRef.current
-          .map((p) => ({ ...p, x: p.x + p.vx, y: p.y + p.vy, vy: p.vy + 0.07, life: p.life - 0.025 }))
-          .filter((p) => p.life > 0);
-        confettiRef.current = confettiRef.current
-          .map((p) => ({ ...p, x: p.x + p.vx, y: p.y + p.vy, life: p.life - 0.006 }))
-          .filter((p) => p.life > 0 && p.y < 110);
-        [...particlesRef.current, ...confettiRef.current].forEach((p) => {
-          ctx.globalAlpha = Math.max(0, p.life);
-          ctx.fillStyle = p.color;
-          ctx.fillRect(p.x * scale - 3, p.y * scale - 3, 6, 6);
-        });
-        ctx.globalAlpha = 1;
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
   return (
     <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
-      <canvas data-game-overlay ref={canvasRef} width={600} height={600} className="hidden" aria-hidden="true" />
+      {captureBurst !== null && (
+        <div key={`capture-${captureBurst}`} className="cheat-capture-burst absolute inset-0" aria-hidden="true">
+          {Array.from({ length: 18 }, (_, index) => {
+            const angle = (Math.PI * 2 * index) / 18;
+            return <i key={index} style={{ "--x": `${Math.cos(angle) * 120}px`, "--y": `${Math.sin(angle) * 120}px`, "--spin": `${index * 47}deg`, "--spark": index % 2 ? "#f4b451" : "#ee6b5d" } as CSSProperties} />;
+          })}
+        </div>
+      )}
+      {confettiBurst !== null && (
+        <div key={`mate-${confettiBurst}`} className="cheat-confetti-burst absolute inset-0" aria-hidden="true">
+          {Array.from({ length: 48 }, (_, index) => <i key={index} style={{ "--left": `${(index * 37) % 101}%`, "--delay": `${(index % 12) * 34}ms`, "--drift": `${((index * 19) % 90) - 45}px`, "--spin": `${180 + (index % 7) * 70}deg`, "--confetti": ["#f4b451", "#5bbf7a", "#5aa8e0", "#e5604d", "#b06fe0"][index % 5] } as CSSProperties} />)}
+        </div>
+      )}
       {bubble && (
         <div className="animate-pop absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-white px-3 py-1 text-xs font-bold text-black shadow-lg">
           {bubble}

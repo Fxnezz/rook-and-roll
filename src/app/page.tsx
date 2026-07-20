@@ -12,6 +12,7 @@ import {
 import { Piece } from "@/lib/pieces";
 import { getTheme } from "@/lib/chess/themes";
 import type { BotTierId } from "@/lib/engine/bots";
+import { HomeQolRail } from "@/components/qol/HomeQolRail";
 
 type BoardPiece = { t: "p" | "r" | "n" | "b" | "q" | "k"; c: "w" | "b" };
 
@@ -224,6 +225,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <HomeQolRail />
 
       <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16" data-motion-reveal>
         <div className="mb-8 max-w-2xl">

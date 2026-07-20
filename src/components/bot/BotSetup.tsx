@@ -67,6 +67,7 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
   const [engineMultipv, setEngineMultipv] = useState(1);
   const [enginePersonality, setEnginePersonality] = useState<BotPersonality>("normal");
   const [botLevelId, setBotLevelId] = useState<BotLevelId>("elite");
+  const [botQuery, setBotQuery] = useState("");
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -128,17 +129,20 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
 
   // Remember the last-used custom time control across visits.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(CUSTOM_TC_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as { minutes?: number; increment?: number; delayMode?: DelayMode };
-        if (typeof parsed.minutes === "number") setCustomMinutes(clampCustomMinutes(parsed.minutes));
-        if (typeof parsed.increment === "number") setCustomIncrement(clampCustomIncrementSec(parsed.increment));
-        if (parsed.delayMode === "us" || parsed.delayMode === "bronstein") setDelayMode(parsed.delayMode);
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const raw = localStorage.getItem(CUSTOM_TC_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { minutes?: number; increment?: number; delayMode?: DelayMode };
+          if (typeof parsed.minutes === "number") setCustomMinutes(clampCustomMinutes(parsed.minutes));
+          if (typeof parsed.increment === "number") setCustomIncrement(clampCustomIncrementSec(parsed.increment));
+          if (parsed.delayMode === "us" || parsed.delayMode === "bronstein") setDelayMode(parsed.delayMode);
+        }
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore */
-    }
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   const isCustom = tcId.startsWith("custom:");
@@ -194,6 +198,48 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
   for (const tc of TIME_CONTROLS) (grouped[tc.category] ??= []).push(tc);
   const selectedBaseTier = BOT_TIERS.find((tier) => tier.id === tierId) ?? BOT_TIERS[4];
   const selectedTier = applyLevelPreset(selectedBaseTier, botLevelId);
+  const visibleBotGroups = useMemo(() => {
+    const query = botQuery.trim().toLowerCase();
+    if (!query) return BOT_GROUPS;
+    return BOT_GROUPS.map((group) => ({
+      ...group,
+      ids: group.ids.filter((id) => {
+        const tier = BOT_TIERS.find((candidate) => candidate.id === id);
+        if (!tier) return false;
+        return [tier.name, tier.fullName, tier.blurb, tier.flag, tier.lineage, String(tier.elo)]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+      }),
+    })).filter((group) => group.ids.length > 0);
+  }, [botQuery]);
+
+  const applyQuickSetup = (preset: "learn" | "balanced" | "boss") => {
+    setOddsId("none");
+    setShowEval(false);
+    if (preset === "learn") {
+      setTierId("cass");
+      setColorChoice("w");
+      setTcId("untimed");
+      return;
+    }
+    if (preset === "balanced") {
+      setTierId(recommendedTierId ?? "wren");
+      setColorChoice("random");
+      setTcId("10+0");
+      return;
+    }
+    const samCore = BOT_TIERS.find((tier) => tier.id === "samcore")!;
+    setTierId("samcore");
+    setBotLevelId("elite");
+    setEngineDepth(Math.min(8, samCore.maxDepth ?? 8));
+    setEngineSkill(20);
+    setEngineMultipv(1);
+    setEnginePersonality("normal");
+    setColorChoice("random");
+    setTcId("15+10");
+  };
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
@@ -214,6 +260,21 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
           ?
         </button>
       </div>
+
+      <section className="mb-4 grid gap-2 sm:grid-cols-3" aria-label="Quick bot setups">
+        <button type="button" onClick={() => applyQuickSetup("learn")} className="bot-quick-preset group">
+          <span className="bot-quick-preset-icon" aria-hidden="true">◎</span>
+          <span><span className="block font-black">Learn calmly</span><span className="mt-0.5 block text-xs text-[var(--text-faint)]">Cass · White · Untimed</span></span>
+        </button>
+        <button type="button" onClick={() => applyQuickSetup("balanced")} className="bot-quick-preset group">
+          <span className="bot-quick-preset-icon" aria-hidden="true">⚖</span>
+          <span><span className="block font-black">Balanced match</span><span className="mt-0.5 block text-xs text-[var(--text-faint)]">Best match · Random · 10 min</span></span>
+        </button>
+        <button type="button" onClick={() => applyQuickSetup("boss")} className="bot-quick-preset group">
+          <span className="bot-quick-preset-icon" aria-hidden="true">✦</span>
+          <span><span className="block font-black">Sam Core test</span><span className="mt-0.5 block text-xs text-[var(--text-faint)]">Elite · Random · 15 | 10</span></span>
+        </button>
+      </section>
 
       <section className="panel overflow-hidden">
         <div className="grid gap-5 border-b border-[var(--border)] bg-[var(--bg-elev)]/45 p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:p-6" aria-live="polite">
@@ -236,7 +297,14 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
         </div>
 
         <div className="space-y-6 p-4 sm:p-6">
-          {BOT_GROUPS.map((group) => (
+          <label className="relative block">
+            <span className="sr-only">Find a chess bot</span>
+            <input type="search" value={botQuery} onChange={(event) => setBotQuery(event.target.value)} className="input w-full !py-3 !pl-11" placeholder="Find a bot by name, rating, style, or engine family…" />
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" aria-hidden="true">⌕</span>
+            {botQuery && <button type="button" onClick={() => setBotQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-3 py-1.5 text-xs font-black text-[var(--text-faint)] hover:bg-[var(--bg-elev)] hover:text-[var(--text)]">Clear</button>}
+          </label>
+
+          {visibleBotGroups.map((group) => (
             <div key={group.title}>
               <div className="mb-3 flex items-baseline justify-between gap-3">
                 <h3 className="text-sm font-extrabold uppercase tracking-wider text-[var(--text-muted)]">{group.title}</h3>
@@ -277,6 +345,13 @@ export function BotSetup({ onStart }: { onStart: (cfg: BotConfig) => void }) {
               </div>
             </div>
           ))}
+          {visibleBotGroups.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-[var(--border-strong)] p-8 text-center">
+              <p className="text-lg font-black">No bot matches “{botQuery}”</p>
+              <p className="mt-1 text-sm text-[var(--text-faint)]">Try a name, rating such as 1500, or a style such as aggressive.</p>
+              <button type="button" onClick={() => setBotQuery("")} className="btn mt-4">Show all 25 bot families</button>
+            </div>
+          )}
 
           {selectedBaseTier.levels?.length ? (
             <section className="rounded-2xl border border-[var(--accent)]/30 bg-[var(--accent)]/8 p-4 sm:p-5">
