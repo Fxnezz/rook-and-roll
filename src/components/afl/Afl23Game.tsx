@@ -344,7 +344,10 @@ export function Afl23Game() {
     const next = [...selected, player];
     setSelected(next);
     playArcadeSound("place");
-    if (next.length === DRAFT_ROUNDS.length) { window.setTimeout(() => { setPhase("review"); window.scrollTo({ top: 0, behavior: "smooth" }); }, 260); }
+    if (next.length === DRAFT_ROUNDS.length) {
+      setPhase("review");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
   const undo = () => { setSelected((players) => players.slice(0, -1)); playArcadeSound("click"); };
   const simulate = (forcedSeed?: number) => {
