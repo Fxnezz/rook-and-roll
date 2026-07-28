@@ -40,7 +40,7 @@ export function SiteFooter() {
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-2 text-xs font-bold">
             <span className="chip !border-[var(--good)]/30 !bg-[var(--good)]/10 !text-[var(--good)]"><i className="h-2 w-2 rounded-full bg-current" /> All systems ready</span>
-            <span className="chip">73 games</span>
+            <span className="chip">74 games</span>
             <span className="chip">25 bot families</span>
           </div>
         </div>

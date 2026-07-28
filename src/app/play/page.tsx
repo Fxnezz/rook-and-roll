@@ -544,6 +544,12 @@ const ARCADE_GAMES: GameCard[] = [
 
 const ORIGINAL_GAMES: GameCard[] = [
   {
+    title: "AFL 23-0",
+    blurb: "Draft an all-time Australian football core, chase a perfect 23-game season, then survive the 2026 finals.",
+    emoji: "🏉",
+    links: [{ href: "/play/afl-23-0", label: "Draft & Simulate" }],
+  },
+  {
     title: "Circuit Dash",
     blurb: "An original 3D arcade racer — pick a track, drift for the best lap.",
     emoji: "🏎️",

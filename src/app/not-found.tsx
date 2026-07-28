@@ -17,7 +17,7 @@ export default function NotFound() {
           <p className="mt-3 max-w-lg leading-7 text-[var(--text-muted)]">The destination may have moved, been captured, or never existed. Choose a safe next move below.</p>
           <div className="mt-7 grid gap-2 sm:grid-cols-2">
             <Link href="/" className="btn btn-primary !justify-between !px-4 !py-3">Arcade home <span>→</span></Link>
-            <Link href="/play" className="btn !justify-between !px-4 !py-3">All 73 games <span>→</span></Link>
+            <Link href="/play" className="btn !justify-between !px-4 !py-3">All 74 games <span>→</span></Link>
             <Link href="/play/bot" className="btn btn-ghost !justify-between !px-4 !py-3">Challenge a bot <span>→</span></Link>
             <Link href="/support" className="btn btn-ghost !justify-between !px-4 !py-3">Get support <span>→</span></Link>
           </div>
