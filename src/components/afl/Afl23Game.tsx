@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AFL_CLUBS, AFL_PLAYERS, DRAFT_ROUNDS, getAflClub, playerOverall, type AflPlayer } from "@/lib/afl/data";
+import {
+  AFL_CLUBS,
+  AFL_PLAYERS,
+  AFL_POSITION_SLOTS,
+  getAflClub,
+  playerEligibleLines,
+  playerOverall,
+  type AflLine,
+  type AflPlayer,
+} from "@/lib/afl/data";
 import { getTeamMetrics, scoreText, simulateSeason, type SeasonResult, type SimulatedMatch, type TeamMetrics } from "@/lib/afl/simulator";
 import { playArcadeSound } from "@/lib/arcade/sound";
 import styles from "./Afl23Game.module.css";
@@ -21,6 +30,12 @@ interface SavedRun {
   date: string;
 }
 
+interface LineupPick {
+  slotId: string;
+  player: AflPlayer;
+  pickNumber: number;
+}
+
 const STORAGE_KEY = "sams-arcade:afl-23-0:runs";
 
 function initials(name: string) {
@@ -31,6 +46,42 @@ function metricTone(value: number) {
   if (value >= 95) return "var(--good)";
   if (value >= 90) return "var(--accent)";
   return "var(--info)";
+}
+
+function lineLabel(line: AflLine) {
+  return line === "forward" ? "Forward" : line === "midfield" ? "Midfielder" : "Defender";
+}
+
+function shuffled<T>(items: T[]) {
+  const next = [...items];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+  }
+  return next;
+}
+
+function buildCandidatePool(lineup: LineupPick[]) {
+  const usedPlayers = new Set(lineup.map((pick) => pick.player.id));
+  const filledSlots = new Set(lineup.map((pick) => pick.slotId));
+  const openLines = (["forward", "midfield", "defence"] as AflLine[]).filter((line) =>
+    AFL_POSITION_SLOTS.some((slot) => slot.line === line && !filledSlots.has(slot.id)),
+  );
+  const available = AFL_PLAYERS.filter((player) =>
+    !usedPlayers.has(player.id) && playerEligibleLines(player).some((line) => openLines.includes(line)),
+  );
+  const candidates: AflPlayer[] = [];
+  for (const line of shuffled(openLines)) {
+    const option = shuffled(available).find((player) =>
+      !candidates.some((candidate) => candidate.id === player.id) && playerEligibleLines(player).includes(line),
+    );
+    if (option) candidates.push(option);
+  }
+  for (const option of shuffled(available)) {
+    if (candidates.length >= 3) break;
+    if (!candidates.some((candidate) => candidate.id === option.id)) candidates.push(option);
+  }
+  return candidates.slice(0, 3);
 }
 
 function ClubMark({ clubId, compact = false }: { clubId: string; compact?: boolean }) {
@@ -69,7 +120,7 @@ function RatingBar({ label, value }: { label: string; value: number }) {
   );
 }
 
-function PlayerCard({ player, onPick, disabled = false }: { player: AflPlayer; onPick?: () => void; disabled?: boolean }) {
+function PlayerCard({ player, onPick, disabled = false, selected = false }: { player: AflPlayer; onPick?: () => void; disabled?: boolean; selected?: boolean }) {
   const content = (
     <>
       <div className={styles.playerTop}>
@@ -93,7 +144,7 @@ function PlayerCard({ player, onPick, disabled = false }: { player: AflPlayer; o
     </>
   );
   if (!onPick) return <article className={styles.playerCard}>{content}</article>;
-  return <button type="button" className={styles.playerCard} onClick={onPick} disabled={disabled}>{content}</button>;
+  return <button type="button" className={`${styles.playerCard} ${selected ? styles.playerCardSelected : ""}`} onClick={onPick} disabled={disabled}>{content}</button>;
 }
 
 function MetricsPanel({ metrics }: { metrics: TeamMetrics }) {
@@ -147,7 +198,7 @@ function Intro({ onStart, savedRuns }: { onStart: (clubId: string) => void; save
           <span className={styles.eyebrow}><span className={styles.liveDot} /> Sam&apos;s Sports Lab · Australian football</span>
           <h1><span>23</span><i>–</i><span>0</span></h1>
           <p className={styles.heroKicker}>Draft history. Chase perfection.</p>
-          <p className={styles.heroBody}>Build a 12-star core from Australian football greats, play a complete 23-match season, climb the ladder, then survive the current wildcard and finals system.</p>
+          <p className={styles.heroBody}>Build a complete 18-player starting side from Australian football greats, place every star on the oval, play a 23-match season, then survive the wildcard and finals system.</p>
           <div className={styles.heroStats}>
             <div><strong>48</strong><span>greats</span></div>
             <div><strong>23</strong><span>rounds</span></div>
@@ -182,12 +233,12 @@ function Intro({ onStart, savedRuns }: { onStart: (clubId: string) => void; save
           ))}
         </div>
         <button type="button" className={styles.primaryAction} onClick={() => onStart(clubId)}>
-          Start the all-time draft <span>12 picks</span>
+          Start the all-time draft <span>Build your 18</span>
         </button>
       </section>
 
       <section className={styles.rulesGrid}>
-        <article><span>Draft room</span><h3>One specialist per line</h3><p>Every pick fills a distinct tactical job. Ratings cover attack, midfield impact, defence, athleticism and leadership.</p></article>
+        <article><span>Draft room</span><h3>Pick, then place on the oval</h3><p>Select a candidate from the side panel, then place them in any open forward, midfield or defensive slot they can play.</p></article>
         <article><span>Match model</span><h3>AFL scores, not coin flips</h3><p>Club strength, home advantage, list balance, chemistry and seeded match variance drive every goal and behind.</p></article>
         <article><span>2026 structure</span><h3>The wildcard is live</h3><p>Seventh plays tenth and eighth plays ninth before the traditional final eight. Finals ties go to extra time.</p></article>
       </section>
@@ -206,53 +257,135 @@ function Intro({ onStart, savedRuns }: { onStart: (clubId: string) => void; save
   );
 }
 
-function Draft({ clubId, selected, onPick, onUndo }: { clubId: string; selected: AflPlayer[]; onPick: (player: AflPlayer) => void; onUndo: () => void }) {
-  const round = DRAFT_ROUNDS[selected.length];
-  const candidates = AFL_PLAYERS.filter((player) => player.role === round.role);
+function Draft({
+  clubId,
+  lineup,
+  rerollsLeft,
+  rerollsTotal,
+  onPlace,
+  onReroll,
+  onUndo,
+}: {
+  clubId: string;
+  lineup: LineupPick[];
+  rerollsLeft: number;
+  rerollsTotal: number;
+  onPlace: (player: AflPlayer, slotId: string) => void;
+  onReroll: () => void;
+  onUndo: () => void;
+}) {
+  const [candidates, setCandidates] = useState<AflPlayer[]>(() => buildCandidatePool(lineup));
+  const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
   const club = getAflClub(clubId);
+  const selected = lineup.map((pick) => pick.player);
   const provisional = getTeamMetrics(selected);
+  const activePlayer = candidates.find((player) => player.id === activePlayerId) ?? null;
+  const filledSlots = new Map(lineup.map((pick) => [pick.slotId, pick]));
+
+  useEffect(() => {
+    setCandidates(buildCandidatePool(lineup));
+    setActivePlayerId(null);
+  }, [lineup]);
+
+  const reroll = () => {
+    if (!rerollsLeft) return;
+    setCandidates(buildCandidatePool(lineup));
+    setActivePlayerId(null);
+    onReroll();
+    playArcadeSound("swoosh");
+  };
+
+  const placePlayer = (slotId: string) => {
+    if (!activePlayer || filledSlots.has(slotId)) return;
+    const slot = AFL_POSITION_SLOTS.find((option) => option.id === slotId);
+    if (!slot || !playerEligibleLines(activePlayer).includes(slot.line)) return;
+    onPlace(activePlayer, slotId);
+  };
+
   return (
     <section className={styles.draftShell} style={{ "--club-primary": club.primary, "--club-secondary": club.secondary } as React.CSSProperties}>
       <header className={styles.draftHeader}>
-        <div className={styles.draftBrand}><ClubMark clubId={clubId} /><div><small>Sam&apos;s Sports Lab</small><strong>All-time draft</strong></div></div>
-        <div className={styles.draftProgress}><span>Pick {selected.length + 1} of {DRAFT_ROUNDS.length}</span><div>{DRAFT_ROUNDS.map((_, index) => <i key={index} className={index < selected.length ? styles.complete : index === selected.length ? styles.current : ""} />)}</div></div>
-        <button type="button" className={styles.secondaryAction} disabled={!selected.length} onClick={onUndo}>Undo last</button>
+        <div className={styles.draftBrand}><ClubMark clubId={clubId} /><div><small>Sam&apos;s Sports Lab</small><strong>Build your 18</strong></div></div>
+        <div className={styles.draftProgress}><span>Placed {lineup.length} of {AFL_POSITION_SLOTS.length}</span><div>{AFL_POSITION_SLOTS.map((slot, index) => <i key={slot.id} className={index < lineup.length ? styles.complete : index === lineup.length ? styles.current : ""} />)}</div></div>
+        <button type="button" className={styles.secondaryAction} disabled={!lineup.length} onClick={onUndo}>Undo last</button>
       </header>
+
       <div className={styles.draftTitle}>
-        <div><span>{String(selected.length + 1).padStart(2, "0")}</span><div><p>On the clock · {club.short}</p><h1>Choose your {round.label}</h1><small>{round.detail}</small></div></div>
-        <strong>4 candidates</strong>
+        <div><span>{String(lineup.length + 1).padStart(2, "0")}</span><div><p>Selection room · {club.short}</p><h1>{activePlayer ? `Place ${activePlayer.name}` : "Choose a player"}</h1><small>{activePlayer ? `${lineLabel(playerEligibleLines(activePlayer)[0])} selected — every valid slot is glowing.` : "Pick a player on the right, then click any highlighted position on the oval."}</small></div></div>
+        <strong>{rerollsLeft} reroll{rerollsLeft === 1 ? "" : "s"} left</strong>
       </div>
-      <div className={styles.candidateGrid}>
-        {candidates.map((player) => <PlayerCard key={player.id} player={player} onPick={() => onPick(player)} disabled={selected.some((pick) => pick.id === player.id)} />)}
-      </div>
-      <aside className={styles.draftBoard}>
-        <div className={styles.draftBoardTitle}><span>Draft board</span><strong>{selected.length}/{DRAFT_ROUNDS.length}</strong></div>
-        <div className={styles.pickRail}>
-          {DRAFT_ROUNDS.map((slot, index) => {
-            const pick = selected[index];
-            return <div key={slot.role} className={pick ? styles.filledPick : ""}><span>{index + 1}</span>{pick ? <><PlayerAvatar player={pick} /><p><strong>{pick.name}</strong><small>{slot.label}</small></p><b>{playerOverall(pick)}</b></> : <p><strong>{slot.label}</strong><small>Waiting</small></p>}</div>;
-          })}
+
+      <div className={styles.fieldStage}>
+        <div className={styles.positionLegend}>
+          <span><i className={styles.forwardKey} /> Forward six</span>
+          <span><i className={styles.midfieldKey} /> Midfield six</span>
+          <span><i className={styles.defenceKey} /> Back six</span>
         </div>
-        {selected.length > 0 && <><div className={styles.provisional}><span>Live list rating</span><strong>{provisional.overall}</strong></div><MetricsPanel metrics={provisional} /></>}
+        <div className={styles.draftOval}>
+          <span className={styles.draftGoalTop} aria-hidden="true" />
+          <span className={styles.draftGoalBottom} aria-hidden="true" />
+          <span className={styles.draftCentreSquare} aria-hidden="true" />
+          <span className={styles.draftCentreCircle} aria-hidden="true" />
+          <div className={styles.positionGrid}>
+            {AFL_POSITION_SLOTS.map((slot) => {
+              const pick = filledSlots.get(slot.id);
+              const eligible = Boolean(activePlayer && playerEligibleLines(activePlayer).includes(slot.line));
+              return (
+                <button
+                  key={slot.id}
+                  type="button"
+                  className={`${styles.positionSlot} ${styles[`position${slot.line[0].toUpperCase()}${slot.line.slice(1)}`]} ${pick ? styles.positionFilled : ""} ${eligible && !pick ? styles.positionEligible : ""}`}
+                  style={{ gridRow: slot.row, gridColumn: slot.column }}
+                  onClick={() => placePlayer(slot.id)}
+                  disabled={Boolean(pick) || !eligible}
+                  aria-label={pick ? `${slot.label}: ${pick.player.name}` : eligible ? `Place ${activePlayer?.name} at ${slot.label}` : `${slot.label}, empty`}
+                >
+                  {pick ? <><PlayerAvatar player={pick.player} /><span><strong>{pick.player.name}</strong><small>{slot.short} · {playerOverall(pick.player)}</small></span></> : <><strong>{slot.short}</strong><small>{slot.label}</small></>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className={styles.fieldHint}>{activePlayer ? `Choose any glowing ${playerEligibleLines(activePlayer).map(lineLabel).join(" / ")} slot` : "Select a candidate to reveal their valid positions"}</div>
+      </div>
+
+      <aside className={styles.candidatePanel}>
+        <div className={styles.candidatePanelHeading}>
+          <div><span>Candidate board</span><strong>Pick one</strong></div>
+          <div className={styles.rerollCounter}><b>{rerollsLeft}</b><small>of {rerollsTotal}<br />rerolls</small></div>
+        </div>
+        <div className={styles.sideCandidates}>
+          {candidates.map((player) => (
+            <PlayerCard key={player.id} player={player} onPick={() => { setActivePlayerId(player.id); playArcadeSound("click"); }} selected={activePlayerId === player.id} />
+          ))}
+        </div>
+        <button type="button" className={styles.rerollButton} onClick={reroll} disabled={!rerollsLeft}>
+          <span aria-hidden="true">↻</span>
+          <strong>{rerollsLeft ? "Reroll all three" : "No rerolls left"}</strong>
+          <small>{rerollsLeft ? "Deal a fresh candidate board" : "Make this board count"}</small>
+        </button>
+        {lineup.length > 0 && <div className={styles.liveRating}><span>Live team rating</span><strong>{provisional.overall}</strong><small>{18 - lineup.length} spots remaining</small></div>}
       </aside>
     </section>
   );
 }
 
-function Review({ clubId, selected, onBack, onSimulate }: { clubId: string; selected: AflPlayer[]; onBack: () => void; onSimulate: () => void }) {
+function Review({ clubId, lineup, onBack, onSimulate }: { clubId: string; lineup: LineupPick[]; onBack: () => void; onSimulate: () => void }) {
   const club = getAflClub(clubId);
+  const selected = lineup.map((pick) => pick.player);
   const metrics = getTeamMetrics(selected);
+  const orderedLineup = AFL_POSITION_SLOTS.map((slot) => ({ slot, pick: lineup.find((entry) => entry.slotId === slot.id)! }));
   return (
     <section className={styles.review} style={{ "--club-primary": club.primary, "--club-secondary": club.secondary } as React.CSSProperties}>
       <div className={styles.reviewHero}>
         <ClubMark clubId={clubId} />
-        <div><span>Draft complete</span><h1>{club.name}&apos;s dream core</h1><p>Your stars are locked in. The rest of the 22-player side is filled by league-standard role players, with this core driving the model.</p></div>
+        <div><span>Draft complete</span><h1>{club.name}&apos;s dream 18</h1><p>Every line is locked: six forwards, six midfielders and six defenders. Your positional balance now drives the full season model.</p></div>
         <div className={styles.overallBig}><small>LIST RATING</small><strong>{metrics.overall}</strong><span>{metrics.overall >= 94 ? "Premiership favourite" : "Finals contender"}</span></div>
       </div>
       <MetricsPanel metrics={metrics} />
       <div className={styles.reviewGrid}>
-        {selected.map((player, index) => (
-          <article key={player.id}><span>{index + 1}</span><PlayerAvatar player={player} /><div><strong>{player.name}</strong><small>{DRAFT_ROUNDS[index].label} · {player.trait}</small></div><b>{playerOverall(player)}</b></article>
+        {orderedLineup.map(({ slot, pick }) => (
+          <article key={slot.id}><span>{slot.short}</span><PlayerAvatar player={pick.player} /><div><strong>{pick.player.name}</strong><small>{slot.label} · {pick.player.trait}</small></div><b>{playerOverall(pick.player)}</b></article>
         ))}
       </div>
       <div className={styles.modelNote}><strong>How the simulation works</strong><p>Every fixture uses the same shareable seed. Team-line strength, home advantage, list chemistry and controlled variance determine scoring shots and accuracy. Finals are higher pressure and cannot finish level.</p></div>
@@ -261,7 +394,7 @@ function Review({ clubId, selected, onBack, onSimulate }: { clubId: string; sele
   );
 }
 
-function Result({ result, selected, onReset, onReplay }: { result: SeasonResult; selected: AflPlayer[]; onReset: () => void; onReplay: () => void }) {
+function Result({ result, lineup, onReset, onReplay }: { result: SeasonResult; lineup: LineupPick[]; onReset: () => void; onReplay: () => void }) {
   const [tab, setTab] = useState<ResultTab>("overview");
   const [copied, setCopied] = useState(false);
   const club = getAflClub(result.clubId);
@@ -323,7 +456,7 @@ function Result({ result, selected, onReset, onReplay }: { result: SeasonResult;
 
       {tab === "finals" && <div className={styles.tablePanel}><div className={styles.cardHeading}><div><span>September</span><h2>2026 finals journey</h2></div><strong>{getAflClub(result.finals.at(-1)!.winnerId!).name} premiers</strong></div><div className={styles.finalsGroups}>{[24, 25, 26, 27, 28].map((round) => <section key={round}><h3>{round === 24 ? "Wildcard round" : round === 25 ? "Finals week one" : round === 26 ? "Semi finals" : round === 27 ? "Preliminary finals" : "Grand Final"}</h3>{result.finals.filter((match) => match.round === round).map((match) => <MatchRow key={match.id} match={match} userClubId={result.clubId} />)}</section>)}</div></div>}
 
-      {tab === "squad" && <div className={styles.tablePanel}><div className={styles.cardHeading}><div><span>All-time core</span><h2>Your 12 draft picks</h2></div><strong>{result.metrics.overall} OVR</strong></div><MetricsPanel metrics={result.metrics} /><div className={styles.resultSquad}>{selected.map((player, index) => <article key={player.id}><PlayerAvatar player={player} large /><span>{DRAFT_ROUNDS[index].label}</span><h3>{player.name}</h3><p>{player.position} · {player.representativeClub}</p><strong>{playerOverall(player)}</strong></article>)}</div></div>}
+      {tab === "squad" && <div className={styles.tablePanel}><div className={styles.cardHeading}><div><span>All-time starting side</span><h2>Your complete 18</h2></div><strong>{result.metrics.overall} OVR</strong></div><MetricsPanel metrics={result.metrics} /><div className={styles.resultSquad}>{AFL_POSITION_SLOTS.map((slot) => { const pick = lineup.find((entry) => entry.slotId === slot.id)!; return <article key={slot.id}><PlayerAvatar player={pick.player} large /><span>{slot.short} · {slot.label}</span><h3>{pick.player.name}</h3><p>{pick.player.position} · {pick.player.representativeClub}</p><strong>{playerOverall(pick.player)}</strong></article>; })}</div></div>}
     </section>
   );
 }
@@ -331,7 +464,9 @@ function Result({ result, selected, onReset, onReplay }: { result: SeasonResult;
 export function Afl23Game() {
   const [phase, setPhase] = useState<Phase>("intro");
   const [clubId, setClubId] = useState("fre");
-  const [selected, setSelected] = useState<AflPlayer[]>([]);
+  const [lineup, setLineup] = useState<LineupPick[]>([]);
+  const [rerollsTotal, setRerollsTotal] = useState(2);
+  const [rerollsLeft, setRerollsLeft] = useState(2);
   const [result, setResult] = useState<SeasonResult | null>(null);
   const [savedRuns, setSavedRuns] = useState<SavedRun[]>([]);
 
@@ -339,20 +474,30 @@ export function Afl23Game() {
     try { setSavedRuns(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]")); } catch { setSavedRuns([]); }
   }, []);
 
-  const startDraft = (nextClubId: string) => { setClubId(nextClubId); setSelected([]); setResult(null); setPhase("draft"); playArcadeSound("swoosh"); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  const pickPlayer = (player: AflPlayer) => {
-    const next = [...selected, player];
-    setSelected(next);
+  const startDraft = (nextClubId: string) => {
+    const allowance = 1 + Math.floor(Math.random() * 3);
+    setClubId(nextClubId);
+    setLineup([]);
+    setRerollsTotal(allowance);
+    setRerollsLeft(allowance);
+    setResult(null);
+    setPhase("draft");
+    playArcadeSound("swoosh");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const placePlayer = (player: AflPlayer, slotId: string) => {
+    const next = [...lineup, { player, slotId, pickNumber: lineup.length + 1 }];
+    setLineup(next);
     playArcadeSound("place");
-    if (next.length === DRAFT_ROUNDS.length) {
+    if (next.length === AFL_POSITION_SLOTS.length) {
       setPhase("review");
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
-  const undo = () => { setSelected((players) => players.slice(0, -1)); playArcadeSound("click"); };
+  const undo = () => { setLineup((picks) => picks.slice(0, -1)); playArcadeSound("click"); };
   const simulate = (forcedSeed?: number) => {
     const seed = forcedSeed ?? Math.floor(100000 + Math.random() * 900000);
-    const nextResult = simulateSeason(clubId, selected, seed);
+    const nextResult = simulateSeason(clubId, lineup.map((pick) => pick.player), seed);
     setResult(nextResult);
     setPhase("result");
     playArcadeSound(nextResult.premiership ? "win" : "levelUp");
@@ -362,15 +507,15 @@ export function Afl23Game() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(runs)); } catch { /* local history is optional */ }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-  const reset = () => { setPhase("intro"); setSelected([]); setResult(null); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const reset = () => { setPhase("intro"); setLineup([]); setResult(null); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const replay = () => result && simulate();
 
   return (
     <div className={styles.page}>
       {phase === "intro" && <Intro onStart={startDraft} savedRuns={savedRuns} />}
-      {phase === "draft" && <Draft clubId={clubId} selected={selected} onPick={pickPlayer} onUndo={undo} />}
-      {phase === "review" && <Review clubId={clubId} selected={selected} onBack={() => { setSelected((players) => players.slice(0, -1)); setPhase("draft"); }} onSimulate={() => simulate()} />}
-      {phase === "result" && result && <Result result={result} selected={selected} onReset={reset} onReplay={replay} />}
+      {phase === "draft" && <Draft clubId={clubId} lineup={lineup} rerollsLeft={rerollsLeft} rerollsTotal={rerollsTotal} onPlace={placePlayer} onReroll={() => setRerollsLeft((value) => Math.max(0, value - 1))} onUndo={undo} />}
+      {phase === "review" && <Review clubId={clubId} lineup={lineup} onBack={() => { setLineup((picks) => picks.slice(0, -1)); setPhase("draft"); }} onSimulate={() => simulate()} />}
+      {phase === "result" && result && <Result result={result} lineup={lineup} onReset={reset} onReplay={replay} />}
       <footer className={styles.disclaimer}>Unofficial fan-made simulator. Not affiliated with or endorsed by the AFL or its clubs. Club names and player career facts are used descriptively; ratings are Sam&apos;s Arcade simulation estimates. No official logos or player likenesses are used.</footer>
     </div>
   );

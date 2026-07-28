@@ -37,6 +37,17 @@ export interface AflClub {
   strength: number;
 }
 
+export type AflLine = "forward" | "midfield" | "defence";
+
+export interface AflPositionSlot {
+  id: string;
+  short: string;
+  label: string;
+  line: AflLine;
+  row: number;
+  column: number;
+}
+
 export const AFL_CLUBS: AflClub[] = [
   { id: "adel", name: "Adelaide Crows", short: "ADE", city: "Adelaide", primary: "#0b3a68", secondary: "#e21b2d", strength: 86 },
   { id: "bris", name: "Brisbane Lions", short: "BL", city: "Brisbane", primary: "#7a1431", secondary: "#f3b323", strength: 89 },
@@ -72,6 +83,46 @@ export const DRAFT_ROUNDS: Array<{ role: AflRole; label: string; detail: string 
   { role: "match-winner", label: "Match-winner", detail: "The player trusted to break a final open." },
   { role: "captain", label: "Captain", detail: "Sets standards and steadies the side under pressure." },
 ];
+
+export const AFL_POSITION_SLOTS: AflPositionSlot[] = [
+  { id: "lfp", short: "LFP", label: "Left forward pocket", line: "forward", row: 1, column: 1 },
+  { id: "ff", short: "FF", label: "Full forward", line: "forward", row: 1, column: 2 },
+  { id: "rfp", short: "RFP", label: "Right forward pocket", line: "forward", row: 1, column: 3 },
+  { id: "lhf", short: "LHF", label: "Left half-forward", line: "forward", row: 2, column: 1 },
+  { id: "chf", short: "CHF", label: "Centre half-forward", line: "forward", row: 2, column: 2 },
+  { id: "rhf", short: "RHF", label: "Right half-forward", line: "forward", row: 2, column: 3 },
+  { id: "lw", short: "LW", label: "Left wing", line: "midfield", row: 3, column: 1 },
+  { id: "c", short: "C", label: "Centre", line: "midfield", row: 3, column: 2 },
+  { id: "rw", short: "RW", label: "Right wing", line: "midfield", row: 3, column: 3 },
+  { id: "rk", short: "RK", label: "Ruck", line: "midfield", row: 4, column: 1 },
+  { id: "rr", short: "RR", label: "Ruck-rover", line: "midfield", row: 4, column: 2 },
+  { id: "rov", short: "ROV", label: "Rover", line: "midfield", row: 4, column: 3 },
+  { id: "lhb", short: "LHB", label: "Left half-back", line: "defence", row: 5, column: 1 },
+  { id: "chb", short: "CHB", label: "Centre half-back", line: "defence", row: 5, column: 2 },
+  { id: "rhb", short: "RHB", label: "Right half-back", line: "defence", row: 5, column: 3 },
+  { id: "lbp", short: "LBP", label: "Left back pocket", line: "defence", row: 6, column: 1 },
+  { id: "fb", short: "FB", label: "Full-back", line: "defence", row: 6, column: 2 },
+  { id: "rbp", short: "RBP", label: "Right back pocket", line: "defence", row: 6, column: 3 },
+];
+
+const ROLE_LINES: Record<AflRole, AflLine[]> = {
+  "key-forward": ["forward"],
+  "forward-craft": ["forward"],
+  "half-forward": ["forward"],
+  "inside-mid": ["midfield"],
+  "outside-mid": ["midfield"],
+  ruck: ["midfield"],
+  "key-defender": ["defence"],
+  "intercept-defender": ["defence"],
+  "running-defender": ["defence"],
+  utility: ["forward", "midfield", "defence"],
+  "match-winner": ["forward", "midfield"],
+  captain: ["forward", "midfield", "defence"],
+};
+
+export function playerEligibleLines(player: AflPlayer): AflLine[] {
+  return ROLE_LINES[player.role];
+}
 
 export const AFL_PLAYERS: AflPlayer[] = [
   { id: "lockett", name: "Tony Lockett", role: "key-forward", position: "Full forward", representativeClub: "Sydney / St Kilda", era: "1983–2002", attack: 99, midfield: 70, defence: 63, athleticism: 90, leadership: 88, trait: "Record goalkicker" },
