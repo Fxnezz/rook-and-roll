@@ -544,6 +544,12 @@ const ARCADE_GAMES: GameCard[] = [
 
 const ORIGINAL_GAMES: GameCard[] = [
   {
+    title: "NBA 82-0",
+    blurb: "Draft an all-time starting five, chase a perfect 82-game season, then survive the Play-In and best-of-seven playoffs.",
+    emoji: "🏀",
+    links: [{ href: "/play/nba-82-0", label: "Draft & Simulate" }],
+  },
+  {
     title: "AFL 23-0",
     blurb: "Draft an all-time Australian football core, chase a perfect 23-game season, then survive the 2026 finals.",
     emoji: "🏉",

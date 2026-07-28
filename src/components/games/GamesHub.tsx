@@ -38,6 +38,7 @@ const FILTERS: Array<{ id: CategoryFilter; label: string }> = [
 
 const DEEP_GAMES = new Set([
   "Chess",
+  "NBA 82-0",
   "AFL 23-0",
   "Go",
   "Amazons",
