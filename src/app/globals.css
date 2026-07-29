@@ -120,6 +120,29 @@ main {
   z-index: 1;
 }
 
+@media (min-width: 768px) {
+  aside[aria-label="Site navigation"] {
+    transition: transform 360ms var(--ease-smooth), opacity 220ms ease;
+  }
+  #main-content, .site-footer {
+    transition: padding-left 360ms var(--ease-smooth), margin-left 360ms var(--ease-smooth);
+  }
+  body.afl-focus-mode aside[aria-label="Site navigation"] {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-100%);
+  }
+  body.afl-focus-mode #main-content {
+    padding-left: 0 !important;
+  }
+  body.afl-focus-mode .site-footer {
+    margin-left: 0 !important;
+  }
+  body.afl-focus-mode :where(.website-page-dock, .website-guide-trigger) {
+    display: none !important;
+  }
+}
+
 /* Selection */
 ::selection {
   background: rgba(233, 162, 59, 0.3);

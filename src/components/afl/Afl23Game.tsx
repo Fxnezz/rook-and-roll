@@ -75,6 +75,7 @@ const DEFAULT_DRAFT_CONFIG: DraftConfig = {
   era: "all",
   showRatings: true,
 };
+const REROLL_LIMITS: Record<AflDifficulty, number> = { easy: 3, normal: 1, hard: 0 };
 const ERA_OPTIONS: Array<{ id: AflEraFilter; label: string }> = [
   { id: "all", label: "All-time" },
   { id: "1990s", label: "1990s" },
@@ -184,8 +185,9 @@ function rollClubAndEra(lineup: LineupPick[], config: DraftConfig, number: numbe
   const preferred = config.era === "all" ? optionsFor(AFL_DRAW_ERAS) : optionsFor([config.era as AflDrawEra]);
   const possible = preferred.length ? preferred : optionsFor(AFL_DRAW_ERAS);
   if (!possible.length) return null;
-  const richDraws = possible.filter((option) => option.players.length >= 2);
-  const pool = richDraws.length ? richDraws : possible;
+  const fullRosters = possible.filter((option) => option.players.length >= 3);
+  const playableRosters = possible.filter((option) => option.players.length >= 2);
+  const pool = fullRosters.length ? fullRosters : playableRosters.length ? playableRosters : possible;
   return pool[Math.floor(Math.random() * pool.length)].draw;
 }
 
@@ -405,9 +407,9 @@ function Intro({ onStart, savedRuns }: { onStart: (clubId: string, config: Draft
             <div className={styles.settingHeading}><span>Challenge difficulty</span><strong>{difficulty === "hard" ? "Brutal season" : difficulty === "easy" ? "Guided challenge" : "Realistic pressure"}</strong></div>
             <div className={styles.choiceGrid}>
               {([
-                ["easy", "Easy", "Full ratings · match-day boost"],
-                ["normal", "Normal", "Strict roles · realistic upsets"],
-                ["hard", "Hard", "Blind ratings · brutal finals"],
+                ["easy", "Easy", "3 rerolls · match-day boost"],
+                ["normal", "Normal", "1 reroll · realistic upsets"],
+                ["hard", "Hard", "0 rerolls · brutal finals"],
               ] as const).map(([id, label, detail]) => (
                 <button key={id} type="button" className={difficulty === id ? styles.activeChoice : ""} onClick={() => changeDifficulty(id)}>
                   <strong>{label}</strong><small>{detail}</small>
@@ -455,7 +457,7 @@ function Intro({ onStart, savedRuns }: { onStart: (clubId: string, config: Draft
         <div className={styles.challengeSummary}>
           <span>YOUR RULES</span>
           <strong>{difficulty.toUpperCase()} · {draftMode === "squad" ? "SQUAD FIRST" : "POSITION FIRST"} · {era === "all" ? "ALL-TIME" : era.toUpperCase()}</strong>
-          <small>Exact position roles · 2 players maximum per club-and-era roll · ratings {showRatings ? "on" : "hidden"} · harder season model</small>
+          <small>Exact position roles · {REROLL_LIMITS[difficulty]} optional reroll{REROLL_LIMITS[difficulty] === 1 ? "" : "s"} · 2 picks per roster · ratings {showRatings ? "on" : "hidden"}</small>
         </div>
         <button type="button" className={styles.primaryAction} onClick={() => onStart(clubId, { difficulty, draftMode, era, showRatings })}>
           Start the ranked draft <span>Build your 18 →</span>
@@ -500,6 +502,7 @@ function Draft({
   const [drawOpened, setDrawOpened] = useState(false);
   const [drawPicks, setDrawPicks] = useState(0);
   const [drawCount, setDrawCount] = useState(0);
+  const [rerollsRemaining, setRerollsRemaining] = useState(REROLL_LIMITS[config.difficulty]);
   const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const club = getAflClub(clubId);
@@ -514,9 +517,11 @@ function Draft({
     ? candidates.filter((player) => playerDraftSlotIds(player).includes(activeSlot.id)).length
     : candidates.length;
 
-  const roll = () => {
+  const roll = (useReroll = false) => {
+    if (useReroll && rerollsRemaining <= 0) return;
     const nextDraw = rollClubAndEra(lineup, config, drawCount + 1);
     if (!nextDraw) return;
+    if (useReroll) setRerollsRemaining((value) => Math.max(0, value - 1));
     setDraw(nextDraw);
     setDrawOpened(false);
     setDrawCount((value) => value + 1);
@@ -623,7 +628,7 @@ function Draft({
         <div className={styles.drawStrip}>
           <span>{draw ? `DRAW ${String(draw.number).padStart(2, "0")}` : "ROLL REQUIRED"}</span>
           <strong>{draw ? draw.club.toUpperCase() : config.difficulty.toUpperCase()}</strong>
-          <small>{draw ? draw.era : config.draftMode === "position" ? "CHOOSE SLOT" : "SQUAD FIRST"}</small>
+          <small>{draw ? `${draw.era} · ${rerollsRemaining} RR` : config.draftMode === "position" ? "CHOOSE SLOT" : "SQUAD FIRST"}</small>
         </div>
         <div className={styles.candidatePanelHeading}>
           <div><span>{draw ? `${draw.club} · ${draw.era}` : "Club + year draw"}</span><strong>{draw ? "Full available roster" : "Press Roll to scout"}</strong></div>
@@ -635,7 +640,7 @@ function Draft({
             <span>2/2</span>
             <strong>Roll again?</strong>
             <p>You picked two players from {draw?.club} {draw?.era}. Reveal a new club and era to continue.</p>
-            <button type="button" onClick={roll}>Roll next club &amp; era <i>→</i></button>
+            <button type="button" onClick={() => roll()}>Roll next club &amp; era <i>→</i></button>
           </div>
         ) : (
           <>
@@ -645,11 +650,15 @@ function Draft({
               ))}
               {(!draw || (drawOpened && candidates.length === 0)) && <div className={styles.positionPrompt}><span>↻</span><strong>{draw ? "Roster exhausted" : "No roster open"}</strong><p>Press Roll to reveal the next club, decade and available players.</p></div>}
             </div>
-            <button type="button" className={`${styles.rerollButton} ${styles.rollButton}`} onClick={roll}>
-              <span aria-hidden="true">↻</span>
-              <strong>{!draw ? "Roll club & era" : candidates.length === 0 ? "Roll next club & era" : "Leave this roster and roll"}</strong>
-              <small>{draw ? `${drawPicks}/2 picks used · a new roll replaces ${draw.club} ${draw.era}` : "Reveal the year group and everyone available for it"}</small>
-            </button>
+            {(!draw || candidates.length === 0 || rerollsRemaining > 0) ? (
+              <button type="button" className={`${styles.rerollButton} ${styles.rollButton}`} onClick={() => roll(Boolean(draw && candidates.length > 0))}>
+                <span aria-hidden="true">↻</span>
+                <strong>{!draw ? "Roll club & era" : candidates.length === 0 ? "Roll next club & era" : "Reroll this club & era"}</strong>
+                <small>{!draw ? "Reveal the year group and everyone available for it" : candidates.length === 0 ? "This roster is exhausted · the next roll is free" : `${rerollsRemaining} optional reroll${rerollsRemaining === 1 ? "" : "s"} remaining`}</small>
+              </button>
+            ) : (
+              <div className={styles.rerollLimitNotice}><span>0</span><div><strong>No optional rerolls left</strong><small>Choose from this roster. The next roll unlocks after two picks or when the roster is exhausted.</small></div></div>
+            )}
           </>
         )}
         {lineup.length > 0 && <div className={styles.liveRating}><span>Live team rating</span><strong>{provisional.overall}</strong><small>{18 - lineup.length} spots remaining</small></div>}
@@ -825,6 +834,11 @@ export function Afl23Game() {
   const [lineup, setLineup] = useState<LineupPick[]>([]);
   const [result, setResult] = useState<SeasonResult | null>(null);
   const [savedRuns, setSavedRuns] = useState<SavedRun[]>([]);
+
+  useEffect(() => {
+    document.body.classList.add("afl-focus-mode");
+    return () => document.body.classList.remove("afl-focus-mode");
+  }, []);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
