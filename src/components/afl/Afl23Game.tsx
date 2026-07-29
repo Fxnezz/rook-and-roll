@@ -181,7 +181,14 @@ function coldBoardChance(lineup: LineupPick[]) {
   const average = lineup.reduce((sum, pick) => sum + playerOverall(pick.player), 0) / lineup.length;
   const lastPickWasDepth = playerOverall(lineup.at(-1)!.player) <= 91;
   const pressure = recentElitePicks * 0.22 + Math.max(0, average - 92) * 0.07 + Math.max(0, elitePickCount - 4) * 0.035;
-  return Math.min(0.72, pressure) * (lastPickWasDepth ? 0.2 : 1);
+  return lastPickWasDepth ? 0 : Math.min(0.68, pressure);
+}
+
+function hotBoardChance(lineup: LineupPick[]) {
+  if (lineup.length < 2 || playerOverall(lineup.at(-1)!.player) > 91) return 0;
+  const recentDepthPicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) <= 91).length;
+  const average = lineup.reduce((sum, pick) => sum + playerOverall(pick.player), 0) / lineup.length;
+  return Math.min(0.65, 0.32 + Math.max(0, recentDepthPicks - 1) * 0.24 + (average <= 91.5 ? 0.08 : 0));
 }
 
 function rollClubAndEra(lineup: LineupPick[], config: DraftConfig, number: number): AflDraftDraw | null {
@@ -197,14 +204,19 @@ function rollClubAndEra(lineup: LineupPick[], config: DraftConfig, number: numbe
   const deepRosters = possible.filter((option) => option.players.length >= 3);
   const playableRosters = possible.filter((option) => option.players.length >= 2);
   const pool = fullRosters.length ? fullRosters : deepRosters.length ? deepRosters : playableRosters.length ? playableRosters : possible;
-  // Quietly cool repeated elite runs without ever blocking a player, shrinking a roster,
-  // or removing the chance of another jackpot board.
-  if (pool.length > 1 && Math.random() < coldBoardChance(lineup)) {
-    const coldPoolSize = Math.max(1, Math.ceil(pool.length * 0.42));
-    const coldPool = [...pool]
-      .sort((left, right) => rosterOfferStrength(left.players) - rosterOfferStrength(right.players))
-      .slice(0, coldPoolSize);
-    return coldPool[Math.floor(Math.random() * coldPool.length)].draw;
+  // Quietly pace streaks in both directions without blocking players or shrinking rosters.
+  if (pool.length > 1) {
+    const pacedPoolSize = Math.max(1, Math.ceil(pool.length * 0.42));
+    const orderedPool = [...pool].sort((left, right) => rosterOfferStrength(left.players) - rosterOfferStrength(right.players));
+    const pacingRoll = Math.random();
+    if (pacingRoll < hotBoardChance(lineup)) {
+      const hotPool = orderedPool.slice(-pacedPoolSize);
+      return hotPool[Math.floor(Math.random() * hotPool.length)].draw;
+    }
+    if (pacingRoll > 1 - coldBoardChance(lineup)) {
+      const coldPool = orderedPool.slice(0, pacedPoolSize);
+      return coldPool[Math.floor(Math.random() * coldPool.length)].draw;
+    }
   }
   return pool[Math.floor(Math.random() * pool.length)].draw;
 }
@@ -472,11 +484,6 @@ function Intro({ onStart, savedRuns }: { onStart: (clubId: string, config: Draft
           </section>
         </div>
 
-        <div className={styles.challengeSummary}>
-          <span>YOUR RULES</span>
-          <strong>{difficulty.toUpperCase()} · {draftMode === "squad" ? "SQUAD FIRST" : "POSITION FIRST"} · {era === "all" ? "ALL-TIME" : era.toUpperCase()}</strong>
-          <small>One assigned zone per player · {REROLL_LIMITS[difficulty]} optional reroll{REROLL_LIMITS[difficulty] === 1 ? "" : "s"} · identical simulation odds · one combined leaderboard</small>
-        </div>
         <button type="button" className={styles.primaryAction} onClick={() => onStart(clubId, { difficulty, draftMode, era, showRatings })}>
           Start the ranked draft <span>Build your 18 →</span>
         </button>
@@ -486,7 +493,6 @@ function Intro({ onStart, savedRuns }: { onStart: (clubId: string, config: Draft
         <article><span>Club + era roll</span><h3>Two picks, then roll again</h3><p>Every roll reveals a historical club, a decade and all available legends from that combination, ordered strongest to weakest.</p></article>
         <article><span>Three-zone role system</span><h3>Forward, midfield or defender</h3><p>Every player receives one zone and can fill any of the six positions inside that area—never a random spot outside it.</p></article>
         <article><span>Fair match model</span><h3>One engine for everyone</h3><p>Easy, Normal and Hard receive identical simulation odds. Only the number of draft rerolls changes.</p></article>
-        <article><span>2026 structure</span><h3>The wildcard is live</h3><p>Seventh plays tenth and eighth plays ninth before the traditional final eight. Finals ties go to extra time.</p></article>
       </section>
 
       {savedRuns.length > 0 && (
@@ -531,9 +537,6 @@ function Draft({
   const filledSlots = new Map(lineup.map((pick) => [pick.slotId, pick]));
   const activeSlot = AFL_POSITION_SLOTS.find((slot) => slot.id === activeSlotId) ?? null;
   const drawLocked = drawPicks >= 2;
-  const eligibleCandidateCount = activeSlot
-    ? candidates.filter((player) => playerDraftSlotIds(player).includes(activeSlot.id)).length
-    : candidates.length;
 
   const roll = (useReroll = false) => {
     if (useReroll && rerollsRemaining <= 0) return;
@@ -607,11 +610,6 @@ function Draft({
       </div>
 
       <div className={styles.fieldStage}>
-        <div className={styles.positionLegend}>
-          <span><i className={styles.forwardKey} /> Forward six</span>
-          <span><i className={styles.midfieldKey} /> Midfield six</span>
-          <span><i className={styles.defenceKey} /> Back six</span>
-        </div>
         <div className={styles.draftOval}>
           <span className={styles.draftGoalTop} aria-hidden="true" />
           <span className={styles.draftGoalBottom} aria-hidden="true" />
@@ -627,7 +625,7 @@ function Draft({
                 <button
                   key={slot.id}
                   type="button"
-                  className={`${styles.positionSlot} ${styles[`position${slot.line[0].toUpperCase()}${slot.line.slice(1)}`]} ${pick ? styles.positionFilled : ""} ${eligible && !pick ? styles.positionEligible : ""} ${positionTarget ? styles.positionTarget : ""} ${focused ? styles.positionFocused : ""}`}
+                  className={`${styles.positionSlot} ${styles[`position${slot.line[0].toUpperCase()}${slot.line.slice(1)}`]} ${pick ? styles.positionFilled : ""} ${pick?.pickNumber === lineup.length ? styles.positionJustPlaced : ""} ${eligible && !pick ? styles.positionEligible : ""} ${positionTarget ? styles.positionTarget : ""} ${focused ? styles.positionFocused : ""}`}
                   style={{ gridRow: slot.row, gridColumn: slot.column }}
                   onClick={() => config.draftMode === "position" ? focusPosition(slot.id) : placePlayer(slot.id)}
                   disabled={Boolean(pick) || (config.draftMode === "squad" && !eligible)}
@@ -639,15 +637,9 @@ function Draft({
             })}
           </div>
         </div>
-        <div className={styles.fieldHint}>{drawLocked ? "Two selections used — choose Roll again in the roster panel" : activePlayer ? `${lineLabel(playerDraftLine(activePlayer))} assigned — all six ${lineLabel(playerDraftLine(activePlayer)).toLowerCase()} positions are available` : draw && !drawOpened ? `Click the ${draw.club} ${draw.era} card to open its full roster` : activeSlot ? `${activeSlot.label} locked in — ${eligibleCandidateCount} ${lineLabel(activeSlot.line).toLowerCase()}${eligibleCandidateCount === 1 ? "" : "s"} in this draw` : config.draftMode === "position" ? "Choose a position, then press Roll if no roster is open" : draw ? `${candidates.length} player${candidates.length === 1 ? "" : "s"} remain in this club-and-era roster` : "Press Roll to reveal a club, a decade and its available legends"}</div>
       </div>
 
       <aside className={styles.candidatePanel}>
-        <div className={styles.drawStrip}>
-          <span>{draw ? `DRAW ${String(draw.number).padStart(2, "0")}` : "ROLL REQUIRED"}</span>
-          <strong>{draw ? draw.club.toUpperCase() : config.difficulty.toUpperCase()}</strong>
-          <small>{draw ? `${draw.era} · ${rerollsRemaining} RR` : config.draftMode === "position" ? "CHOOSE SLOT" : "SQUAD FIRST"}</small>
-        </div>
         <div className={styles.candidatePanelHeading}>
           <div><span>{draw ? `${draw.club} · ${draw.era}` : "Club + year draw"}</span><strong>{draw ? "Full available roster" : "Press Roll to scout"}</strong></div>
           <div className={styles.rerollCounter}><b>{drawPicks}</b><small>of 2<br />selected</small></div>
@@ -689,7 +681,6 @@ function Review({ clubId, config, lineup, onBack, onSimulate }: { clubId: string
   const club = getAflClub(clubId);
   const selected = lineup.map((pick) => pick.player);
   const metrics = getTeamMetrics(selected);
-  const orderedLineup = AFL_POSITION_SLOTS.map((slot) => ({ slot, pick: lineup.find((entry) => entry.slotId === slot.id)! }));
   const rankedLineup = [...lineup].sort((left, right) =>
     playerOverall(right.player) - playerOverall(left.player) || right.player.leadership - left.player.leadership,
   );
@@ -710,18 +701,12 @@ function Review({ clubId, config, lineup, onBack, onSimulate }: { clubId: string
           {rankedLineup.map((pick, index) => (
             <article key={pick.player.id}>
               <b>#{index + 1}</b><PlayerAvatar player={pick.player} />
-              <div><strong>{pick.player.name}</strong><small>{pick.player.trait} · {skillTier(pick.player)}</small></div>
+              <div><strong>{pick.player.name}</strong><small>{AFL_POSITION_SLOTS.find((slot) => slot.id === pick.slotId)?.short} · {pick.player.trait} · {skillTier(pick.player)}</small></div>
               <span>{playerOverall(pick.player)}</span>
             </article>
           ))}
         </div>
       </section>
-      <div className={styles.reviewGrid}>
-        {orderedLineup.map(({ slot, pick }) => (
-          <article key={slot.id}><span>{slot.short}</span><PlayerAvatar player={pick.player} /><div><strong>{pick.player.name}</strong><small>{slot.label} · {pick.player.trait}</small></div><b>{playerOverall(pick.player)}</b></article>
-        ))}
-      </div>
-      <div className={styles.modelNote}><strong>One fair simulation model</strong><p>Every difficulty uses the same match engine and the same result for an identical list and seed. Team strength, away risk, realistic upsets and finals pressure decide the campaign; difficulty only changes your draft rerolls.</p></div>
       <div className={styles.reviewActions}><button type="button" className={styles.secondaryAction} onClick={onBack}>Change final pick</button><button type="button" className={styles.primaryAction} onClick={onSimulate}>Simulate the 23-game season <span>then finals →</span></button></div>
     </section>
   );
@@ -877,7 +862,7 @@ export function Afl23Game() {
   const placePlayer = (player: AflPlayer, slotId: string) => {
     const next = [...lineup, { player, slotId, pickNumber: lineup.length + 1 }];
     setLineup(next);
-    playArcadeSound("place");
+    playArcadeSound(playerOverall(player) >= 95 ? "levelUp" : "place");
     if (next.length === AFL_POSITION_SLOTS.length) {
       setPhase("review");
       window.scrollTo({ top: 0, behavior: "smooth" });
