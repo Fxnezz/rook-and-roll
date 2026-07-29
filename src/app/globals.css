@@ -1409,6 +1409,59 @@ main {
   top: max(1rem, env(safe-area-inset-top));
 }
 
+/* Minimal Performance mode keeps the full product functional while removing
+   decorative layers and expensive compositing across every route. */
+:root[data-interface-mode="minimal"] {
+  --motion-duration: 0ms;
+  --motion-distance: 0px;
+  --motion-hover-y: 0px;
+  --motion-hover-scale: 1;
+  --motion-glow-strength: 0;
+  --shadow-float: none;
+}
+
+[data-interface-mode="minimal"] body {
+  background: var(--bg);
+}
+
+[data-interface-mode="minimal"] :where(
+  .motion-ambient-layer,
+  .motion-cursor-aura,
+  .motion-route-pulse,
+  .website-page-dock,
+  .website-guide-trigger,
+  .website-reading-ruler,
+  .website-focus-spotlight,
+  .website-scroll-progress,
+  .website-navigation-progress,
+  [aria-label="Live game performance"],
+  [class*="environment"],
+  [class*="heroGlow"],
+  [class*="resultNoise"],
+  [class*="stadiumGlow"]
+) {
+  display: none !important;
+}
+
+[data-interface-mode="minimal"] :where(.panel, .settings-surface, [role="dialog"], [class*="gameIdentity"]) {
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+}
+
+[data-interface-mode="minimal"] :where(.hover-lift, .btn, .motion-card, .stagger-item, .stagger-item-side) {
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+[data-interface-mode="minimal"] :where(.motion-reveal-ready, .motion-reveal-visible) {
+  opacity: 1 !important;
+  filter: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
 @media print {
   aside,
   header,

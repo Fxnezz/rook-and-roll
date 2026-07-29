@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import styles from "./SportsSimulationReveal.module.css";
 
 export type SimulationOutcome = "win" | "draw" | "loss";
+type OutcomeFilter = "all" | SimulationOutcome;
 
 export interface SimulationRevealEntry {
   id: string;
@@ -30,9 +31,12 @@ export function SportsSimulationReveal({ accent, entries, eyebrow, onComplete, t
   const [revealed, setRevealed] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(() => entries.length > 50 ? 4 : entries.length > 25 ? 2 : 1);
+  const [filter, setFilter] = useState<OutcomeFilter>("all");
   const complete = revealed >= entries.length;
   const current = entries[Math.max(0, revealed - 1)];
-  const visible = entries.slice(Math.max(0, revealed - 8), revealed);
+  const revealedEntries = entries.slice(0, revealed);
+  const filteredEntries = filter === "all" ? revealedEntries : revealedEntries.filter((entry) => entry.outcome === filter);
+  const entryNumbers = useMemo(() => new Map(entries.map((entry, index) => [entry.id, index + 1])), [entries]);
   const record = useMemo(() => entries.slice(0, revealed).reduce((total, entry) => {
     total[entry.outcome] += 1;
     return total;
@@ -82,15 +86,40 @@ export function SportsSimulationReveal({ accent, entries, eyebrow, onComplete, t
         )}
       </div>
 
-      <div className={styles.timeline} aria-label="Recently revealed results">
-        {visible.map((entry, index) => (
-          <article key={entry.id} className={styles[entry.outcome]}>
-            <span>{revealed - visible.length + index + 1}</span>
-            <div><strong>{entry.label}</strong><small>{entry.homeName} {entry.homeScore}–{entry.awayScore} {entry.awayName}</small></div>
-            <em>{entry.outcome === "win" ? "W" : entry.outcome === "draw" ? "D" : "L"}</em>
-          </article>
-        ))}
-      </div>
+      <section className={styles.ledger} aria-labelledby="simulation-ledger-title">
+        <div className={styles.ledgerHeader}>
+          <div>
+            <span>Nothing skipped</span>
+            <h2 id="simulation-ledger-title">Complete result ledger</h2>
+            <p>{revealed} revealed · {Math.max(0, entries.length - revealed)} remaining</p>
+          </div>
+          <div className={styles.filters} aria-label="Filter revealed results">
+            {(["all", "win", "draw", "loss"] as const).map((option) => {
+              const count = option === "all" ? revealed : record[option];
+              return <button key={option} type="button" aria-pressed={filter === option} onClick={() => setFilter(option)}><span>{option === "all" ? "All" : option === "win" ? "Wins" : option === "draw" ? "Draws" : "Losses"}</span><strong>{count}</strong></button>;
+            })}
+          </div>
+        </div>
+
+        {filteredEntries.length > 0 ? (
+          <div className={styles.resultGrid} aria-label={`${filter === "all" ? "All" : filter} revealed results`}>
+            {filteredEntries.map((entry) => {
+              const number = entryNumbers.get(entry.id) ?? 0;
+              const outcomeLabel = entry.outcome === "win" ? "Win" : entry.outcome === "draw" ? "Draw" : "Loss";
+              return (
+                <article key={entry.id} className={`${styles.resultRow} ${styles[entry.outcome]}`} aria-label={`${entry.label}: ${outcomeLabel}`}>
+                  <span className={styles.resultNumber}>{number}</span>
+                  <div className={styles.resultContext}><small>{entry.stage}</small><strong>{entry.label}</strong></div>
+                  <div className={styles.resultTeams}><span>{entry.homeName}</span><strong>{entry.homeScore}<i>–</i>{entry.awayScore}</strong><span>{entry.awayName}</span></div>
+                  <em>{outcomeLabel}</em>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className={styles.emptyLedger}><strong>{revealed ? `No ${filter === "win" ? "wins" : filter === "draw" ? "draws" : "losses"} yet` : "The first result is moments away"}</strong><span>Every score will stay here once it is revealed.</span></div>
+        )}
+      </section>
 
       <div className={styles.controls}>
         <div className={styles.speedControl} aria-label="Simulation speed">

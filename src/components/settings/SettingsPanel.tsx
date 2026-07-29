@@ -106,6 +106,7 @@ const SETTINGS_TABS: { id: SettingsTab; label: string; symbol: string; descripti
 ];
 
 const SEARCH_ITEMS: { label: string; tab: SettingsTab; keywords: string }[] = [
+  { label: "Minimal performance mode", tab: "motion", keywords: "simple clean lightweight fast flat low power effects performance minimalistic" },
   { label: "Motion profiles and presets", tab: "motion", keywords: "animation cinematic arcade calm balanced" },
   { label: "Page transitions", tab: "motion", keywords: "fade slide zoom curtain navigation" },
   { label: "Hover movement and panel glow", tab: "motion", keywords: "button hover glow effects depth blur tilt cursor spotlight" },
@@ -388,10 +389,24 @@ export function SettingsPanel({ canModerate = false, initialTab = "motion" }: { 
               <span className="block text-base font-black text-[var(--good)]">Live</span><span className="text-[0.62rem] text-[var(--text-faint)]">Preview</span>
             </div>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)]/55 px-3 py-2">
-              <span className="block text-base font-black capitalize text-[var(--info)]">{settings.motionProfile}</span><span className="text-[0.62rem] text-[var(--text-faint)]">Motion</span>
+              <span className="block text-base font-black capitalize text-[var(--info)]">{settings.minimalMode ? "Minimal" : settings.motionProfile}</span><span className="text-[0.62rem] text-[var(--text-faint)]">Interface</span>
             </div>
           </div>
         </div>
+        <button
+          type="button"
+          aria-pressed={settings.minimalMode}
+          onClick={() => update({ minimalMode: !settings.minimalMode })}
+          className="relative mt-4 flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors sm:p-3.5"
+          style={{ borderColor: settings.minimalMode ? "var(--good)" : "var(--border)", background: settings.minimalMode ? "color-mix(in srgb, var(--good) 10%, var(--bg))" : "var(--bg)" }}
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[var(--border)] bg-[var(--bg-elev)] text-lg" aria-hidden="true">▤</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-black text-[var(--text)]">Minimal Performance mode</span>
+            <span className="mt-0.5 block text-xs leading-5 text-[var(--text-faint)]">Removes ambient effects, heavy blur, decorative motion and the game HUD while keeping every control and result.</span>
+          </span>
+          <span className="shrink-0 rounded-full px-2.5 py-1 text-[0.62rem] font-black uppercase tracking-[0.1em]" style={{ color: settings.minimalMode ? "var(--good)" : "var(--text-faint)", background: settings.minimalMode ? "color-mix(in srgb, var(--good) 14%, transparent)" : "var(--bg-elev)" }}>{settings.minimalMode ? "On" : "Off"}</span>
+        </button>
         <div className="relative mt-4">
           <svg aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
           <input

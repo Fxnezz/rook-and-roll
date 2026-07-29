@@ -27,7 +27,7 @@ export function MotionExperienceLayer() {
   const { settings, ready } = useSettings();
 
   useEffect(() => {
-    if (!ready || settings.reduceMotion || (!settings.cursorGlow && !settings.cardTilt)) return;
+    if (!ready || settings.reduceMotion || settings.minimalMode || (!settings.cursorGlow && !settings.cardTilt)) return;
     if (!window.matchMedia("(pointer: fine)").matches) return;
 
     const root = document.documentElement;
@@ -77,10 +77,10 @@ export function MotionExperienceLayer() {
       root.style.removeProperty("--motion-pointer-x");
       root.style.removeProperty("--motion-pointer-y");
     };
-  }, [ready, settings.cardTilt, settings.cursorGlow, settings.reduceMotion]);
+  }, [ready, settings.cardTilt, settings.cursorGlow, settings.minimalMode, settings.reduceMotion]);
 
   useEffect(() => {
-    if (!ready || settings.reduceMotion || !settings.scrollReveal) return;
+    if (!ready || settings.reduceMotion || settings.minimalMode || !settings.scrollReveal) return;
 
     let observer: IntersectionObserver | null = null;
     const frame = requestAnimationFrame(() => {
@@ -106,9 +106,9 @@ export function MotionExperienceLayer() {
       cancelAnimationFrame(frame);
       observer?.disconnect();
     };
-  }, [pathname, ready, settings.reduceMotion, settings.scrollReveal]);
+  }, [pathname, ready, settings.minimalMode, settings.reduceMotion, settings.scrollReveal]);
 
-  if (!ready || settings.reduceMotion) return null;
+  if (!ready || settings.reduceMotion || settings.minimalMode) return null;
 
   return (
     <>

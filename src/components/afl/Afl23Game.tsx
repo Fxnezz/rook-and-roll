@@ -171,8 +171,9 @@ function MatchRow({ match, userClubId, showRound = true }: { match: SimulatedMat
   const userPlayed = match.homeId === userClubId || match.awayId === userClubId;
   const won = match.winnerId === userClubId;
   const draw = userPlayed && match.winnerId === null;
+  const userOutcomeClass = won ? styles.userWin : draw ? styles.userDraw : styles.userLoss;
   return (
-    <div className={`${styles.matchRow} ${userPlayed ? styles.userMatch : ""}`}>
+    <div className={`${styles.matchRow} ${userPlayed ? `${styles.userMatch} ${userOutcomeClass}` : ""}`}>
       <div className={styles.matchMeta}>
         {showRound && <strong>{match.label}</strong>}
         <span>{match.extraTime ? "After extra time" : match.upset ? "Upset" : "Final"}</span>

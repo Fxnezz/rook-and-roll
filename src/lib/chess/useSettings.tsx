@@ -126,6 +126,8 @@ export interface Settings {
   arcadeCinematic: boolean;
   /** Shows the small live performance/audio status dock in games. */
   arcadePerformanceHud: boolean;
+  /** Strips the site back to essential controls and low-cost visual surfaces without deleting the player's detailed preferences. */
+  minimalMode: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -189,6 +191,7 @@ const DEFAULTS: Settings = {
   arcadeQuality: "auto",
   arcadeCinematic: true,
   arcadePerformanceHud: false,
+  minimalMode: false,
 };
 
 const STORAGE_KEY = "rr.settings.v1";
@@ -287,7 +290,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.dataset.dyslexiaFont = settings.dyslexiaFont ? "true" : "false";
     document.documentElement.dataset.textScale = settings.uiTextScale;
-  }, [settings.dyslexiaFont, settings.uiTextScale]);
+    document.documentElement.dataset.interfaceMode = settings.minimalMode ? "minimal" : "full";
+  }, [settings.dyslexiaFont, settings.minimalMode, settings.uiTextScale]);
 
   // Motion Studio controls are reflected at the document root so every game,
   // menu and route can share one animation language without prop drilling.

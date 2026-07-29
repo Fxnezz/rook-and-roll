@@ -126,8 +126,8 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
   const slug = segments[1] ?? "hub";
   const isHub = pathname === "/play";
   const profile = useMemo(() => sceneFor(slug, isHub), [slug, isHub]);
-  const visualQuality: RenderQuality = settings.arcadeQuality === "auto" ? autoQuality : settings.arcadeQuality;
-  const cinematic = settings.arcadeCinematic && !settings.reduceMotion;
+  const visualQuality: RenderQuality = settings.minimalMode ? "calm" : settings.arcadeQuality === "auto" ? autoQuality : settings.arcadeQuality;
+  const cinematic = settings.arcadeCinematic && !settings.reduceMotion && !settings.minimalMode;
 
   useEffect(() => {
     const onFullscreen = () => setFullscreen(document.fullscreenElement === rootRef.current);
@@ -142,7 +142,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!ready || settings.arcadeQuality !== "auto") return;
+    if (!ready || settings.minimalMode || settings.arcadeQuality !== "auto") return;
     const device = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const constrained = Boolean(device.connection?.saveData);
@@ -151,10 +151,10 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
       setAutoQuality(reducedMotion || constrained ? "calm" : balanced ? "smooth" : "ultra");
     });
     return () => cancelAnimationFrame(frame);
-  }, [ready, settings.arcadeQuality]);
+  }, [ready, settings.arcadeQuality, settings.minimalMode]);
 
   useEffect(() => {
-    if (!pageVisible || isHub || (!settings.arcadePerformanceHud && settings.arcadeQuality !== "auto")) return;
+    if (settings.minimalMode || !pageVisible || isHub || (!settings.arcadePerformanceHud && settings.arcadeQuality !== "auto")) return;
     let animationFrame = 0;
     let frames = 0;
     let sampleStarted = performance.now();
@@ -174,7 +174,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
     };
     animationFrame = requestAnimationFrame(measure);
     return () => cancelAnimationFrame(animationFrame);
-  }, [isHub, pageVisible, settings.arcadePerformanceHud, settings.arcadeQuality]);
+  }, [isHub, pageVisible, settings.arcadePerformanceHud, settings.arcadeQuality, settings.minimalMode]);
 
   useEffect(() => {
     if (showControls) controlCloseRef.current?.focus();
@@ -197,6 +197,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
   }, []);
 
   const trackLight = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (settings.minimalMode) return;
     const rect = event.currentTarget.getBoundingClientRect();
     pendingLightRef.current = {
       element: event.currentTarget,
@@ -212,7 +213,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
       }
       lightFrameRef.current = null;
     });
-  }, []);
+  }, [settings.minimalMode]);
 
   const cycleVisualQuality = useCallback(() => {
     const currentIndex = QUALITY_ORDER.indexOf(settings.arcadeQuality);
@@ -320,7 +321,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
 
       <div className={styles.stage}>{children}</div>
 
-      {!isHub && settings.arcadePerformanceHud && (
+      {!isHub && settings.arcadePerformanceHud && !settings.minimalMode && (
         <aside className={styles.performanceHud} aria-label="Live game performance">
           <span className={styles.performancePulse} aria-hidden="true" />
           <span><strong ref={fpsOutputRef}>60</strong><small>FPS</small></span>
