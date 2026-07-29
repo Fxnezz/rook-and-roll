@@ -614,7 +614,7 @@ function Draft({
         </div>
         <button type="button" className={`${styles.rerollButton} ${styles.rollButton}`} onClick={roll}>
           <span aria-hidden="true">↻</span>
-          <strong>{drawLocked || candidates.length === 0 ? "Roll next club & era" : draw ? "Leave this roster and roll" : "Roll club & era"}</strong>
+          <strong>{!draw ? "Roll club & era" : drawLocked || candidates.length === 0 ? "Roll next club & era" : "Leave this roster and roll"}</strong>
           <small>{draw ? `${drawPicks}/2 picks used · a new roll replaces ${draw.club} ${draw.era}` : "Reveal the year group and everyone available for it"}</small>
         </button>
         {lineup.length > 0 && <div className={styles.liveRating}><span>Live team rating</span><strong>{provisional.overall}</strong><small>{18 - lineup.length} spots remaining</small></div>}
