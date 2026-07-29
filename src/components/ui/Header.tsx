@@ -312,6 +312,8 @@ export function Header() {
         onClose={() => setMenuOpen(false)}
         title="Menu"
         side="left"
+        closeIcon={<HamburgerIcon open={false} />}
+        closeLabel="Close menu"
         footer={
           <div className="grid grid-cols-2 divide-x divide-[var(--border)]">
             <Link

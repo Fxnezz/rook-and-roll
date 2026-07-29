@@ -15,6 +15,8 @@ export function SlideOver({
   side = "right",
   footer,
   size = "default",
+  closeIcon,
+  closeLabel = "Close",
 }: {
   open: boolean;
   onClose: () => void;
@@ -23,6 +25,8 @@ export function SlideOver({
   side?: "left" | "right";
   footer?: ReactNode;
   size?: "default" | "wide";
+  closeIcon?: ReactNode;
+  closeLabel?: string;
 }) {
   // Portal to <body>: the header uses backdrop-blur, and per spec any
   // ancestor with a backdrop-filter/filter/transform establishes a new
@@ -65,10 +69,10 @@ export function SlideOver({
           <button
             className="group flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-elev)] hover:text-[var(--text)]"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={closeLabel}
           >
             <span className="inline-flex transition-transform duration-200 group-hover:rotate-90">
-              <IconClose width={18} height={18} />
+              {closeIcon ?? <IconClose width={18} height={18} />}
             </span>
           </button>
         </header>
