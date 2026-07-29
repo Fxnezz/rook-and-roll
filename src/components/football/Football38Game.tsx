@@ -24,9 +24,10 @@ import {
   type FootballSeasonResult,
 } from "@/lib/football/simulator";
 import { playArcadeSound } from "@/lib/arcade/sound";
+import { SportsSimulationReveal, type SimulationRevealEntry } from "@/components/sports/SportsSimulationReveal";
 import styles from "./Football38Game.module.css";
 
-type Phase = "intro" | "draft" | "review" | "result";
+type Phase = "intro" | "draft" | "review" | "simulating" | "result";
 type ResultTab = "overview" | "fixtures" | "table" | "cup" | "lineup";
 
 interface LineupPick {
@@ -177,6 +178,21 @@ function MatchRow({ match, userClubId }: { match: FootballMatch; userClubId: str
   return <div className={`${styles.matchRow} ${userMatch ? styles.userMatch : ""}`}><div><strong>{match.label}</strong><small>{cup.penalties ? "Pens" : cup.extraTime ? "AET" : match.upset ? "Upset" : "Full time"}</small></div><span>{home.name}</span><ClubMark clubId={home.id} small /><b className={match.winnerId === home.id ? styles.winner : ""}>{match.homeGoals}</b><i>–</i><b className={match.winnerId === away.id ? styles.winner : ""}>{match.awayGoals}</b><ClubMark clubId={away.id} small /><span>{away.name}</span>{userMatch && <em className={outcome === "W" ? styles.win : outcome === "L" ? styles.loss : styles.draw}>{outcome === "W" ? "Win" : outcome === "L" ? "Loss" : "Draw"}</em>}</div>;
 }
 
+function footballRevealEntries(result: FootballSeasonResult): SimulationRevealEntry[] {
+  return [...result.matches, ...result.cup]
+    .filter((match) => match.homeId === result.clubId || match.awayId === result.clubId)
+    .map((match) => ({
+      id: match.id,
+      label: match.label,
+      stage: match.id.startsWith("league-") ? "League season" : "Knockout cup",
+      homeName: getFootballClub(match.homeId).name,
+      awayName: getFootballClub(match.awayId).name,
+      homeScore: String(match.homeGoals),
+      awayScore: String(match.awayGoals),
+      outcome: match.winnerId === result.clubId ? "win" : match.winnerId === null ? "draw" : "loss",
+    }));
+}
+
 function Result({ result, lineup, formationId, onReset, onReplay }: { result: FootballSeasonResult; lineup: LineupPick[]; formationId: FootballFormationId; onReset: () => void; onReplay: () => void }) {
   const [tab, setTab] = useState<ResultTab>("overview");
   const club = getFootballClub(result.clubId);
@@ -212,7 +228,7 @@ export function Football38Game() {
   const start = (nextClubId: string, nextFormation: FootballFormationId, nextTactic: FootballTactic) => { const rerolls = 1 + Math.floor(Math.random() * 3); setClubId(nextClubId); setFormationId(nextFormation); setTactic(nextTactic); setLineup([]); setResult(null); setRerollsTotal(rerolls); setRerollsLeft(rerolls); setPhase("draft"); playArcadeSound("swoosh"); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const place = (player: FootballPlayer, slotId: string) => { const next = [...lineup, { player, slotId, pickNumber: lineup.length + 1 }]; setLineup(next); playArcadeSound("place"); if (next.length === 11) { setPhase("review"); window.scrollTo({ top: 0, behavior: "smooth" }); } };
   const undo = () => { setLineup((picks) => picks.slice(0, -1)); playArcadeSound("click"); };
-  const simulate = () => { const seed = Math.floor(100000 + Math.random() * 900000); const next = simulateFootballSeason(clubId, lineup.map((pick) => pick.player), tactic, formationId, seed); setResult(next); setPhase("result"); playArcadeSound(next.leaguePosition === 1 || next.cupChampionId === clubId ? "win" : "levelUp"); const entry: SavedRun = { id: String(Date.now()), clubId, wins: next.userWins, draws: next.userDraws, losses: next.userLosses, position: next.leaguePosition, cupFinish: next.cupFinish }; const runs = [entry, ...savedRuns].slice(0, 5); setSavedRuns(runs); try { localStorage.setItem(STORAGE_KEY, JSON.stringify(runs)); } catch { /* optional */ } window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const simulate = () => { const seed = Math.floor(100000 + Math.random() * 900000); const next = simulateFootballSeason(clubId, lineup.map((pick) => pick.player), tactic, formationId, seed); setResult(next); setPhase("simulating"); playArcadeSound(next.leaguePosition === 1 || next.cupChampionId === clubId ? "win" : "levelUp"); const entry: SavedRun = { id: String(Date.now()), clubId, wins: next.userWins, draws: next.userDraws, losses: next.userLosses, position: next.leaguePosition, cupFinish: next.cupFinish }; const runs = [entry, ...savedRuns].slice(0, 5); setSavedRuns(runs); try { localStorage.setItem(STORAGE_KEY, JSON.stringify(runs)); } catch { /* optional */ } window.scrollTo({ top: 0, behavior: "smooth" }); };
   const reset = () => { setPhase("intro"); setLineup([]); setResult(null); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  return <div className={styles.page}>{phase === "intro" && <Intro onStart={start} savedRuns={savedRuns} />}{phase === "draft" && <Draft clubId={clubId} formationId={formationId} tactic={tactic} lineup={lineup} rerollsLeft={rerollsLeft} rerollsTotal={rerollsTotal} onPlace={place} onReroll={() => setRerollsLeft((value) => Math.max(0, value - 1))} onUndo={undo} />}{phase === "review" && <Review clubId={clubId} formationId={formationId} tactic={tactic} lineup={lineup} onBack={() => { setLineup((picks) => picks.slice(0, -1)); setPhase("draft"); }} onSimulate={simulate} />}{phase === "result" && result && <Result result={result} lineup={lineup} formationId={formationId} onReset={reset} onReplay={simulate} />}<footer className={styles.disclaimer}>Unofficial fan-made football simulator. Not affiliated with or endorsed by FIFA, the Premier League, any club or any player. Names are used descriptively; ratings are Sam&apos;s Arcade simulation estimates. No official logos or player likenesses are used.</footer></div>;
+  return <div className={styles.page}>{phase === "intro" && <Intro onStart={start} savedRuns={savedRuns} />}{phase === "draft" && <Draft clubId={clubId} formationId={formationId} tactic={tactic} lineup={lineup} rerollsLeft={rerollsLeft} rerollsTotal={rerollsTotal} onPlace={place} onReroll={() => setRerollsLeft((value) => Math.max(0, value - 1))} onUndo={undo} />}{phase === "review" && <Review clubId={clubId} formationId={formationId} tactic={tactic} lineup={lineup} onBack={() => { setLineup((picks) => picks.slice(0, -1)); setPhase("draft"); }} onSimulate={simulate} />}{phase === "simulating" && result && <SportsSimulationReveal accent="#c9ff63" entries={footballRevealEntries(result)} eyebrow="Football 38-0 · Live campaign simulation" title="Playing every matchweek" onComplete={() => { setPhase("result"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}{phase === "result" && result && <Result result={result} lineup={lineup} formationId={formationId} onReset={reset} onReplay={simulate} />}<footer className={styles.disclaimer}>Unofficial fan-made football simulator. Not affiliated with or endorsed by FIFA, the Premier League, any club or any player. Names are used descriptively; ratings are Sam&apos;s Arcade simulation estimates. No official logos or player likenesses are used.</footer></div>;
 }

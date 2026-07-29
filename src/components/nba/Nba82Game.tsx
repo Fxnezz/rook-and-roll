@@ -22,9 +22,10 @@ import {
   type NbaTeamMetrics,
 } from "@/lib/nba/simulator";
 import { playArcadeSound } from "@/lib/arcade/sound";
+import { SportsSimulationReveal, type SimulationRevealEntry } from "@/components/sports/SportsSimulationReveal";
 import styles from "./Nba82Game.module.css";
 
-type Phase = "intro" | "draft" | "review" | "result";
+type Phase = "intro" | "draft" | "review" | "simulating" | "result";
 type ResultTab = "overview" | "schedule" | "standings" | "playoffs" | "lineup";
 
 interface LineupPick {
@@ -204,6 +205,25 @@ function GameRow({ game, userTeamId }: { game: NbaGame; userTeamId: string }) {
   return <div className={`${styles.gameRow} ${userGame ? styles.userGame : ""}`}><div><strong>{game.label}</strong><small>{game.overtime ? `${game.overtime}OT` : game.upset ? "Upset" : "Final"}</small></div><span>{away.city} {away.name}</span><TeamMark teamId={away.id} small /><b className={game.winnerId === away.id ? styles.winner : ""}>{game.awayScore}</b><i>–</i><b className={game.winnerId === home.id ? styles.winner : ""}>{game.homeScore}</b><TeamMark teamId={home.id} small /><span>{home.city} {home.name}</span>{userGame && <em className={game.winnerId === userTeamId ? styles.win : styles.loss}>{game.winnerId === userTeamId ? "Win" : "Loss"}</em>}</div>;
 }
 
+function nbaRevealEntries(result: NbaSeasonResult): SimulationRevealEntry[] {
+  return [...result.regularSeason, ...result.playIn, ...result.series.flatMap((series) => series.games)]
+    .filter((game) => game.homeId === result.teamId || game.awayId === result.teamId)
+    .map((game) => {
+      const home = getNbaTeam(game.homeId);
+      const away = getNbaTeam(game.awayId);
+      return {
+        id: game.id,
+        label: game.label,
+        stage: game.stage === "regular" ? "Regular season" : game.stage === "play-in" ? "Play-In Tournament" : "NBA Playoffs",
+        homeName: `${home.city} ${home.name}`,
+        awayName: `${away.city} ${away.name}`,
+        homeScore: String(game.homeScore),
+        awayScore: String(game.awayScore),
+        outcome: game.winnerId === result.teamId ? "win" : "loss",
+      };
+    });
+}
+
 function SeriesCard({ series, userTeamId }: { series: NbaSeries; userTeamId: string }) {
   const high = getNbaTeam(series.highSeedId); const low = getNbaTeam(series.lowSeedId); const userSeries = series.highSeedId === userTeamId || series.lowSeedId === userTeamId;
   return <article className={userSeries ? styles.userSeries : ""}><div><span>{series.label}</span><small>Best of seven · {series.games.length} games</small></div><div><TeamMark teamId={high.id} small /><strong>{high.city} {high.name}</strong><b className={series.winnerId === high.id ? styles.winner : ""}>{series.highWins}</b></div><div><TeamMark teamId={low.id} small /><strong>{low.city} {low.name}</strong><b className={series.winnerId === low.id ? styles.winner : ""}>{series.lowWins}</b></div>{userSeries && <div className={styles.seriesGames} aria-label={`${series.label} game results`}>{series.games.map((game, index) => <i key={game.id} className={game.winnerId === userTeamId ? styles.win : styles.loss} title={`Game ${index + 1}: ${game.winnerId === userTeamId ? "Win" : "Loss"}`}>G{index + 1}</i>)}</div>}</article>;
@@ -243,7 +263,7 @@ export function Nba82Game() {
   const start = (nextTeamId: string, nextPlaystyle: NbaPlaystyle) => { const rerolls = 1 + Math.floor(Math.random() * 3); setTeamId(nextTeamId); setPlaystyle(nextPlaystyle); setLineup([]); setResult(null); setRerollsTotal(rerolls); setRerollsLeft(rerolls); setPhase("draft"); playArcadeSound("swoosh"); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const place = (player: NbaPlayer, position: NbaPosition) => { const next = [...lineup, { player, position, pickNumber: lineup.length + 1 }]; setLineup(next); playArcadeSound("place"); if (next.length === 5) { setPhase("review"); window.scrollTo({ top: 0, behavior: "smooth" }); } };
   const undo = () => { setLineup((picks) => picks.slice(0, -1)); playArcadeSound("click"); };
-  const simulate = () => { const seed = Math.floor(100000 + Math.random() * 900000); const next = simulateNbaSeason(teamId, lineup.map((pick) => pick.player), playstyle, seed); setResult(next); setPhase("result"); playArcadeSound(next.championship ? "win" : "levelUp"); const entry: SavedRun = { id: String(Date.now()), teamId, wins: next.userWins, losses: next.userLosses, finish: next.finish, seed }; const runs = [entry, ...savedRuns].slice(0, 5); setSavedRuns(runs); try { localStorage.setItem(STORAGE_KEY, JSON.stringify(runs)); } catch { /* optional */ } window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const simulate = () => { const seed = Math.floor(100000 + Math.random() * 900000); const next = simulateNbaSeason(teamId, lineup.map((pick) => pick.player), playstyle, seed); setResult(next); setPhase("simulating"); playArcadeSound(next.championship ? "win" : "levelUp"); const entry: SavedRun = { id: String(Date.now()), teamId, wins: next.userWins, losses: next.userLosses, finish: next.finish, seed }; const runs = [entry, ...savedRuns].slice(0, 5); setSavedRuns(runs); try { localStorage.setItem(STORAGE_KEY, JSON.stringify(runs)); } catch { /* optional */ } window.scrollTo({ top: 0, behavior: "smooth" }); };
   const reset = () => { setPhase("intro"); setLineup([]); setResult(null); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  return <div className={styles.page}>{phase === "intro" && <Intro onStart={start} savedRuns={savedRuns} />}{phase === "draft" && <Draft teamId={teamId} playstyle={playstyle} lineup={lineup} rerollsLeft={rerollsLeft} rerollsTotal={rerollsTotal} onPlace={place} onReroll={() => setRerollsLeft((value) => Math.max(0, value - 1))} onUndo={undo} />}{phase === "review" && <Review teamId={teamId} playstyle={playstyle} lineup={lineup} onBack={() => { setLineup((picks) => picks.slice(0, -1)); setPhase("draft"); }} onSimulate={simulate} />}{phase === "result" && result && <Result result={result} lineup={lineup} onReset={reset} onReplay={simulate} />}<footer className={styles.disclaimer}>Unofficial fan-made basketball simulator. Not affiliated with or endorsed by the NBA or its teams. Team and player names are used descriptively; ratings are Sam&apos;s Arcade simulation estimates. No official logos or player likenesses are used.</footer></div>;
+  return <div className={styles.page}>{phase === "intro" && <Intro onStart={start} savedRuns={savedRuns} />}{phase === "draft" && <Draft teamId={teamId} playstyle={playstyle} lineup={lineup} rerollsLeft={rerollsLeft} rerollsTotal={rerollsTotal} onPlace={place} onReroll={() => setRerollsLeft((value) => Math.max(0, value - 1))} onUndo={undo} />}{phase === "review" && <Review teamId={teamId} playstyle={playstyle} lineup={lineup} onBack={() => { setLineup((picks) => picks.slice(0, -1)); setPhase("draft"); }} onSimulate={simulate} />}{phase === "simulating" && result && <SportsSimulationReveal accent="#f5a45d" entries={nbaRevealEntries(result)} eyebrow="NBA 82-0 · Live season simulation" title="Playing every game" onComplete={() => { setPhase("result"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}{phase === "result" && result && <Result result={result} lineup={lineup} onReset={reset} onReplay={simulate} />}<footer className={styles.disclaimer}>Unofficial fan-made basketball simulator. Not affiliated with or endorsed by the NBA or its teams. Team and player names are used descriptively; ratings are Sam&apos;s Arcade simulation estimates. No official logos or player likenesses are used.</footer></div>;
 }

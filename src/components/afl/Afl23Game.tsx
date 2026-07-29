@@ -14,9 +14,10 @@ import {
 } from "@/lib/afl/data";
 import { getTeamMetrics, scoreText, simulateSeason, type SeasonResult, type SimulatedMatch, type TeamMetrics } from "@/lib/afl/simulator";
 import { playArcadeSound } from "@/lib/arcade/sound";
+import { SportsSimulationReveal, type SimulationRevealEntry } from "@/components/sports/SportsSimulationReveal";
 import styles from "./Afl23Game.module.css";
 
-type Phase = "intro" | "draft" | "review" | "result";
+type Phase = "intro" | "draft" | "review" | "simulating" | "result";
 type ResultTab = "overview" | "fixture" | "ladder" | "finals" | "squad";
 
 interface SavedRun {
@@ -184,6 +185,21 @@ function MatchRow({ match, userClubId, showRound = true }: { match: SimulatedMat
       {userPlayed && <span className={`${styles.resultPill} ${won ? styles.win : draw ? styles.draw : styles.loss}`}>{won ? "Win" : draw ? "Draw" : "Loss"}</span>}
     </div>
   );
+}
+
+function aflRevealEntries(result: SeasonResult): SimulationRevealEntry[] {
+  return [...result.homeAway, ...result.finals]
+    .filter((match) => match.homeId === result.clubId || match.awayId === result.clubId)
+    .map((match) => ({
+      id: match.id,
+      label: match.label,
+      stage: match.round <= 23 ? "Home-and-away season" : match.round === 28 ? "Grand Final" : "Finals series",
+      homeName: getAflClub(match.homeId).name,
+      awayName: getAflClub(match.awayId).name,
+      homeScore: scoreText(match.homeScore),
+      awayScore: scoreText(match.awayScore),
+      outcome: match.winnerId === result.clubId ? "win" : match.winnerId === null ? "draw" : "loss",
+    }));
 }
 
 function Intro({ onStart, savedRuns }: { onStart: (clubId: string) => void; savedRuns: SavedRun[] }) {
@@ -510,7 +526,7 @@ export function Afl23Game() {
     const seed = forcedSeed ?? Math.floor(100000 + Math.random() * 900000);
     const nextResult = simulateSeason(clubId, lineup.map((pick) => pick.player), seed);
     setResult(nextResult);
-    setPhase("result");
+    setPhase("simulating");
     playArcadeSound(nextResult.premiership ? "win" : "levelUp");
     const entry: SavedRun = { id: `${Date.now()}`, clubId, wins: nextResult.userWins, losses: nextResult.userLosses, draws: nextResult.userDraws, finish: nextResult.finish, seed, date: new Date().toISOString() };
     const runs = [entry, ...savedRuns].slice(0, 5);
@@ -526,6 +542,7 @@ export function Afl23Game() {
       {phase === "intro" && <Intro onStart={startDraft} savedRuns={savedRuns} />}
       {phase === "draft" && <Draft clubId={clubId} lineup={lineup} rerollsLeft={rerollsLeft} rerollsTotal={rerollsTotal} onPlace={placePlayer} onReroll={() => setRerollsLeft((value) => Math.max(0, value - 1))} onUndo={undo} />}
       {phase === "review" && <Review clubId={clubId} lineup={lineup} onBack={() => { setLineup((picks) => picks.slice(0, -1)); setPhase("draft"); }} onSimulate={() => simulate()} />}
+      {phase === "simulating" && result && <SportsSimulationReveal accent="#77d68d" entries={aflRevealEntries(result)} eyebrow="AFL 23-0 · Live season simulation" title="Playing every round" onComplete={() => { setPhase("result"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}
       {phase === "result" && result && <Result result={result} lineup={lineup} onReset={reset} onReplay={replay} />}
       <footer className={styles.disclaimer}>Unofficial fan-made simulator. Not affiliated with or endorsed by the AFL or its clubs. Club names and player career facts are used descriptively; ratings are Sam&apos;s Arcade simulation estimates. No official logos or player likenesses are used.</footer>
     </div>
