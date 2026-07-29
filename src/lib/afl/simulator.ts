@@ -1,5 +1,7 @@
 import { AFL_CLUBS, type AflClub, type AflPlayer } from "@/lib/afl/data";
 
+export type AflSimulationDifficulty = "easy" | "normal" | "hard";
+
 export interface TeamMetrics {
   attack: number;
   midfield: number;
@@ -129,9 +131,10 @@ function fixtureRounds(): Array<Array<{ homeId: string; awayId: string }>> {
   return rounds;
 }
 
-function clubPower(club: AflClub, userClubId: string, metrics: TeamMetrics) {
+function clubPower(club: AflClub, userClubId: string, metrics: TeamMetrics, difficulty: AflSimulationDifficulty) {
   if (club.id !== userClubId) return club.strength;
-  return metrics.overall - 2 + metrics.chemistry * 0.025;
+  const difficultyAdjustment: Record<AflSimulationDifficulty, number> = { easy: 1.8, normal: 0, hard: -1.5 };
+  return 85 + (metrics.overall - 88) * 0.9 + (metrics.chemistry - 85) * 0.05 + difficultyAdjustment[difficulty];
 }
 
 function toAflScore(expectedPoints: number, random: () => number): AflScore {
@@ -151,12 +154,13 @@ function playMatch(
   meta: Pick<SimulatedMatch, "id" | "round" | "stage" | "label">,
   knockout = false,
   userPowerPenalty = 0,
+  difficulty: AflSimulationDifficulty = "normal",
 ): SimulatedMatch {
-  const homePower = clubPower(home, userClubId, metrics) + 2.1 - (home.id === userClubId ? userPowerPenalty : 0);
-  const awayPower = clubPower(away, userClubId, metrics) - (away.id === userClubId ? userPowerPenalty : 0);
+  const homePower = clubPower(home, userClubId, metrics, difficulty) + 2.1 - (home.id === userClubId ? userPowerPenalty : 0);
+  const awayPower = clubPower(away, userClubId, metrics, difficulty) - (away.id === userClubId ? userPowerPenalty : 0);
   const tempo = 73 + normal(random) * 7;
-  const homeExpected = tempo + (homePower - awayPower) * 2.15 + normal(random) * 7;
-  const awayExpected = tempo + (awayPower - homePower) * 2.15 + normal(random) * 7;
+  const homeExpected = tempo + (homePower - awayPower) * 1.85 + normal(random) * 8.5;
+  const awayExpected = tempo + (awayPower - homePower) * 1.85 + normal(random) * 8.5;
   let homeScore = toAflScore(homeExpected, random);
   let awayScore = toAflScore(awayExpected, random);
   let extraTime = false;
@@ -226,7 +230,7 @@ function longestWinStreak(matches: SimulatedMatch[], clubId: string) {
   return best;
 }
 
-export function simulateSeason(clubId: string, players: AflPlayer[], seed: number): SeasonResult {
+export function simulateSeason(clubId: string, players: AflPlayer[], seed: number, difficulty: AflSimulationDifficulty = "normal"): SeasonResult {
   const random = mulberry32(seed);
   const metrics = getTeamMetrics(players);
   const clubMap = new Map(AFL_CLUBS.map((club) => [club.id, club]));
@@ -239,26 +243,30 @@ export function simulateSeason(clubId: string, players: AflPlayer[], seed: numbe
         round: roundIndex + 1,
         stage: "home-away",
         label: `Round ${roundIndex + 1}`,
-      }));
+      }, false, 0, difficulty));
     });
   });
   const ladder = buildLadder(homeAway);
   const finals: SimulatedMatch[] = [];
+  const userSeasonWins = ladder.find((row) => row.clubId === clubId)?.wins ?? 0;
+  const expectationPenalty = Math.max(0, userSeasonWins - 19) * 0.3;
   const playFinal = (homeId: string, awayId: string, stage: SimulatedMatch["stage"], label: string, round: number) => {
     const pressurePenalty: Partial<Record<SimulatedMatch["stage"], number>> = {
       wildcard: 2.2,
-      qualifying: 2.6,
-      elimination: 3,
-      semi: 3.4,
-      preliminary: 4.1,
-      "grand-final": 5.2,
+      qualifying: 2.5,
+      elimination: 2.8,
+      semi: 3.2,
+      preliminary: 3.8,
+      "grand-final": 4.6,
     };
+    const pressureMultiplier: Record<AflSimulationDifficulty, number> = { easy: 0.8, normal: 1, hard: 1.15 };
+    const userFinalsPenalty = ((pressurePenalty[stage] ?? 0) + expectationPenalty) * pressureMultiplier[difficulty];
     const match = playMatch(clubMap.get(homeId)!, clubMap.get(awayId)!, random, clubId, metrics, {
       id: `f${finals.length + 1}`,
       round,
       stage,
       label,
-    }, true, pressurePenalty[stage] ?? 0);
+    }, true, userFinalsPenalty, difficulty);
     finals.push(match);
     return match;
   };

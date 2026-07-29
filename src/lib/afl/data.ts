@@ -124,6 +124,40 @@ export function playerEligibleLines(player: AflPlayer): AflLine[] {
   return ROLE_LINES[player.role];
 }
 
+const ROLE_SLOT_IDS: Record<AflRole, string[]> = {
+  "key-forward": ["ff", "chf"],
+  "forward-craft": ["lfp", "rfp", "lhf", "rhf"],
+  "half-forward": ["lhf", "chf", "rhf", "ff"],
+  "inside-mid": ["c", "rr", "rov"],
+  "outside-mid": ["lw", "rw", "c"],
+  ruck: ["rk"],
+  "key-defender": ["chb", "fb"],
+  "intercept-defender": ["lhb", "chb", "rhb", "lbp", "rbp"],
+  "running-defender": ["lhb", "rhb", "lbp", "rbp"],
+  utility: [],
+  "match-winner": [],
+  captain: [],
+};
+
+const SPECIALIST_SLOT_IDS: Record<string, string[]> = {
+  whitten: ["lhb", "chb", "rhb", "fb", "ff", "chf"],
+  goodes: ["rk", "c", "rr", "rov", "lhf", "chf", "rhf"],
+  koutoufides: ["lw", "rw", "c", "rr", "rov", "lhb", "rhb"],
+  pavlich: ["ff", "chf", "lhf", "rhf", "c", "rr", "rov"],
+  "ablett-sr": ["lfp", "ff", "rfp", "lhf", "rhf", "lw", "rw"],
+  "ablett-jr": ["lhf", "rhf", "c", "rr", "rov"],
+  judd: ["c", "rr", "rov"],
+  martin: ["lfp", "rfp", "lhf", "rhf", "c", "rr", "rov"],
+  reynolds: ["lfp", "rfp", "lhf", "rhf", "c", "rr", "rov"],
+  barassi: ["c", "rr", "rov"],
+  tuck: ["lw", "rw", "c", "rr", "rov"],
+  hodge: ["c", "rr", "rov", "lhb", "chb", "rhb"],
+};
+
+export function playerEligibleSlotIds(player: AflPlayer): string[] {
+  return SPECIALIST_SLOT_IDS[player.id] ?? ROLE_SLOT_IDS[player.role];
+}
+
 export const AFL_PLAYERS: AflPlayer[] = [
   { id: "lockett", name: "Tony Lockett", role: "key-forward", position: "Full forward", representativeClub: "Sydney / St Kilda", era: "1983–2002", attack: 99, midfield: 70, defence: 63, athleticism: 90, leadership: 88, trait: "Record goalkicker" },
   { id: "dunstall", name: "Jason Dunstall", role: "key-forward", position: "Full forward", representativeClub: "Hawthorn", era: "1985–1998", attack: 98, midfield: 73, defence: 76, athleticism: 91, leadership: 92, trait: "Lead and pressure" },
