@@ -181,7 +181,7 @@ function MatchRow({ match, userClubId, showRound = true }: { match: SimulatedMat
       <span className={styles.versus}>v</span>
       <strong className={match.winnerId === away.id ? styles.winnerScore : ""}>{scoreText(match.awayScore)}</strong>
       <div className={styles.matchTeam}><ClubMark clubId={away.id} compact /><span>{away.name}</span></div>
-      {userPlayed && <span className={`${styles.resultPill} ${won ? styles.win : draw ? styles.draw : styles.loss}`}>{won ? "W" : draw ? "D" : "L"}</span>}
+      {userPlayed && <span className={`${styles.resultPill} ${won ? styles.win : draw ? styles.draw : styles.loss}`}>{won ? "Win" : draw ? "Draw" : "Loss"}</span>}
     </div>
   );
 }
@@ -282,11 +282,6 @@ function Draft({
   const activePlayer = candidates.find((player) => player.id === activePlayerId) ?? null;
   const filledSlots = new Map(lineup.map((pick) => [pick.slotId, pick]));
 
-  useEffect(() => {
-    setCandidates(buildCandidatePool(lineup));
-    setActivePlayerId(null);
-  }, [lineup]);
-
   const reroll = () => {
     if (!rerollsLeft) return;
     setCandidates(buildCandidatePool(lineup));
@@ -299,7 +294,17 @@ function Draft({
     if (!activePlayer || filledSlots.has(slotId)) return;
     const slot = AFL_POSITION_SLOTS.find((option) => option.id === slotId);
     if (!slot || !playerEligibleLines(activePlayer).includes(slot.line)) return;
+    const next = [...lineup, { player: activePlayer, slotId, pickNumber: lineup.length + 1 }];
+    setCandidates(buildCandidatePool(next));
+    setActivePlayerId(null);
     onPlace(activePlayer, slotId);
+  };
+
+  const undoDraft = () => {
+    const next = lineup.slice(0, -1);
+    setCandidates(buildCandidatePool(next));
+    setActivePlayerId(null);
+    onUndo();
   };
 
   return (
@@ -307,7 +312,7 @@ function Draft({
       <header className={styles.draftHeader}>
         <div className={styles.draftBrand}><ClubMark clubId={clubId} /><div><small>Sam&apos;s Sports Lab</small><strong>Build your 18</strong></div></div>
         <div className={styles.draftProgress}><span>Placed {lineup.length} of {AFL_POSITION_SLOTS.length}</span><div>{AFL_POSITION_SLOTS.map((slot, index) => <i key={slot.id} className={index < lineup.length ? styles.complete : index === lineup.length ? styles.current : ""} />)}</div></div>
-        <button type="button" className={styles.secondaryAction} disabled={!lineup.length} onClick={onUndo}>Undo last</button>
+        <button type="button" className={styles.secondaryAction} disabled={!lineup.length} onClick={undoDraft}>Undo last</button>
       </header>
 
       <div className={styles.draftTitle}>
@@ -401,8 +406,10 @@ function Result({ result, lineup, onReset, onReplay }: { result: SeasonResult; l
   const userMatches = result.homeAway.filter((match) => match.homeId === result.clubId || match.awayId === result.clubId);
   const ladderRow = result.ladder.find((row) => row.clubId === result.clubId)!;
   const perfect = result.userWins === 23;
+  const userFinals = result.finals.filter((match) => match.homeId === result.clubId || match.awayId === result.clubId);
+  const fullJourney = [...userMatches, ...userFinals];
   const tabs: Array<{ id: ResultTab; label: string }> = [
-    { id: "overview", label: "Season HQ" }, { id: "fixture", label: "23 matches" }, { id: "ladder", label: "Ladder" }, { id: "finals", label: "Finals" }, { id: "squad", label: "Drafted list" },
+    { id: "overview", label: "Season HQ" }, { id: "fixture", label: "Full journey" }, { id: "ladder", label: "Ladder" }, { id: "finals", label: "Finals" }, { id: "squad", label: "Drafted list" },
   ];
   const copySeed = async () => {
     await navigator.clipboard.writeText(`Sam's Arcade AFL 23-0 seed: ${result.seed} — ${club.name} ${result.userWins}-${result.userLosses}${result.userDraws ? `-${result.userDraws}` : ""}, ${result.finish}`);
@@ -432,7 +439,8 @@ function Result({ result, lineup, onReset, onReplay }: { result: SeasonResult; l
           <div className={styles.overviewGrid}>
             <article className={styles.seasonCard}>
               <div className={styles.cardHeading}><div><span>Form line</span><h2>Round by round</h2></div><strong>{result.userWins}/23 wins</strong></div>
-              <div className={styles.formLine}>{userMatches.map((match) => <span key={match.id} className={match.winnerId === result.clubId ? styles.formWin : match.winnerId === null ? styles.formDraw : styles.formLoss} title={`${match.label}: ${match.winnerId === result.clubId ? "Win" : match.winnerId === null ? "Draw" : "Loss"}`}>{match.round}</span>)}</div>
+              <div className={styles.outcomeLegend} aria-label="Result colours"><span><i className={styles.win} />Win</span><span><i className={styles.draw} />Draw</span><span><i className={styles.loss} />Loss</span></div>
+              <div className={styles.formLine}>{fullJourney.map((match, index) => <span key={match.id} className={match.winnerId === result.clubId ? styles.formWin : match.winnerId === null ? styles.formDraw : styles.formLoss} title={`${match.label}: ${match.winnerId === result.clubId ? "Win" : match.winnerId === null ? "Draw" : "Loss"}`}>{index + 1}</span>)}</div>
               <div className={styles.keyMatches}>{userMatches.slice(-5).reverse().map((match) => <MatchRow key={match.id} match={match} userClubId={result.clubId} />)}</div>
             </article>
             <aside className={styles.analysisCard}>
@@ -444,7 +452,7 @@ function Result({ result, lineup, onReset, onReplay }: { result: SeasonResult; l
         </div>
       )}
 
-      {tab === "fixture" && <div className={styles.tablePanel}><div className={styles.cardHeading}><div><span>Home and away</span><h2>Your complete fixture</h2></div><strong>{result.userWins}-{result.userLosses}{result.userDraws ? `-${result.userDraws}` : ""}</strong></div><div className={styles.matchList}>{userMatches.map((match) => <MatchRow key={match.id} match={match} userClubId={result.clubId} />)}</div></div>}
+      {tab === "fixture" && <div className={styles.tablePanel}><div className={styles.cardHeading}><div><span>Every bounce, every result</span><h2>Your complete campaign journey</h2></div><strong>{fullJourney.length} matches played</strong></div><div className={styles.outcomeLegend} aria-label="Result colours"><span><i className={styles.win} />Win</span><span><i className={styles.draw} />Draw</span><span><i className={styles.loss} />Loss</span></div><section className={styles.journeyStage}><h3>Home-and-away season · Rounds 1–23</h3><div className={styles.matchList}>{userMatches.map((match) => <MatchRow key={match.id} match={match} userClubId={result.clubId} />)}</div></section>{userFinals.length > 0 ? <section className={styles.journeyStage}><h3>Your finals run · {userFinals.length} match{userFinals.length === 1 ? "" : "es"}</h3><div className={styles.matchList}>{userFinals.map((match) => <MatchRow key={match.id} match={match} userClubId={result.clubId} />)}</div></section> : <div className={styles.journeyEmpty}><strong>Season complete</strong><span>Your campaign ended after Round 23, so no finals were added to the journey.</span></div>}</div>}
 
       {tab === "ladder" && (
         <div className={styles.tablePanel}><div className={styles.cardHeading}><div><span>After round 23</span><h2>League ladder</h2></div><strong>Top 10 alive</strong></div>
@@ -471,7 +479,10 @@ export function Afl23Game() {
   const [savedRuns, setSavedRuns] = useState<SavedRun[]>([]);
 
   useEffect(() => {
-    try { setSavedRuns(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]")); } catch { setSavedRuns([]); }
+    const timeout = window.setTimeout(() => {
+      try { setSavedRuns(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]")); } catch { setSavedRuns([]); }
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, []);
 
   const startDraft = (nextClubId: string) => {

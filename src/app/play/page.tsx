@@ -544,6 +544,12 @@ const ARCADE_GAMES: GameCard[] = [
 
 const ORIGINAL_GAMES: GameCard[] = [
   {
+    title: "World Cup 7-0",
+    blurb: "Draft an all-time international XI, play all three group matches, then survive the complete knockout bracket to lift the trophy.",
+    emoji: "🏆",
+    links: [{ href: "/play/world-cup-7-0", label: "Enter the World Cup" }],
+  },
+  {
     title: "Football 38-0",
     blurb: "Draft an all-time football XI, chase a perfect 38-win league season, then survive a four-round knockout cup.",
     emoji: "⚽",
