@@ -139,6 +139,17 @@ function playerClubs(player: AflPlayer) {
   return player.representativeClub.split(" / ");
 }
 
+function playerDraftLine(player: AflPlayer): AflLine {
+  const eligibleLines = playerEligibleLines(player);
+  if (eligibleLines.length === 1) return eligibleLines[0];
+  const ratings: Record<AflLine, number> = {
+    forward: player.attack,
+    midfield: player.midfield,
+    defence: player.defence,
+  };
+  return [...eligibleLines].sort((left, right) => ratings[right] - ratings[left])[0];
+}
+
 function availableDrawPlayers(lineup: LineupPick[], draw: AflDraftDraw | null) {
   if (!draw) return [];
   const usedPlayers = new Set(lineup.map((pick) => pick.player.id));
@@ -150,7 +161,7 @@ function availableDrawPlayers(lineup: LineupPick[], draw: AflDraftDraw | null) {
     !usedPlayers.has(player.id)
       && playerClubs(player).includes(draw.club)
       && matchesEra(player, draw.era)
-      && playerEligibleLines(player).some((line) => openLines.includes(line)),
+      && openLines.includes(playerDraftLine(player)),
   )
     .sort((left, right) => playerOverall(right) - playerOverall(left) || right.leadership - left.leadership);
 }
@@ -487,7 +498,7 @@ function Draft({
   const activeSlot = AFL_POSITION_SLOTS.find((slot) => slot.id === activeSlotId) ?? null;
   const drawLocked = drawPicks >= 2;
   const eligibleCandidateCount = activeSlot
-    ? candidates.filter((player) => playerEligibleLines(player).includes(activeSlot.line)).length
+    ? candidates.filter((player) => playerDraftLine(player) === activeSlot.line).length
     : candidates.length;
 
   const roll = () => {
@@ -504,7 +515,7 @@ function Draft({
   const commitPlayer = (player: AflPlayer, slotId: string) => {
     if (filledSlots.has(slotId)) return;
     const slot = AFL_POSITION_SLOTS.find((option) => option.id === slotId);
-    if (!slot || drawLocked || !playerEligibleLines(player).includes(slot.line)) return;
+    if (!slot || drawLocked || playerDraftLine(player) !== slot.line) return;
     setActivePlayerId(null);
     setActiveSlotId(null);
     setDrawPicks((value) => Math.min(2, value + 1));
@@ -528,7 +539,7 @@ function Draft({
   const selectCandidate = (player: AflPlayer) => {
     if (drawLocked) return;
     if (config.draftMode === "position" && activeSlot) {
-      if (!playerEligibleLines(player).includes(activeSlot.line)) return;
+      if (playerDraftLine(player) !== activeSlot.line) return;
       commitPlayer(player, activeSlot.id);
     } else {
       setActivePlayerId(player.id);
@@ -555,7 +566,7 @@ function Draft({
       </header>
 
       <div className={styles.draftTitle}>
-        <div><span>{String(lineup.length + 1).padStart(2, "0")}</span><div><p>Selection room · {club.short}</p><h1>{drawLocked ? "Roll the next club and era" : activePlayer ? `Place ${activePlayer.name}` : activeSlot ? `Draft a ${activeSlot.label}` : draw ? "Choose from this roster" : "Roll your first club and era"}</h1><small>{drawLocked ? "This draw has reached its two-player limit." : activePlayer ? `${lineLabel(playerEligibleLines(activePlayer)[0])} selected — every valid slot is glowing.` : activeSlot ? `${activeSlot.label} is selected. Eligible players from the current roster can be drafted.` : draw ? "Every available legend from this club and era is shown in skill order." : "Nothing is dealt automatically — press Roll to reveal the first historical roster."}</small></div></div>
+        <div><span>{String(lineup.length + 1).padStart(2, "0")}</span><div><p>Selection room · {club.short}</p><h1>{drawLocked ? "Two picks complete" : activePlayer ? `Place ${activePlayer.name}` : activeSlot ? `Draft a ${activeSlot.label}` : draw ? "Choose from this roster" : "Roll your first club and era"}</h1><small>{drawLocked ? "Roll again to reveal your next club and era." : activePlayer ? `${lineLabel(playerDraftLine(activePlayer))} only — choose any open circle in that line.` : activeSlot ? `${activeSlot.label} is selected. Eligible players from the current roster can be drafted.` : draw ? "Every available legend from this club and era is shown in skill order." : "Nothing is dealt automatically — press Roll to reveal the first historical roster."}</small></div></div>
         <strong>{draw ? `${drawPicks}/2 from draw #${draw.number}` : "Waiting for roll"}</strong>
       </div>
 
@@ -573,7 +584,7 @@ function Draft({
           <div className={styles.positionGrid}>
             {AFL_POSITION_SLOTS.map((slot) => {
               const pick = filledSlots.get(slot.id);
-              const eligible = Boolean(activePlayer && playerEligibleLines(activePlayer).includes(slot.line));
+              const eligible = Boolean(activePlayer && playerDraftLine(activePlayer) === slot.line);
               const positionTarget = config.draftMode === "position" && !pick;
               const focused = activeSlotId === slot.id;
               return (
@@ -586,13 +597,13 @@ function Draft({
                   disabled={Boolean(pick) || (config.draftMode === "squad" && !eligible)}
                   aria-label={pick ? `${slot.label}: ${pick.player.name}` : eligible ? `Place ${activePlayer?.name} at ${slot.label}` : positionTarget ? `Draft for ${slot.label}` : `${slot.label}, empty`}
                 >
-                  {pick ? <><PlayerAvatar player={pick.player} /><span><strong>{pick.player.name}</strong><small>{slot.short} · {playerOverall(pick.player)}</small></span></> : <><strong>{slot.short}</strong><small>{slot.label}</small></>}
+                  {pick ? <><PlayerAvatar player={pick.player} /><small className={styles.filledSlotLabel}>{slot.short}</small><span><strong>{pick.player.name}</strong><small>{slot.short} · {playerOverall(pick.player)}</small></span></> : <><strong>{slot.short}</strong><small>{slot.label}</small></>}
                 </button>
               );
             })}
           </div>
         </div>
-        <div className={styles.fieldHint}>{drawLocked ? "Two selections used — press Roll before making another pick" : activePlayer ? `Choose any glowing ${playerEligibleLines(activePlayer).map(lineLabel).join(" / ")} slot` : draw && !drawOpened ? `Click the ${draw.club} ${draw.era} card to open its full roster` : activeSlot ? `${activeSlot.label} locked in — ${eligibleCandidateCount} eligible in this draw` : config.draftMode === "position" ? "Choose a position, then press Roll if no roster is open" : draw ? `${candidates.length} player${candidates.length === 1 ? "" : "s"} remain in this club-and-era roster` : "Press Roll to reveal a club, a decade and its available legends"}</div>
+        <div className={styles.fieldHint}>{drawLocked ? "Two selections used — choose Roll again in the roster panel" : activePlayer ? `Choose any glowing ${lineLabel(playerDraftLine(activePlayer))} circle` : draw && !drawOpened ? `Click the ${draw.club} ${draw.era} card to open its full roster` : activeSlot ? `${activeSlot.label} locked in — ${eligibleCandidateCount} eligible in this draw` : config.draftMode === "position" ? "Choose a position, then press Roll if no roster is open" : draw ? `${candidates.length} player${candidates.length === 1 ? "" : "s"} remain in this club-and-era roster` : "Press Roll to reveal a club, a decade and its available legends"}</div>
       </div>
 
       <aside className={styles.candidatePanel}>
@@ -606,17 +617,28 @@ function Draft({
           <div className={styles.rerollCounter}><b>{drawPicks}</b><small>of 2<br />selected</small></div>
         </div>
         {draw && !drawOpened && <button type="button" className={styles.drawRevealCard} onClick={() => { setDrawOpened(true); playArcadeSound("click"); }}><span>{draw.era}</span><strong>{draw.club}</strong><small>{candidates.length} available legend{candidates.length === 1 ? "" : "s"}</small><b>Click to open full roster <i>→</i></b></button>}
-        <div className={styles.sideCandidates}>
-          {drawOpened && candidates.map((player, index) => (
-            <PlayerCard key={player.id} player={player} boardRank={index + 1} showRatings={config.showRatings} onPick={() => selectCandidate(player)} disabled={drawLocked || Boolean(activeSlot && !playerEligibleLines(player).includes(activeSlot.line))} selected={activePlayerId === player.id} />
-          ))}
-          {(!draw || (drawOpened && candidates.length === 0)) && <div className={styles.positionPrompt}><span>{drawLocked ? "2/2" : "↻"}</span><strong>{drawLocked ? "Draw complete" : draw ? "Roster exhausted" : "No roster open"}</strong><p>{drawLocked ? "You have taken the maximum two players from this club and era." : "Press Roll to reveal the next club, decade and available players."}</p></div>}
-        </div>
-        <button type="button" className={`${styles.rerollButton} ${styles.rollButton}`} onClick={roll}>
-          <span aria-hidden="true">↻</span>
-          <strong>{!draw ? "Roll club & era" : drawLocked || candidates.length === 0 ? "Roll next club & era" : "Leave this roster and roll"}</strong>
-          <small>{draw ? `${drawPicks}/2 picks used · a new roll replaces ${draw.club} ${draw.era}` : "Reveal the year group and everyone available for it"}</small>
-        </button>
+        {drawLocked ? (
+          <div className={styles.rollAgainPrompt} role="status">
+            <span>2/2</span>
+            <strong>Roll again?</strong>
+            <p>You picked two players from {draw?.club} {draw?.era}. Reveal a new club and era to continue.</p>
+            <button type="button" onClick={roll}>Roll next club &amp; era <i>→</i></button>
+          </div>
+        ) : (
+          <>
+            <div className={styles.sideCandidates}>
+              {drawOpened && candidates.map((player, index) => (
+                <PlayerCard key={player.id} player={player} boardRank={index + 1} showRatings={config.showRatings} onPick={() => selectCandidate(player)} disabled={Boolean(activeSlot && playerDraftLine(player) !== activeSlot.line)} selected={activePlayerId === player.id} />
+              ))}
+              {(!draw || (drawOpened && candidates.length === 0)) && <div className={styles.positionPrompt}><span>↻</span><strong>{draw ? "Roster exhausted" : "No roster open"}</strong><p>Press Roll to reveal the next club, decade and available players.</p></div>}
+            </div>
+            <button type="button" className={`${styles.rerollButton} ${styles.rollButton}`} onClick={roll}>
+              <span aria-hidden="true">↻</span>
+              <strong>{!draw ? "Roll club & era" : candidates.length === 0 ? "Roll next club & era" : "Leave this roster and roll"}</strong>
+              <small>{draw ? `${drawPicks}/2 picks used · a new roll replaces ${draw.club} ${draw.era}` : "Reveal the year group and everyone available for it"}</small>
+            </button>
+          </>
+        )}
         {lineup.length > 0 && <div className={styles.liveRating}><span>Live team rating</span><strong>{provisional.overall}</strong><small>{18 - lineup.length} spots remaining</small></div>}
       </aside>
     </section>
