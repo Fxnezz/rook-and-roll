@@ -25,12 +25,13 @@ interface SportsSimulationRevealProps {
   intervalMs?: number;
   lockSpeed?: boolean;
   onComplete: () => void;
+  skipToReport?: boolean;
   title: string;
 }
 
 const SPEEDS = [1, 2, 4] as const;
 
-export function SportsSimulationReveal({ accent, allowSkip = true, entries, eyebrow, intervalMs = 300, lockSpeed = false, onComplete, title }: SportsSimulationRevealProps) {
+export function SportsSimulationReveal({ accent, allowSkip = true, entries, eyebrow, intervalMs = 300, lockSpeed = false, onComplete, skipToReport = false, title }: SportsSimulationRevealProps) {
   const [revealed, setRevealed] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(() => lockSpeed ? 1 : entries.length > 50 ? 4 : entries.length > 25 ? 2 : 1);
@@ -94,7 +95,13 @@ export function SportsSimulationReveal({ accent, allowSkip = true, entries, eyeb
           {SPEEDS.map((option) => <button key={option} type="button" className={speed === option ? styles.activeSpeed : ""} onClick={() => setSpeed(option)}>{option}×</button>)}
         </div>}
         {!complete && <button type="button" className={styles.pause} onClick={() => setPlaying((value) => !value)}>{playing ? "Pause reveal" : "Continue reveal"}</button>}
-        {!complete && allowSkip && <button type="button" className={styles.skip} onClick={() => { setRevealed(entries.length); setPlaying(false); }}>Reveal all results</button>}
+        {!complete && allowSkip && <button type="button" className={styles.skip} onClick={() => {
+          if (skipToReport) onComplete();
+          else {
+            setRevealed(entries.length);
+            setPlaying(false);
+          }
+        }}>{skipToReport ? "Skip reveal & open report" : "Reveal all results"}</button>}
         {complete && <button type="button" className={styles.report} onClick={onComplete}>Open full campaign report <span>→</span></button>}
       </div>
 

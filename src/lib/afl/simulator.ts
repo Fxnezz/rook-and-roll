@@ -131,10 +131,9 @@ function fixtureRounds(): Array<Array<{ homeId: string; awayId: string }>> {
   return rounds;
 }
 
-function clubPower(club: AflClub, userClubId: string, metrics: TeamMetrics, difficulty: AflSimulationDifficulty) {
+function clubPower(club: AflClub, userClubId: string, metrics: TeamMetrics) {
   if (club.id !== userClubId) return club.strength;
-  const difficultyAdjustment: Record<AflSimulationDifficulty, number> = { easy: 1.8, normal: 0, hard: -1.5 };
-  return 85 + (metrics.overall - 88) * 0.9 + (metrics.chemistry - 85) * 0.05 + difficultyAdjustment[difficulty];
+  return 85 + (metrics.overall - 88) * 0.9 + (metrics.chemistry - 85) * 0.05;
 }
 
 function toAflScore(expectedPoints: number, random: () => number): AflScore {
@@ -154,10 +153,9 @@ function playMatch(
   meta: Pick<SimulatedMatch, "id" | "round" | "stage" | "label">,
   knockout = false,
   userPowerPenalty = 0,
-  difficulty: AflSimulationDifficulty = "normal",
 ): SimulatedMatch {
-  const homePower = clubPower(home, userClubId, metrics, difficulty) + 2.1 - (home.id === userClubId ? userPowerPenalty : 0);
-  const awayPower = clubPower(away, userClubId, metrics, difficulty) - (away.id === userClubId ? userPowerPenalty : 0);
+  const homePower = clubPower(home, userClubId, metrics) + 2.1 - (home.id === userClubId ? userPowerPenalty : 0);
+  const awayPower = clubPower(away, userClubId, metrics) - (away.id === userClubId ? userPowerPenalty : 0);
   const tempo = 73 + normal(random) * 7;
   const homeExpected = tempo + (homePower - awayPower) * 1.85 + normal(random) * 8.5;
   const awayExpected = tempo + (awayPower - homePower) * 1.85 + normal(random) * 8.5;
@@ -230,7 +228,7 @@ function longestWinStreak(matches: SimulatedMatch[], clubId: string) {
   return best;
 }
 
-export function simulateSeason(clubId: string, players: AflPlayer[], seed: number, difficulty: AflSimulationDifficulty = "normal"): SeasonResult {
+export function simulateSeason(clubId: string, players: AflPlayer[], seed: number): SeasonResult {
   const random = mulberry32(seed);
   const metrics = getTeamMetrics(players);
   const clubMap = new Map(AFL_CLUBS.map((club) => [club.id, club]));
@@ -243,7 +241,7 @@ export function simulateSeason(clubId: string, players: AflPlayer[], seed: numbe
         round: roundIndex + 1,
         stage: "home-away",
         label: `Round ${roundIndex + 1}`,
-      }, false, 0, difficulty));
+      }, false, 0));
     });
   });
   const ladder = buildLadder(homeAway);
@@ -259,14 +257,13 @@ export function simulateSeason(clubId: string, players: AflPlayer[], seed: numbe
       preliminary: 3.8,
       "grand-final": 4.6,
     };
-    const pressureMultiplier: Record<AflSimulationDifficulty, number> = { easy: 0.8, normal: 1, hard: 1.15 };
-    const userFinalsPenalty = ((pressurePenalty[stage] ?? 0) + expectationPenalty) * pressureMultiplier[difficulty];
+    const userFinalsPenalty = (pressurePenalty[stage] ?? 0) + expectationPenalty;
     const match = playMatch(clubMap.get(homeId)!, clubMap.get(awayId)!, random, clubId, metrics, {
       id: `f${finals.length + 1}`,
       round,
       stage,
       label,
-    }, true, userFinalsPenalty, difficulty);
+    }, true, userFinalsPenalty);
     finals.push(match);
     return match;
   };
