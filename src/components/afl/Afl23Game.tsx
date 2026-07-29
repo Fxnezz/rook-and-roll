@@ -169,6 +169,21 @@ function availableDrawPlayers(lineup: LineupPick[], draw: AflDraftDraw | null) {
     .sort((left, right) => playerOverall(right) - playerOverall(left) || right.leadership - left.leadership);
 }
 
+function rosterOfferStrength(players: AflPlayer[]) {
+  const strongestTwo = players.slice(0, 2);
+  return strongestTwo.reduce((sum, player) => sum + playerOverall(player), 0) / Math.max(1, strongestTwo.length);
+}
+
+function coldBoardChance(lineup: LineupPick[]) {
+  if (lineup.length < 2) return 0;
+  const recentElitePicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) >= 94).length;
+  const elitePickCount = lineup.filter((pick) => playerOverall(pick.player) >= 94).length;
+  const average = lineup.reduce((sum, pick) => sum + playerOverall(pick.player), 0) / lineup.length;
+  const lastPickWasDepth = playerOverall(lineup.at(-1)!.player) <= 91;
+  const pressure = recentElitePicks * 0.22 + Math.max(0, average - 92) * 0.07 + Math.max(0, elitePickCount - 4) * 0.035;
+  return Math.min(0.72, pressure) * (lastPickWasDepth ? 0.2 : 1);
+}
+
 function rollClubAndEra(lineup: LineupPick[], config: DraftConfig, number: number): AflDraftDraw | null {
   const optionsFor = (eras: AflDrawEra[]) => AFL_CLUB_ERA_ROSTERS
     .filter((roster) => eras.includes(roster.era))
@@ -182,6 +197,15 @@ function rollClubAndEra(lineup: LineupPick[], config: DraftConfig, number: numbe
   const deepRosters = possible.filter((option) => option.players.length >= 3);
   const playableRosters = possible.filter((option) => option.players.length >= 2);
   const pool = fullRosters.length ? fullRosters : deepRosters.length ? deepRosters : playableRosters.length ? playableRosters : possible;
+  // Quietly cool repeated elite runs without ever blocking a player, shrinking a roster,
+  // or removing the chance of another jackpot board.
+  if (pool.length > 1 && Math.random() < coldBoardChance(lineup)) {
+    const coldPoolSize = Math.max(1, Math.ceil(pool.length * 0.42));
+    const coldPool = [...pool]
+      .sort((left, right) => rosterOfferStrength(left.players) - rosterOfferStrength(right.players))
+      .slice(0, coldPoolSize);
+    return coldPool[Math.floor(Math.random() * coldPool.length)].draw;
+  }
   return pool[Math.floor(Math.random() * pool.length)].draw;
 }
 
