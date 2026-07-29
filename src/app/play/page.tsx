@@ -544,6 +544,12 @@ const ARCADE_GAMES: GameCard[] = [
 
 const ORIGINAL_GAMES: GameCard[] = [
   {
+    title: "Football 38-0",
+    blurb: "Draft an all-time football XI, chase a perfect 38-win league season, then survive a four-round knockout cup.",
+    emoji: "⚽",
+    links: [{ href: "/play/football-38-0", label: "Draft & Simulate" }],
+  },
+  {
     title: "NBA 82-0",
     blurb: "Draft an all-time starting five, chase a perfect 82-game season, then survive the Play-In and best-of-seven playoffs.",
     emoji: "🏀",
