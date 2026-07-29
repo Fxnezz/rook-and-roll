@@ -19,18 +19,21 @@ export interface SimulationRevealEntry {
 
 interface SportsSimulationRevealProps {
   accent: string;
+  allowSkip?: boolean;
   entries: SimulationRevealEntry[];
   eyebrow: string;
+  intervalMs?: number;
+  lockSpeed?: boolean;
   onComplete: () => void;
   title: string;
 }
 
 const SPEEDS = [1, 2, 4] as const;
 
-export function SportsSimulationReveal({ accent, entries, eyebrow, onComplete, title }: SportsSimulationRevealProps) {
+export function SportsSimulationReveal({ accent, allowSkip = true, entries, eyebrow, intervalMs = 300, lockSpeed = false, onComplete, title }: SportsSimulationRevealProps) {
   const [revealed, setRevealed] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(() => entries.length > 50 ? 4 : entries.length > 25 ? 2 : 1);
+  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(() => lockSpeed ? 1 : entries.length > 50 ? 4 : entries.length > 25 ? 2 : 1);
   const [filter, setFilter] = useState<OutcomeFilter>("all");
   const complete = revealed >= entries.length;
   const current = entries[Math.max(0, revealed - 1)];
@@ -46,9 +49,9 @@ export function SportsSimulationReveal({ accent, entries, eyebrow, onComplete, t
     if (!playing || complete) return;
     const timeout = window.setTimeout(() => {
       setRevealed((value) => Math.min(entries.length, value + 1));
-    }, 300 / speed);
+    }, intervalMs / speed);
     return () => window.clearTimeout(timeout);
-  }, [complete, entries.length, playing, revealed, speed]);
+  }, [complete, entries.length, intervalMs, playing, revealed, speed]);
 
   return (
     <section className={styles.shell} style={{ "--sim-accent": accent } as React.CSSProperties}>
@@ -87,11 +90,11 @@ export function SportsSimulationReveal({ accent, entries, eyebrow, onComplete, t
       </div>
 
       <div className={styles.controls}>
-        <div className={styles.speedControl} aria-label="Simulation speed">
+        {lockSpeed ? <div className={styles.speedControl} aria-label="Reveal pace"><button type="button" className={styles.activeSpeed} disabled>1 result / second</button></div> : <div className={styles.speedControl} aria-label="Simulation speed">
           {SPEEDS.map((option) => <button key={option} type="button" className={speed === option ? styles.activeSpeed : ""} onClick={() => setSpeed(option)}>{option}×</button>)}
-        </div>
+        </div>}
         {!complete && <button type="button" className={styles.pause} onClick={() => setPlaying((value) => !value)}>{playing ? "Pause reveal" : "Continue reveal"}</button>}
-        {!complete && <button type="button" className={styles.skip} onClick={() => { setRevealed(entries.length); setPlaying(false); }}>Reveal all results</button>}
+        {!complete && allowSkip && <button type="button" className={styles.skip} onClick={() => { setRevealed(entries.length); setPlaying(false); }}>Reveal all results</button>}
         {complete && <button type="button" className={styles.report} onClick={onComplete}>Open full campaign report <span>→</span></button>}
       </div>
 

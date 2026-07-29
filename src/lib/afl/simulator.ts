@@ -150,9 +150,10 @@ function playMatch(
   metrics: TeamMetrics,
   meta: Pick<SimulatedMatch, "id" | "round" | "stage" | "label">,
   knockout = false,
+  userPowerPenalty = 0,
 ): SimulatedMatch {
-  const homePower = clubPower(home, userClubId, metrics) + 2.1;
-  const awayPower = clubPower(away, userClubId, metrics);
+  const homePower = clubPower(home, userClubId, metrics) + 2.1 - (home.id === userClubId ? userPowerPenalty : 0);
+  const awayPower = clubPower(away, userClubId, metrics) - (away.id === userClubId ? userPowerPenalty : 0);
   const tempo = 73 + normal(random) * 7;
   const homeExpected = tempo + (homePower - awayPower) * 2.15 + normal(random) * 7;
   const awayExpected = tempo + (awayPower - homePower) * 2.15 + normal(random) * 7;
@@ -244,12 +245,20 @@ export function simulateSeason(clubId: string, players: AflPlayer[], seed: numbe
   const ladder = buildLadder(homeAway);
   const finals: SimulatedMatch[] = [];
   const playFinal = (homeId: string, awayId: string, stage: SimulatedMatch["stage"], label: string, round: number) => {
+    const pressurePenalty: Partial<Record<SimulatedMatch["stage"], number>> = {
+      wildcard: 2.2,
+      qualifying: 2.6,
+      elimination: 3,
+      semi: 3.4,
+      preliminary: 4.1,
+      "grand-final": 5.2,
+    };
     const match = playMatch(clubMap.get(homeId)!, clubMap.get(awayId)!, random, clubId, metrics, {
       id: `f${finals.length + 1}`,
       round,
       stage,
       label,
-    }, true);
+    }, true, pressurePenalty[stage] ?? 0);
     finals.push(match);
     return match;
   };

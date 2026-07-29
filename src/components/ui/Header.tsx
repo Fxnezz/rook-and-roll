@@ -246,8 +246,8 @@ export function Header() {
           <div className="flex min-w-0 items-center gap-2">
             <button
               className="btn btn-ghost !p-2"
-              onClick={() => setMenuOpen(true)}
-              aria-label="Open menu"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label={menuOpen ? "Close menu" : "Open menu"}
               aria-expanded={menuOpen}
             >
               <HamburgerIcon open={menuOpen} />

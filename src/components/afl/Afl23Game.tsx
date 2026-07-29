@@ -22,6 +22,7 @@ type ResultTab = "overview" | "fixture" | "ladder" | "finals" | "squad";
 type AflDifficulty = "easy" | "normal" | "hard";
 type AflDraftMode = "squad" | "position";
 type AflEraFilter = "all" | "1990s" | "2000s" | "2010s" | "2020s";
+type AflDrawEra = "1930s" | "1940s" | "1950s" | "1960s" | "1970s" | "1980s" | "1990s" | "2000s" | "2010s" | "2020s";
 
 interface DraftConfig {
   difficulty: AflDifficulty;
@@ -47,14 +48,32 @@ interface LineupPick {
   pickNumber: number;
 }
 
+interface AflDraftDraw {
+  club: string;
+  era: AflDrawEra;
+  number: number;
+}
+
+interface AflLeaderboardEntry {
+  id: string;
+  name: string;
+  clubId: string;
+  wins: number;
+  losses: number;
+  draws: number;
+  finish: string;
+  score: number;
+  submittedAt: string;
+}
+
 const STORAGE_KEY = "sams-arcade:afl-23-0:runs";
+const LEADERBOARD_STORAGE_KEY = "sams-arcade:afl-23-0:leaderboard";
 const DEFAULT_DRAFT_CONFIG: DraftConfig = {
   difficulty: "normal",
   draftMode: "squad",
   era: "all",
   showRatings: true,
 };
-const REROLLS_BY_DIFFICULTY: Record<AflDifficulty, number> = { easy: 3, normal: 1, hard: 0 };
 const ERA_OPTIONS: Array<{ id: AflEraFilter; label: string }> = [
   { id: "all", label: "All-time" },
   { id: "1990s", label: "1990s" },
@@ -66,6 +85,8 @@ const AFL_SKILL_ORDER = [...AFL_PLAYERS].sort((left, right) =>
   playerOverall(right) - playerOverall(left) || right.leadership - left.leadership || left.name.localeCompare(right.name),
 );
 const AFL_SKILL_RANK = new Map(AFL_SKILL_ORDER.map((player, index) => [player.id, index + 1]));
+const AFL_DRAW_ERAS: AflDrawEra[] = ["1930s", "1940s", "1950s", "1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"];
+const AFL_DRAW_CLUBS = [...new Set(AFL_PLAYERS.flatMap((player) => player.representativeClub.split(" / ")))];
 
 function initials(name: string) {
   return name.split(" ").map((part) => part[0]).join("").slice(0, 2);
@@ -105,7 +126,7 @@ function definingImpact(player: AflPlayer) {
   return "Raises the composure and standards of every line.";
 }
 
-function matchesEra(player: AflPlayer, era: AflEraFilter) {
+function matchesEra(player: AflPlayer, era: AflEraFilter | AflDrawEra) {
   if (era === "all") return true;
   const targetStart = Number.parseInt(era, 10);
   const years = player.era.match(/\d{4}/g)?.map(Number) ?? [];
@@ -114,40 +135,42 @@ function matchesEra(player: AflPlayer, era: AflEraFilter) {
   return careerStart <= targetStart + 9 && careerEnd >= targetStart;
 }
 
-function shuffled<T>(items: T[]) {
-  const next = [...items];
-  for (let index = next.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
-  }
-  return next;
+function playerClubs(player: AflPlayer) {
+  return player.representativeClub.split(" / ");
 }
 
-function buildCandidatePool(lineup: LineupPick[], era: AflEraFilter, focusLine?: AflLine) {
+function availableDrawPlayers(lineup: LineupPick[], draw: AflDraftDraw | null) {
+  if (!draw) return [];
   const usedPlayers = new Set(lineup.map((pick) => pick.player.id));
   const filledSlots = new Set(lineup.map((pick) => pick.slotId));
-  const availableLines = (["forward", "midfield", "defence"] as AflLine[]).filter((line) =>
+  const openLines = (["forward", "midfield", "defence"] as AflLine[]).filter((line) =>
     AFL_POSITION_SLOTS.some((slot) => slot.line === line && !filledSlots.has(slot.id)),
   );
-  const openLines = focusLine && availableLines.includes(focusLine) ? [focusLine] : availableLines;
-  const available = AFL_PLAYERS.filter((player) =>
-    !usedPlayers.has(player.id) && playerEligibleLines(player).some((line) => openLines.includes(line)),
-  );
-  const eraPool = available.filter((player) => matchesEra(player, era));
-  const candidates: AflPlayer[] = [];
-  for (const line of shuffled(openLines)) {
-    const option = [...shuffled(eraPool), ...shuffled(available)].find((player) =>
-      !candidates.some((candidate) => candidate.id === player.id) && playerEligibleLines(player).includes(line),
-    );
-    if (option) candidates.push(option);
-  }
-  for (const option of [...shuffled(eraPool), ...shuffled(available)]) {
-    if (candidates.length >= 3) break;
-    if (!candidates.some((candidate) => candidate.id === option.id)) candidates.push(option);
-  }
-  return candidates
-    .slice(0, 3)
+  return AFL_PLAYERS.filter((player) =>
+    !usedPlayers.has(player.id)
+      && playerClubs(player).includes(draw.club)
+      && matchesEra(player, draw.era)
+      && playerEligibleLines(player).some((line) => openLines.includes(line)),
+  )
     .sort((left, right) => playerOverall(right) - playerOverall(left) || right.leadership - left.leadership);
+}
+
+function rollClubAndEra(lineup: LineupPick[], config: DraftConfig, number: number): AflDraftDraw | null {
+  const optionsFor = (eras: AflDrawEra[]) => AFL_DRAW_CLUBS.flatMap((club) => eras.map((era) => ({ club, era, number })))
+    .map((draw) => ({ draw, players: availableDrawPlayers(lineup, draw) }))
+    .filter((option) => option.players.length > 0);
+  const preferred = config.era === "all" ? optionsFor(AFL_DRAW_ERAS) : optionsFor([config.era as AflDrawEra]);
+  const possible = preferred.length ? preferred : optionsFor(AFL_DRAW_ERAS);
+  if (!possible.length) return null;
+  const richDraws = possible.filter((option) => option.players.length >= 2);
+  const pool = richDraws.length ? richDraws : possible;
+  return pool[Math.floor(Math.random() * pool.length)].draw;
+}
+
+function leaderboardScore(result: SeasonResult) {
+  const ladderPosition = result.ladder.find((row) => row.clubId === result.clubId)?.position ?? 18;
+  const finalsWins = result.finals.filter((match) => match.winnerId === result.clubId).length;
+  return result.userWins * 100 + result.userDraws * 35 + finalsWins * 180 + (19 - ladderPosition) * 25 + result.metrics.overall + (result.premiership ? 2500 : 0);
 }
 
 function ClubMark({ clubId, compact = false }: { clubId: string; compact?: boolean }) {
@@ -356,12 +379,12 @@ function Intro({ onStart, savedRuns }: { onStart: (clubId: string, config: Draft
         </div>
         <div className={styles.draftSettings}>
           <section className={styles.settingBlock}>
-            <div className={styles.settingHeading}><span>Difficulty</span><strong>{REROLLS_BY_DIFFICULTY[difficulty]} reroll{REROLLS_BY_DIFFICULTY[difficulty] === 1 ? "" : "s"}</strong></div>
+            <div className={styles.settingHeading}><span>Scouting difficulty</span><strong>{difficulty === "hard" ? "Blind ratings" : difficulty === "easy" ? "Full guidance" : "Balanced"}</strong></div>
             <div className={styles.choiceGrid}>
               {([
-                ["easy", "Easy", "3 rerolls · full ratings"],
-                ["normal", "Normal", "1 reroll · balanced"],
-                ["hard", "Hard", "No rerolls · blind board"],
+                ["easy", "Easy", "Full ratings · clearer scouting"],
+                ["normal", "Normal", "Ratings choice · balanced"],
+                ["hard", "Hard", "Blind ratings · trust the careers"],
               ] as const).map(([id, label, detail]) => (
                 <button key={id} type="button" className={difficulty === id ? styles.activeChoice : ""} onClick={() => changeDifficulty(id)}>
                   <strong>{label}</strong><small>{detail}</small>
@@ -409,7 +432,7 @@ function Intro({ onStart, savedRuns }: { onStart: (clubId: string, config: Draft
         <div className={styles.challengeSummary}>
           <span>YOUR RULES</span>
           <strong>{difficulty.toUpperCase()} · {draftMode === "squad" ? "SQUAD FIRST" : "POSITION FIRST"} · {era === "all" ? "ALL-TIME" : era.toUpperCase()}</strong>
-          <small>{REROLLS_BY_DIFFICULTY[difficulty]} reroll{REROLLS_BY_DIFFICULTY[difficulty] === 1 ? "" : "s"} · ratings {showRatings ? "on" : "hidden"} · skill-ranked candidate boards</small>
+          <small>2 players maximum per club-and-era roll · ratings {showRatings ? "on" : "hidden"} · full rosters ranked by skill</small>
         </div>
         <button type="button" className={styles.primaryAction} onClick={() => onStart(clubId, { difficulty, draftMode, era, showRatings })}>
           Start the ranked draft <span>Build your 18 →</span>
@@ -417,7 +440,7 @@ function Intro({ onStart, savedRuns }: { onStart: (clubId: string, config: Draft
       </section>
 
       <section className={styles.rulesGrid}>
-        <article><span>Ranked board</span><h3>Best option always appears first</h3><p>Each three-player draw is ordered by overall skill, with a clear all-time rank, tier and defining match-day characteristic.</p></article>
+        <article><span>Club + era roll</span><h3>Two picks, then roll again</h3><p>Every roll reveals a historical club, a decade and all available legends from that combination, ordered strongest to weakest.</p></article>
         <article><span>Match model</span><h3>AFL scores, not coin flips</h3><p>Club strength, home advantage, list balance, chemistry and seeded match variance drive every goal and behind.</p></article>
         <article><span>2026 structure</span><h3>The wildcard is live</h3><p>Seventh plays tenth and eighth plays ninth before the traditional final eight. Finals ties go to extra time.</p></article>
       </section>
@@ -440,49 +463,51 @@ function Draft({
   clubId,
   config,
   lineup,
-  rerollsLeft,
-  rerollsTotal,
   onPlace,
-  onReroll,
   onUndo,
 }: {
   clubId: string;
   config: DraftConfig;
   lineup: LineupPick[];
-  rerollsLeft: number;
-  rerollsTotal: number;
   onPlace: (player: AflPlayer, slotId: string) => void;
-  onReroll: () => void;
   onUndo: () => void;
 }) {
-  const [candidates, setCandidates] = useState<AflPlayer[]>(() =>
-    config.draftMode === "position" ? [] : buildCandidatePool(lineup, config.era),
-  );
+  const [draw, setDraw] = useState<AflDraftDraw | null>(null);
+  const [drawOpened, setDrawOpened] = useState(false);
+  const [drawPicks, setDrawPicks] = useState(0);
+  const [drawCount, setDrawCount] = useState(0);
   const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const club = getAflClub(clubId);
   const selected = lineup.map((pick) => pick.player);
   const provisional = getTeamMetrics(selected);
+  const candidates = availableDrawPlayers(lineup, draw);
   const activePlayer = candidates.find((player) => player.id === activePlayerId) ?? null;
   const filledSlots = new Map(lineup.map((pick) => [pick.slotId, pick]));
   const activeSlot = AFL_POSITION_SLOTS.find((slot) => slot.id === activeSlotId) ?? null;
+  const drawLocked = drawPicks >= 2;
+  const eligibleCandidateCount = activeSlot
+    ? candidates.filter((player) => playerEligibleLines(player).includes(activeSlot.line)).length
+    : candidates.length;
 
-  const reroll = () => {
-    if (!rerollsLeft || (config.draftMode === "position" && !activeSlot)) return;
-    setCandidates(buildCandidatePool(lineup, config.era, activeSlot?.line));
+  const roll = () => {
+    const nextDraw = rollClubAndEra(lineup, config, drawCount + 1);
+    if (!nextDraw) return;
+    setDraw(nextDraw);
+    setDrawOpened(false);
+    setDrawCount((value) => value + 1);
+    setDrawPicks(0);
     setActivePlayerId(null);
-    onReroll();
     playArcadeSound("swoosh");
   };
 
   const commitPlayer = (player: AflPlayer, slotId: string) => {
     if (filledSlots.has(slotId)) return;
     const slot = AFL_POSITION_SLOTS.find((option) => option.id === slotId);
-    if (!slot || !playerEligibleLines(player).includes(slot.line)) return;
-    const next = [...lineup, { player, slotId, pickNumber: lineup.length + 1 }];
-    setCandidates(config.draftMode === "position" ? [] : buildCandidatePool(next, config.era));
+    if (!slot || drawLocked || !playerEligibleLines(player).includes(slot.line)) return;
     setActivePlayerId(null);
     setActiveSlotId(null);
+    setDrawPicks((value) => Math.min(2, value + 1));
     onPlace(player, slotId);
   };
 
@@ -497,12 +522,13 @@ function Draft({
     if (!slot) return;
     setActiveSlotId(slotId);
     setActivePlayerId(null);
-    setCandidates(buildCandidatePool(lineup, config.era, slot.line));
     playArcadeSound("click");
   };
 
   const selectCandidate = (player: AflPlayer) => {
+    if (drawLocked) return;
     if (config.draftMode === "position" && activeSlot) {
+      if (!playerEligibleLines(player).includes(activeSlot.line)) return;
       commitPlayer(player, activeSlot.id);
     } else {
       setActivePlayerId(player.id);
@@ -511,8 +537,10 @@ function Draft({
   };
 
   const undoDraft = () => {
-    const next = lineup.slice(0, -1);
-    setCandidates(config.draftMode === "position" ? [] : buildCandidatePool(next, config.era));
+    const lastPick = lineup.at(-1);
+    if (lastPick && draw && playerClubs(lastPick.player).includes(draw.club) && matchesEra(lastPick.player, draw.era)) {
+      setDrawPicks((value) => Math.max(0, value - 1));
+    }
     setActivePlayerId(null);
     setActiveSlotId(null);
     onUndo();
@@ -527,8 +555,8 @@ function Draft({
       </header>
 
       <div className={styles.draftTitle}>
-        <div><span>{String(lineup.length + 1).padStart(2, "0")}</span><div><p>Selection room · {club.short}</p><h1>{activePlayer ? `Place ${activePlayer.name}` : activeSlot ? `Draft a ${activeSlot.label}` : config.draftMode === "position" ? "Choose a position" : "Choose a player"}</h1><small>{activePlayer ? `${lineLabel(playerEligibleLines(activePlayer)[0])} selected — every valid slot is glowing.` : activeSlot ? `The best available ${lineLabel(activeSlot.line).toLowerCase()} options are ranked on the right.` : config.draftMode === "position" ? "Pick any empty oval position to reveal its ranked candidate board." : "Pick a player on the right, then click any highlighted position on the oval."}</small></div></div>
-        <strong>{rerollsLeft} reroll{rerollsLeft === 1 ? "" : "s"} left</strong>
+        <div><span>{String(lineup.length + 1).padStart(2, "0")}</span><div><p>Selection room · {club.short}</p><h1>{drawLocked ? "Roll the next club and era" : activePlayer ? `Place ${activePlayer.name}` : activeSlot ? `Draft a ${activeSlot.label}` : draw ? "Choose from this roster" : "Roll your first club and era"}</h1><small>{drawLocked ? "This draw has reached its two-player limit." : activePlayer ? `${lineLabel(playerEligibleLines(activePlayer)[0])} selected — every valid slot is glowing.` : activeSlot ? `${activeSlot.label} is selected. Eligible players from the current roster can be drafted.` : draw ? "Every available legend from this club and era is shown in skill order." : "Nothing is dealt automatically — press Roll to reveal the first historical roster."}</small></div></div>
+        <strong>{draw ? `${drawPicks}/2 from draw #${draw.number}` : "Waiting for roll"}</strong>
       </div>
 
       <div className={styles.fieldStage}>
@@ -564,29 +592,30 @@ function Draft({
             })}
           </div>
         </div>
-        <div className={styles.fieldHint}>{activePlayer ? `Choose any glowing ${playerEligibleLines(activePlayer).map(lineLabel).join(" / ")} slot` : activeSlot ? `${activeSlot.label} locked in — choose one ranked candidate` : config.draftMode === "position" ? "Choose an empty position first" : "Select a candidate to reveal their valid positions"}</div>
+        <div className={styles.fieldHint}>{drawLocked ? "Two selections used — press Roll before making another pick" : activePlayer ? `Choose any glowing ${playerEligibleLines(activePlayer).map(lineLabel).join(" / ")} slot` : draw && !drawOpened ? `Click the ${draw.club} ${draw.era} card to open its full roster` : activeSlot ? `${activeSlot.label} locked in — ${eligibleCandidateCount} eligible in this draw` : config.draftMode === "position" ? "Choose a position, then press Roll if no roster is open" : draw ? `${candidates.length} player${candidates.length === 1 ? "" : "s"} remain in this club-and-era roster` : "Press Roll to reveal a club, a decade and its available legends"}</div>
       </div>
 
       <aside className={styles.candidatePanel}>
         <div className={styles.drawStrip}>
-          <span>{config.era === "all" ? "ALL-TIME DRAW" : `${config.era} FOCUS`}</span>
-          <strong>{config.difficulty.toUpperCase()}</strong>
-          <small>{config.draftMode === "position" ? activeSlot?.short ?? "CHOOSE SLOT" : "SQUAD FIRST"}</small>
+          <span>{draw ? `DRAW ${String(draw.number).padStart(2, "0")}` : "ROLL REQUIRED"}</span>
+          <strong>{draw ? draw.club.toUpperCase() : config.difficulty.toUpperCase()}</strong>
+          <small>{draw ? draw.era : config.draftMode === "position" ? "CHOOSE SLOT" : "SQUAD FIRST"}</small>
         </div>
         <div className={styles.candidatePanelHeading}>
-          <div><span>Ranked candidate board</span><strong>Strongest available first</strong></div>
-          <div className={styles.rerollCounter}><b>{rerollsLeft}</b><small>of {rerollsTotal}<br />rerolls</small></div>
+          <div><span>{draw ? `${draw.club} · ${draw.era}` : "Club + year draw"}</span><strong>{draw ? "Full available roster" : "Press Roll to scout"}</strong></div>
+          <div className={styles.rerollCounter}><b>{drawPicks}</b><small>of 2<br />selected</small></div>
         </div>
+        {draw && !drawOpened && <button type="button" className={styles.drawRevealCard} onClick={() => { setDrawOpened(true); playArcadeSound("click"); }}><span>{draw.era}</span><strong>{draw.club}</strong><small>{candidates.length} available legend{candidates.length === 1 ? "" : "s"}</small><b>Click to open full roster <i>→</i></b></button>}
         <div className={styles.sideCandidates}>
-          {candidates.map((player, index) => (
-            <PlayerCard key={player.id} player={player} boardRank={index + 1} showRatings={config.showRatings} onPick={() => selectCandidate(player)} selected={activePlayerId === player.id} />
+          {drawOpened && candidates.map((player, index) => (
+            <PlayerCard key={player.id} player={player} boardRank={index + 1} showRatings={config.showRatings} onPick={() => selectCandidate(player)} disabled={drawLocked || Boolean(activeSlot && !playerEligibleLines(player).includes(activeSlot.line))} selected={activePlayerId === player.id} />
           ))}
-          {candidates.length === 0 && <div className={styles.positionPrompt}><span>◎</span><strong>Choose a position</strong><p>Your ranked three-player board will appear here.</p></div>}
+          {(!draw || (drawOpened && candidates.length === 0)) && <div className={styles.positionPrompt}><span>{drawLocked ? "2/2" : "↻"}</span><strong>{drawLocked ? "Draw complete" : draw ? "Roster exhausted" : "No roster open"}</strong><p>{drawLocked ? "You have taken the maximum two players from this club and era." : "Press Roll to reveal the next club, decade and available players."}</p></div>}
         </div>
-        <button type="button" className={styles.rerollButton} onClick={reroll} disabled={!rerollsLeft || (config.draftMode === "position" && !activeSlot)}>
+        <button type="button" className={`${styles.rerollButton} ${styles.rollButton}`} onClick={roll}>
           <span aria-hidden="true">↻</span>
-          <strong>{rerollsLeft ? "Reroll all three" : "No rerolls left"}</strong>
-          <small>{rerollsLeft ? "Deal a fresh candidate board" : "Make this board count"}</small>
+          <strong>{drawLocked || candidates.length === 0 ? "Roll next club & era" : draw ? "Leave this roster and roll" : "Roll club & era"}</strong>
+          <small>{draw ? `${drawPicks}/2 picks used · a new roll replaces ${draw.club} ${draw.era}` : "Reveal the year group and everyone available for it"}</small>
         </button>
         {lineup.length > 0 && <div className={styles.liveRating}><span>Live team rating</span><strong>{provisional.overall}</strong><small>{18 - lineup.length} spots remaining</small></div>}
       </aside>
@@ -639,6 +668,9 @@ function Review({ clubId, config, lineup, onBack, onSimulate }: { clubId: string
 function Result({ result, lineup, onReset, onReplay }: { result: SeasonResult; lineup: LineupPick[]; onReset: () => void; onReplay: () => void }) {
   const [tab, setTab] = useState<ResultTab>("overview");
   const [copied, setCopied] = useState(false);
+  const [leaderboardChoice, setLeaderboardChoice] = useState<"ask" | "form" | "submitted" | "declined">("ask");
+  const [leaderboardName, setLeaderboardName] = useState("");
+  const [leaderboard, setLeaderboard] = useState<AflLeaderboardEntry[]>([]);
   const club = getAflClub(result.clubId);
   const userMatches = result.homeAway.filter((match) => match.homeId === result.clubId || match.awayId === result.clubId);
   const ladderRow = result.ladder.find((row) => row.clubId === result.clubId)!;
@@ -648,6 +680,36 @@ function Result({ result, lineup, onReset, onReplay }: { result: SeasonResult; l
   const tabs: Array<{ id: ResultTab; label: string }> = [
     { id: "overview", label: "Season HQ" }, { id: "fixture", label: "Full journey" }, { id: "ladder", label: "Ladder" }, { id: "finals", label: "Finals" }, { id: "squad", label: "Drafted list" },
   ];
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      try {
+        const entries = JSON.parse(localStorage.getItem(LEADERBOARD_STORAGE_KEY) ?? "[]") as AflLeaderboardEntry[];
+        setLeaderboard(entries.sort((left, right) => right.score - left.score || right.wins - left.wins).slice(0, 10));
+      } catch { setLeaderboard([]); }
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  const submitLeaderboard = () => {
+    const name = leaderboardName.trim().slice(0, 24);
+    if (!name) return;
+    const entry: AflLeaderboardEntry = {
+      id: `${Date.now()}`,
+      name,
+      clubId: result.clubId,
+      wins: result.userWins,
+      losses: result.userLosses,
+      draws: result.userDraws,
+      finish: result.finish,
+      score: leaderboardScore(result),
+      submittedAt: new Date().toISOString(),
+    };
+    const next = [entry, ...leaderboard].sort((left, right) => right.score - left.score || right.wins - left.wins).slice(0, 10);
+    setLeaderboard(next);
+    setLeaderboardChoice("submitted");
+    try { localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(next)); } catch { /* device storage is optional */ }
+    playArcadeSound("levelUp");
+  };
   const copySeed = async () => {
     await navigator.clipboard.writeText(`Sam's Arcade AFL 23-0 seed: ${result.seed} — ${club.name} ${result.userWins}-${result.userLosses}${result.userDraws ? `-${result.userDraws}` : ""}, ${result.finish}`);
     setCopied(true);
@@ -667,6 +729,21 @@ function Result({ result, lineup, onReset, onReplay }: { result: SeasonResult; l
 
       {tab === "overview" && (
         <div className={styles.overview}>
+          <section className={styles.leaderboardCard} aria-labelledby="afl-leaderboard-title">
+            <div className={styles.leaderboardIntro}>
+              <span>Sam&apos;s Arcade leaderboard</span>
+              <h2 id="afl-leaderboard-title">Submit this campaign?</h2>
+              <p>Save your result under a name and compare the top ten runs on this device.</p>
+              {leaderboardChoice === "ask" && <div className={styles.leaderboardChoice}><button type="button" onClick={() => setLeaderboardChoice("form")}>Yes, submit my run</button><button type="button" onClick={() => setLeaderboardChoice("declined")}>Not this time</button></div>}
+              {leaderboardChoice === "form" && <form className={styles.leaderboardForm} onSubmit={(event) => { event.preventDefault(); submitLeaderboard(); }}><label htmlFor="afl-leaderboard-name">Leaderboard name</label><div><input id="afl-leaderboard-name" value={leaderboardName} onChange={(event) => setLeaderboardName(event.target.value)} maxLength={24} autoComplete="nickname" placeholder="Enter a name" autoFocus /><button type="submit" disabled={!leaderboardName.trim()}>Submit</button></div><small>{leaderboardName.length}/24 characters</small></form>}
+              {leaderboardChoice === "submitted" && <div className={styles.leaderboardMessage}><strong>Run submitted ✓</strong><span>Your score is now ranked below.</span></div>}
+              {leaderboardChoice === "declined" && <div className={styles.leaderboardMessage}><strong>Run kept private</strong><button type="button" onClick={() => setLeaderboardChoice("form")}>Submit it after all</button></div>}
+            </div>
+            <div className={styles.leaderboardTable}>
+              <div className={styles.leaderboardHead}><span>#</span><span>Name</span><span>Record</span><span>Score</span></div>
+              {leaderboard.length ? leaderboard.map((entry, index) => <div key={entry.id}><strong>{index + 1}</strong><span><ClubMark clubId={entry.clubId} compact /><span><b>{entry.name}</b><small>{entry.finish}</small></span></span><span>{entry.wins}-{entry.losses}{entry.draws ? `-${entry.draws}` : ""}</span><b>{entry.score.toLocaleString()}</b></div>) : <div className={styles.emptyLeaderboard}><strong>No entries yet</strong><span>Be the first name on the board.</span></div>}
+            </div>
+          </section>
           <div className={styles.summaryCards}>
             <article><span>Ladder</span><strong>#{ladderRow.position}</strong><small>{ladderRow.premiershipPoints} pts · {ladderRow.percentage.toFixed(1)}%</small></article>
             <article><span>Points for</span><strong>{result.userPointsFor.toLocaleString()}</strong><small>{Math.round(result.userPointsFor / 23)} per match</small></article>
@@ -711,8 +788,6 @@ export function Afl23Game() {
   const [clubId, setClubId] = useState("fre");
   const [draftConfig, setDraftConfig] = useState<DraftConfig>(DEFAULT_DRAFT_CONFIG);
   const [lineup, setLineup] = useState<LineupPick[]>([]);
-  const [rerollsTotal, setRerollsTotal] = useState(REROLLS_BY_DIFFICULTY.normal);
-  const [rerollsLeft, setRerollsLeft] = useState(REROLLS_BY_DIFFICULTY.normal);
   const [result, setResult] = useState<SeasonResult | null>(null);
   const [savedRuns, setSavedRuns] = useState<SavedRun[]>([]);
 
@@ -724,12 +799,9 @@ export function Afl23Game() {
   }, []);
 
   const startDraft = (nextClubId: string, nextConfig: DraftConfig) => {
-    const allowance = REROLLS_BY_DIFFICULTY[nextConfig.difficulty];
     setClubId(nextClubId);
     setDraftConfig(nextConfig);
     setLineup([]);
-    setRerollsTotal(allowance);
-    setRerollsLeft(allowance);
     setResult(null);
     setPhase("draft");
     playArcadeSound("swoosh");
@@ -763,9 +835,9 @@ export function Afl23Game() {
   return (
     <div className={styles.page}>
       {phase === "intro" && <Intro onStart={startDraft} savedRuns={savedRuns} />}
-      {phase === "draft" && <Draft clubId={clubId} config={draftConfig} lineup={lineup} rerollsLeft={rerollsLeft} rerollsTotal={rerollsTotal} onPlace={placePlayer} onReroll={() => setRerollsLeft((value) => Math.max(0, value - 1))} onUndo={undo} />}
+      {phase === "draft" && <Draft clubId={clubId} config={draftConfig} lineup={lineup} onPlace={placePlayer} onUndo={undo} />}
       {phase === "review" && <Review clubId={clubId} config={draftConfig} lineup={lineup} onBack={() => { setLineup((picks) => picks.slice(0, -1)); setPhase("draft"); }} onSimulate={() => simulate()} />}
-      {phase === "simulating" && result && <SportsSimulationReveal accent="#77d68d" entries={aflRevealEntries(result)} eyebrow="AFL 23-0 · Live season simulation" title="Playing every round" onComplete={() => { setPhase("result"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}
+      {phase === "simulating" && result && <SportsSimulationReveal accent="#77d68d" entries={aflRevealEntries(result)} eyebrow="AFL 23-0 · Live season simulation" title="Revealing every result · one per second" intervalMs={1000} lockSpeed allowSkip={false} onComplete={() => { setPhase("result"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}
       {phase === "result" && result && <Result result={result} lineup={lineup} onReset={reset} onReplay={replay} />}
       <footer className={styles.disclaimer}>Unofficial fan-made simulator. Not affiliated with or endorsed by the AFL or its clubs. Club names and player career facts are used descriptively; ratings are Sam&apos;s Arcade simulation estimates. No official logos or player likenesses are used.</footer>
     </div>
