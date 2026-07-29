@@ -86,6 +86,15 @@ export function SportsSimulationReveal({ accent, entries, eyebrow, onComplete, t
         )}
       </div>
 
+      <div className={styles.controls}>
+        <div className={styles.speedControl} aria-label="Simulation speed">
+          {SPEEDS.map((option) => <button key={option} type="button" className={speed === option ? styles.activeSpeed : ""} onClick={() => setSpeed(option)}>{option}×</button>)}
+        </div>
+        {!complete && <button type="button" className={styles.pause} onClick={() => setPlaying((value) => !value)}>{playing ? "Pause reveal" : "Continue reveal"}</button>}
+        {!complete && <button type="button" className={styles.skip} onClick={() => { setRevealed(entries.length); setPlaying(false); }}>Reveal all results</button>}
+        {complete && <button type="button" className={styles.report} onClick={onComplete}>Open full campaign report <span>→</span></button>}
+      </div>
+
       <section className={styles.ledger} aria-labelledby="simulation-ledger-title">
         <div className={styles.ledgerHeader}>
           <div>
@@ -121,14 +130,6 @@ export function SportsSimulationReveal({ accent, entries, eyebrow, onComplete, t
         )}
       </section>
 
-      <div className={styles.controls}>
-        <div className={styles.speedControl} aria-label="Simulation speed">
-          {SPEEDS.map((option) => <button key={option} type="button" className={speed === option ? styles.activeSpeed : ""} onClick={() => setSpeed(option)}>{option}×</button>)}
-        </div>
-        {!complete && <button type="button" className={styles.pause} onClick={() => setPlaying((value) => !value)}>{playing ? "Pause reveal" : "Continue reveal"}</button>}
-        {!complete && <button type="button" className={styles.skip} onClick={() => { setRevealed(entries.length); setPlaying(false); }}>Reveal all results</button>}
-        {complete && <button type="button" className={styles.report} onClick={onComplete}>Open full campaign report <span>→</span></button>}
-      </div>
     </section>
   );
 }
