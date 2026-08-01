@@ -580,7 +580,6 @@ function Draft({
   const [reelClub, setReelClub] = useState("???");
   const [reelEra, setReelEra] = useState("??'s");
   const rollTimers = useRef<number[]>([]);
-  const reelTickers = useRef<number[]>([]);
   const club = getAflClub(clubId);
   const selected = lineup.map((pick) => pick.player);
   const provisional = getTeamMetrics(selected);
@@ -593,7 +592,6 @@ function Draft({
 
   useEffect(() => () => {
     rollTimers.current.forEach((timer) => window.clearTimeout(timer));
-    reelTickers.current.forEach((ticker) => window.clearInterval(ticker));
   }, []);
 
   const roll = (useReroll = false) => {
@@ -602,9 +600,7 @@ function Draft({
     if (!nextDraw) return;
     if (useReroll) setRerollsRemaining((value) => Math.max(0, value - 1));
     rollTimers.current.forEach((timer) => window.clearTimeout(timer));
-    reelTickers.current.forEach((ticker) => window.clearInterval(ticker));
     rollTimers.current = [];
-    reelTickers.current = [];
     setIsRolling(true);
     setRollStage("cycling");
     setReelClub(AFL_REEL_CLUBS[Math.floor(Math.random() * AFL_REEL_CLUBS.length)] ?? "???");
@@ -613,19 +609,13 @@ function Draft({
     setActivePlayerId(null);
     playArcadeSound("swoosh");
 
-    reelTickers.current = [
-      window.setInterval(() => setReelClub(AFL_REEL_CLUBS[Math.floor(Math.random() * AFL_REEL_CLUBS.length)] ?? "???"), 82),
-      window.setInterval(() => setReelEra(AFL_DRAW_ERAS[Math.floor(Math.random() * AFL_DRAW_ERAS.length)] ?? "??'s"), 96),
-    ];
     rollTimers.current = [
       window.setTimeout(() => {
-        window.clearInterval(reelTickers.current[0]);
         setReelClub(nextDraw.club);
         setRollStage("club");
         playArcadeSound("click");
       }, 880),
       window.setTimeout(() => {
-        window.clearInterval(reelTickers.current[1]);
         setReelEra(nextDraw.era);
         setRollStage("era");
         playArcadeSound("place");
@@ -639,7 +629,6 @@ function Draft({
       setIsRolling(false);
       setRollStage("idle");
       rollTimers.current = [];
-      reelTickers.current = [];
       playArcadeSound(rosterOfferStrength(landedPlayers) >= 94 ? "levelUp" : "place");
       }, 1720),
     ];
@@ -936,8 +925,15 @@ export function Afl23Game() {
   const [lineup, setLineup] = useState<LineupPick[]>([]);
   const [result, setResult] = useState<SeasonResult | null>(null);
   const [savedRuns, setSavedRuns] = useState<SavedRun[]>([]);
+  const pageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const device = navigator as Navigator & { deviceMemory?: number; connection?: { effectiveType?: string; saveData?: boolean } };
+    const lowPower = navigator.hardwareConcurrency <= 4
+      || (device.deviceMemory !== undefined && device.deviceMemory <= 4)
+      || Boolean(device.connection?.saveData)
+      || ["slow-2g", "2g"].includes(device.connection?.effectiveType ?? "");
+    if (pageRef.current) pageRef.current.dataset.lowPower = lowPower ? "true" : "false";
     document.body.classList.add("afl-focus-mode");
     return () => document.body.classList.remove("afl-focus-mode");
   }, []);
@@ -984,7 +980,7 @@ export function Afl23Game() {
   const replay = () => result && simulate();
 
   return (
-    <div className={styles.page}>
+    <div ref={pageRef} className={styles.page} data-low-power="false">
       {phase === "intro" && <Intro onStart={startDraft} savedRuns={savedRuns} />}
       {phase === "draft" && <Draft clubId={clubId} config={draftConfig} lineup={lineup} onPlace={placePlayer} onUndo={undo} />}
       {phase === "review" && <Review clubId={clubId} config={draftConfig} lineup={lineup} onBack={() => { setLineup((picks) => picks.slice(0, -1)); setPhase("draft"); }} onSimulate={() => simulate()} />}
