@@ -31,6 +31,8 @@
 
 .environment { z-index: -1; overflow: hidden; }
 
+.experience[data-performance-isolated="true"] .stage::before { display: none; }
+
 .aurora {
   inset: -18% -12% auto !important;
   height: 58%;

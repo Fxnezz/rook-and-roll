@@ -25,9 +25,10 @@ function resetTilt(element: HTMLElement | null) {
 export function MotionExperienceLayer() {
   const pathname = usePathname();
   const { settings, ready } = useSettings();
+  const isPerformanceIsolated = pathname === "/play/afl-23-0";
 
   useEffect(() => {
-    if (!ready || settings.reduceMotion || settings.minimalMode || (!settings.cursorGlow && !settings.cardTilt)) return;
+    if (isPerformanceIsolated || !ready || settings.reduceMotion || settings.minimalMode || (!settings.cursorGlow && !settings.cardTilt)) return;
     if (!window.matchMedia("(pointer: fine)").matches) return;
 
     const root = document.documentElement;
@@ -77,10 +78,10 @@ export function MotionExperienceLayer() {
       root.style.removeProperty("--motion-pointer-x");
       root.style.removeProperty("--motion-pointer-y");
     };
-  }, [ready, settings.cardTilt, settings.cursorGlow, settings.minimalMode, settings.reduceMotion]);
+  }, [isPerformanceIsolated, ready, settings.cardTilt, settings.cursorGlow, settings.minimalMode, settings.reduceMotion]);
 
   useEffect(() => {
-    if (!ready || settings.reduceMotion || settings.minimalMode || !settings.scrollReveal) return;
+    if (isPerformanceIsolated || !ready || settings.reduceMotion || settings.minimalMode || !settings.scrollReveal) return;
 
     let observer: IntersectionObserver | null = null;
     const frame = requestAnimationFrame(() => {
@@ -106,9 +107,9 @@ export function MotionExperienceLayer() {
       cancelAnimationFrame(frame);
       observer?.disconnect();
     };
-  }, [pathname, ready, settings.minimalMode, settings.reduceMotion, settings.scrollReveal]);
+  }, [isPerformanceIsolated, pathname, ready, settings.minimalMode, settings.reduceMotion, settings.scrollReveal]);
 
-  if (!ready || settings.reduceMotion || settings.minimalMode) return null;
+  if (isPerformanceIsolated || !ready || settings.reduceMotion || settings.minimalMode) return null;
 
   return (
     <>

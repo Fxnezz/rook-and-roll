@@ -125,6 +125,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
   const segments = pathname.split("/").filter(Boolean);
   const slug = segments[1] ?? "hub";
   const isHub = pathname === "/play";
+  const isPerformanceIsolated = slug === "afl-23-0";
   const profile = useMemo(() => sceneFor(slug, isHub), [slug, isHub]);
   const visualQuality: RenderQuality = settings.minimalMode ? "calm" : settings.arcadeQuality === "auto" ? autoQuality : settings.arcadeQuality;
   const cinematic = settings.arcadeCinematic && !settings.reduceMotion && !settings.minimalMode;
@@ -154,7 +155,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
   }, [ready, settings.arcadeQuality, settings.minimalMode]);
 
   useEffect(() => {
-    if (settings.minimalMode || !pageVisible || isHub || (!settings.arcadePerformanceHud && settings.arcadeQuality !== "auto")) return;
+    if (isPerformanceIsolated || settings.minimalMode || !pageVisible || isHub || (!settings.arcadePerformanceHud && settings.arcadeQuality !== "auto")) return;
     let animationFrame = 0;
     let frames = 0;
     let sampleStarted = performance.now();
@@ -174,7 +175,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
     };
     animationFrame = requestAnimationFrame(measure);
     return () => cancelAnimationFrame(animationFrame);
-  }, [isHub, pageVisible, settings.arcadePerformanceHud, settings.arcadeQuality, settings.minimalMode]);
+  }, [isHub, isPerformanceIsolated, pageVisible, settings.arcadePerformanceHud, settings.arcadeQuality, settings.minimalMode]);
 
   useEffect(() => {
     if (showControls) controlCloseRef.current?.focus();
@@ -197,7 +198,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
   }, []);
 
   const trackLight = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    if (settings.minimalMode) return;
+    if (settings.minimalMode || isPerformanceIsolated) return;
     const rect = event.currentTarget.getBoundingClientRect();
     pendingLightRef.current = {
       element: event.currentTarget,
@@ -213,7 +214,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
       }
       lightFrameRef.current = null;
     });
-  }, [settings.minimalMode]);
+  }, [isPerformanceIsolated, settings.minimalMode]);
 
   const cycleVisualQuality = useCallback(() => {
     const currentIndex = QUALITY_ORDER.indexOf(settings.arcadeQuality);
@@ -275,11 +276,12 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
       data-visual-quality={visualQuality}
       data-selected-quality={settings.arcadeQuality}
       data-page-visible={pageVisible ? "true" : "false"}
+      data-performance-isolated={isPerformanceIsolated ? "true" : "false"}
       data-game-slug={slug}
-      onPointerMove={trackLight}
+      onPointerMove={isPerformanceIsolated ? undefined : trackLight}
       onPointerDown={triggerTactileFeedback}
     >
-      <div className={styles.environment} aria-hidden="true">
+      {!isPerformanceIsolated && <div className={styles.environment} aria-hidden="true">
         <span className={styles.spotlight} />
         <span className={styles.aurora} />
         <span className={styles.orbOne} />
@@ -289,7 +291,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
         <span className={styles.scanlines} />
         <span className={styles.vignette} />
         <span className={styles.grain} />
-      </div>
+      </div>}
 
       {!isHub && (
         <aside className={styles.commandBar} aria-label="Game presentation controls">
@@ -321,7 +323,7 @@ export function ArcadeExperience({ children }: { children: ReactNode }) {
 
       <div className={styles.stage}>{children}</div>
 
-      {!isHub && settings.arcadePerformanceHud && !settings.minimalMode && (
+      {!isHub && !isPerformanceIsolated && settings.arcadePerformanceHud && !settings.minimalMode && (
         <aside className={styles.performanceHud} aria-label="Live game performance">
           <span className={styles.performancePulse} aria-hidden="true" />
           <span><strong ref={fpsOutputRef}>60</strong><small>FPS</small></span>

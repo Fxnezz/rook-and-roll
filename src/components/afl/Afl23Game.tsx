@@ -581,6 +581,7 @@ function Draft({
   const [reelClub, setReelClub] = useState("???");
   const [reelEra, setReelEra] = useState("??'s");
   const rollTimers = useRef<number[]>([]);
+  const reelTickers = useRef<number[]>([]);
   const club = getAflClub(clubId);
   const selected = lineup.map((pick) => pick.player);
   const provisional = getTeamMetrics(selected);
@@ -593,6 +594,7 @@ function Draft({
 
   useEffect(() => () => {
     rollTimers.current.forEach((timer) => window.clearTimeout(timer));
+    reelTickers.current.forEach((ticker) => window.clearInterval(ticker));
   }, []);
 
   const roll = (useReroll = false) => {
@@ -601,7 +603,9 @@ function Draft({
     if (!nextDraw) return;
     if (useReroll) setRerollsRemaining((value) => Math.max(0, value - 1));
     rollTimers.current.forEach((timer) => window.clearTimeout(timer));
+    reelTickers.current.forEach((ticker) => window.clearInterval(ticker));
     rollTimers.current = [];
+    reelTickers.current = [];
     setIsRolling(true);
     setRollStage("cycling");
     setReelClub(AFL_REEL_CLUBS[Math.floor(Math.random() * AFL_REEL_CLUBS.length)] ?? "???");
@@ -610,13 +614,21 @@ function Draft({
     setActivePlayerId(null);
     playArcadeSound("swoosh");
 
+    // These short-lived, low-frequency tickers make the reels feel alive without
+    // leaving any animation or timer running once the result has landed.
+    reelTickers.current = [
+      window.setInterval(() => setReelClub(AFL_REEL_CLUBS[Math.floor(Math.random() * AFL_REEL_CLUBS.length)] ?? "???"), 140),
+      window.setInterval(() => setReelEra(AFL_DRAW_ERAS[Math.floor(Math.random() * AFL_DRAW_ERAS.length)] ?? "??'s"), 160),
+    ];
     rollTimers.current = [
       window.setTimeout(() => {
+        window.clearInterval(reelTickers.current[0]);
         setReelClub(nextDraw.club);
         setRollStage("club");
         playArcadeSound("click");
       }, 880),
       window.setTimeout(() => {
+        window.clearInterval(reelTickers.current[1]);
         setReelEra(nextDraw.era);
         setRollStage("era");
         playArcadeSound("place");
@@ -630,6 +642,7 @@ function Draft({
       setIsRolling(false);
       setRollStage("idle");
       rollTimers.current = [];
+      reelTickers.current = [];
       playArcadeSound(rosterOfferStrength(landedPlayers) >= 92 ? "levelUp" : "place");
       }, 1720),
     ];
