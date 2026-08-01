@@ -356,7 +356,40 @@ const ERA_ROSTER_PLAYERS = CLUB_ERA_ROSTER_SEEDS.flatMap((roster) =>
   roster.players.map((player) => createRosterPlayer(roster.club, roster.era, player)),
 );
 
-export const AFL_PLAYERS: AflPlayer[] = [...CORE_AFL_PLAYERS, ...ERA_ROSTER_PLAYERS];
+function ratingRarityRoll(id: string) {
+  return [...id].reduce((total, character) => ((total * 33) + character.charCodeAt(0)) >>> 0, 23) % 100;
+}
+
+function rarityScaledOverall(player: AflPlayer) {
+  if (player.id === "ablett-jr") return 94;
+  if (player.id === "john-coleman") return 93;
+  const overall = playerOverall(player);
+  const rarity = ratingRarityRoll(player.id);
+  if (overall >= 97) return rarity < 4 ? 93 : rarity < 10 ? 92 : rarity < 20 ? 91 : 89;
+  if (overall >= 95) return rarity < 5 ? 92 : rarity < 12 ? 91 : rarity < 22 ? 90 : 88;
+  if (overall >= 93) return rarity < 4 ? 91 : rarity < 14 ? 90 : 87;
+  if (overall >= 90) return rarity < 8 ? 90 : 86;
+  if (overall >= 88) return 85;
+  return overall;
+}
+
+function applyRatingRarity(player: AflPlayer): AflPlayer {
+  const currentOverall = playerOverall(player);
+  const targetOverall = rarityScaledOverall(player);
+  if (currentOverall === targetOverall) return player;
+  const shift = currentOverall - targetOverall;
+  const adjust = (rating: number) => clampRating(rating - shift);
+  return {
+    ...player,
+    attack: adjust(player.attack),
+    midfield: adjust(player.midfield),
+    defence: adjust(player.defence),
+    athleticism: adjust(player.athleticism),
+    leadership: adjust(player.leadership),
+  };
+}
+
+export const AFL_PLAYERS: AflPlayer[] = [...CORE_AFL_PLAYERS, ...ERA_ROSTER_PLAYERS].map(applyRatingRarity);
 
 export const AFL_CLUB_ERA_ROSTERS = CLUB_ERA_ROSTER_SEEDS.map((roster) => ({
   club: roster.club,

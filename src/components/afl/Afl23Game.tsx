@@ -98,8 +98,8 @@ function initials(name: string) {
 }
 
 function metricTone(value: number) {
-  if (value >= 95) return "var(--good)";
-  if (value >= 90) return "var(--accent)";
+  if (value >= 90) return "var(--good)";
+  if (value >= 87) return "var(--accent)";
   return "var(--info)";
 }
 
@@ -109,8 +109,8 @@ function lineLabel(line: AflLine) {
 
 function skillTier(player: AflPlayer) {
   const overall = playerOverall(player);
-  if (overall >= 95) return "Immortal";
-  if (overall >= 93) return "Legend";
+  if (overall >= 94) return "Immortal";
+  if (overall >= 92) return "Legend";
   if (overall >= 90) return "Elite";
   return "Champion";
 }
@@ -162,21 +162,22 @@ function draftSeedValue(value: string) {
 }
 
 function draftFormPenalty(lineup: LineupPick[], club: string, era: AflDrawEra, number: number) {
-  const elitePicks = lineup.filter((pick) => playerOverall(pick.player) >= 94).length;
-  const recentElitePicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) >= 94).length;
-  const recentDepthPicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) <= 90).length;
+  const elitePicks = lineup.filter((pick) => playerOverall(pick.player) >= 90).length;
+  const recentElitePicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) >= 90).length;
+  const recentDepthPicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) <= 84).length;
   const average = lineup.length
     ? lineup.reduce((sum, pick) => sum + playerOverall(pick.player), 0) / lineup.length
     : 0;
   const progressPressure = Math.floor(lineup.length / 4);
-  const elitePressure = Math.floor(elitePicks / 3) + (recentElitePicks === 2 ? 1 : 0) + (average >= 94 ? 1 : 0);
+  const elitePressure = Math.floor(elitePicks / 3) + (recentElitePicks === 2 ? 1 : 0) + (average >= 90 ? 1 : 0);
   const drawVariance = 1 + (draftSeedValue(`${club}:${era}:${number}`) % 3);
   const depthRelief = recentDepthPicks === 2 ? 1 : 0;
   return Math.max(0, Math.min(6, progressPressure + elitePressure + drawVariance - depthRelief));
 }
 
 function applyDraftForm(player: AflPlayer, penalty: number): AflPlayer {
-  if (penalty <= 0) return player;
+  const isJackpotLegend = player.id === "ablett-jr" || player.id === "john-coleman" || player.id === "barassi";
+  if (penalty <= 0 || isJackpotLegend) return player;
   const adjust = (rating: number) => Math.max(76, rating - penalty);
   return {
     ...player,
@@ -209,21 +210,21 @@ function rosterOfferStrength(players: AflPlayer[]) {
 }
 
 function coldBoardChance(lineup: LineupPick[]) {
-  const recentElitePicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) >= 94).length;
-  const elitePickCount = lineup.filter((pick) => playerOverall(pick.player) >= 94).length;
+  const recentElitePicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) >= 90).length;
+  const elitePickCount = lineup.filter((pick) => playerOverall(pick.player) >= 90).length;
   const average = lineup.length ? lineup.reduce((sum, pick) => sum + playerOverall(pick.player), 0) / lineup.length : 0;
-  const recentDepthPicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) <= 90).length;
+  const recentDepthPicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) <= 84).length;
   const progressPressure = (lineup.length / AFL_POSITION_SLOTS.length) * 0.48;
-  const starPressure = recentElitePicks * 0.12 + Math.max(0, elitePickCount - 2) * 0.045 + Math.max(0, average - 92) * 0.035;
+  const starPressure = recentElitePicks * 0.12 + Math.max(0, elitePickCount - 2) * 0.045 + Math.max(0, average - 87) * 0.035;
   const depthRelief = recentDepthPicks === 2 ? 0.2 : recentDepthPicks === 1 ? 0.08 : 0;
   return Math.max(0.24, Math.min(0.92, 0.28 + progressPressure + starPressure - depthRelief));
 }
 
 function hotBoardChance(lineup: LineupPick[]) {
-  if (lineup.length < 2 || playerOverall(lineup.at(-1)!.player) > 91) return 0;
-  const recentDepthPicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) <= 91).length;
+  if (lineup.length < 2 || playerOverall(lineup.at(-1)!.player) > 85) return 0;
+  const recentDepthPicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) <= 85).length;
   const average = lineup.reduce((sum, pick) => sum + playerOverall(pick.player), 0) / lineup.length;
-  return Math.min(0.34, 0.12 + Math.max(0, recentDepthPicks - 1) * 0.14 + (average <= 90.5 ? 0.08 : 0));
+  return Math.min(0.34, 0.12 + Math.max(0, recentDepthPicks - 1) * 0.14 + (average <= 84.5 ? 0.08 : 0));
 }
 
 function rollClubAndEra(lineup: LineupPick[], config: DraftConfig, number: number): AflDraftDraw | null {
@@ -629,7 +630,7 @@ function Draft({
       setIsRolling(false);
       setRollStage("idle");
       rollTimers.current = [];
-      playArcadeSound(rosterOfferStrength(landedPlayers) >= 94 ? "levelUp" : "place");
+      playArcadeSound(rosterOfferStrength(landedPlayers) >= 92 ? "levelUp" : "place");
       }, 1720),
     ];
   };
@@ -759,7 +760,7 @@ function Draft({
             )}
           </>
         )}
-        {lineup.length > 0 && <div className={styles.liveRating}><span>Live team rating</span><strong>{provisional.overall}</strong><small>{lastPick && playerOverall(lastPick.player) >= 95 ? `✦ Statement pick · ${lastPick.player.name}` : `${18 - lineup.length} spots remaining`}</small></div>}
+        {lineup.length > 0 && <div className={styles.liveRating}><span>Live team rating</span><strong>{provisional.overall}</strong><small>{lastPick && playerOverall(lastPick.player) >= 92 ? `✦ Statement pick · ${lastPick.player.name}` : `${18 - lineup.length} spots remaining`}</small></div>}
       </aside>
     </section>
   );
@@ -777,7 +778,7 @@ function Review({ clubId, config, lineup, onBack, onSimulate }: { clubId: string
       <div className={styles.reviewHero}>
         <ClubMark clubId={clubId} />
         <div><span>Draft complete</span><h1>{club.name}&apos;s dream 18</h1><p>Every line is locked: six forwards, six midfielders and six defenders. Your positional balance now drives the full season model.</p></div>
-        <div className={styles.overallBig}><small>LIST RATING</small><strong>{metrics.overall}</strong><span>{metrics.overall >= 94 ? "Premiership favourite" : "Finals contender"}</span></div>
+        <div className={styles.overallBig}><small>LIST RATING</small><strong>{metrics.overall}</strong><span>{metrics.overall >= 89 ? "Premiership favourite" : "Finals contender"}</span></div>
       </div>
       <MetricsPanel metrics={metrics} />
       <section className={styles.rosterRanking}>
@@ -957,7 +958,7 @@ export function Afl23Game() {
   const placePlayer = (player: AflPlayer, slotId: string) => {
     const next = [...lineup, { player, slotId, pickNumber: lineup.length + 1 }];
     setLineup(next);
-    playArcadeSound(playerOverall(player) >= 95 ? "levelUp" : "place");
+    playArcadeSound(playerOverall(player) >= 92 ? "levelUp" : "place");
     if (next.length === AFL_POSITION_SLOTS.length) {
       setPhase("review");
       window.scrollTo({ top: 0, behavior: "smooth" });
