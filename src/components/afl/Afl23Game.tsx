@@ -90,6 +90,7 @@ const AFL_SKILL_ORDER = [...AFL_PLAYERS].sort((left, right) =>
 );
 const AFL_SKILL_RANK = new Map(AFL_SKILL_ORDER.map((player, index) => [player.id, index + 1]));
 const AFL_DRAW_ERAS: AflDrawEra[] = ["1930s", "1940s", "1950s", "1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"];
+const AFL_REEL_CLUBS = [...new Set(AFL_CLUB_ERA_ROSTERS.map((roster) => roster.club))];
 
 function initials(name: string) {
   return name.split(" ").map((part) => part[0]).join("").slice(0, 2);
@@ -250,6 +251,23 @@ function PlayerAvatar({ player, large = false }: { player: AflPlayer; large?: bo
     <span className={`${styles.avatar} ${large ? styles.avatarLarge : ""}`} style={{ "--avatar-hue": hue } as React.CSSProperties} aria-hidden="true">
       <span>{initials(player.name)}</span>
     </span>
+  );
+}
+
+function DraftRollMachine({ club, era, rolling, stage }: { club: string; era: string; rolling: boolean; stage: "idle" | "cycling" | "club" | "era" }) {
+  return (
+    <div className={styles.slotMachine} role={rolling ? "status" : undefined} aria-live={rolling ? "polite" : undefined}>
+      <div className={`${styles.slotWindow} ${styles.slotClub} ${rolling && stage === "cycling" ? styles.slotCycling : ""} ${stage === "club" || stage === "era" ? styles.slotLanded : ""}`}>
+        <small>Club</small>
+        <strong>{club}</strong>
+        <span aria-hidden="true" />
+      </div>
+      <div className={`${styles.slotWindow} ${styles.slotEra} ${rolling && stage !== "era" ? styles.slotCycling : ""} ${stage === "era" ? styles.slotLanded : ""}`}>
+        <small>Era</small>
+        <strong>{era}</strong>
+        <span aria-hidden="true" />
+      </div>
+    </div>
   );
 }
 
@@ -524,7 +542,11 @@ function Draft({
   const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [isRolling, setIsRolling] = useState(false);
-  const rollTimer = useRef<number | null>(null);
+  const [rollStage, setRollStage] = useState<"idle" | "cycling" | "club" | "era">("idle");
+  const [reelClub, setReelClub] = useState("???");
+  const [reelEra, setReelEra] = useState("??'s");
+  const rollTimers = useRef<number[]>([]);
+  const reelTickers = useRef<number[]>([]);
   const club = getAflClub(clubId);
   const selected = lineup.map((pick) => pick.player);
   const provisional = getTeamMetrics(selected);
@@ -536,7 +558,8 @@ function Draft({
   const lastPick = lineup.at(-1);
 
   useEffect(() => () => {
-    if (rollTimer.current !== null) window.clearTimeout(rollTimer.current);
+    rollTimers.current.forEach((timer) => window.clearTimeout(timer));
+    reelTickers.current.forEach((ticker) => window.clearInterval(ticker));
   }, []);
 
   const roll = (useReroll = false) => {
@@ -544,20 +567,48 @@ function Draft({
     const nextDraw = rollClubAndEra(lineup, config, drawCount + 1);
     if (!nextDraw) return;
     if (useReroll) setRerollsRemaining((value) => Math.max(0, value - 1));
+    rollTimers.current.forEach((timer) => window.clearTimeout(timer));
+    reelTickers.current.forEach((ticker) => window.clearInterval(ticker));
+    rollTimers.current = [];
+    reelTickers.current = [];
     setIsRolling(true);
+    setRollStage("cycling");
+    setReelClub(AFL_REEL_CLUBS[Math.floor(Math.random() * AFL_REEL_CLUBS.length)] ?? "???");
+    setReelEra(AFL_DRAW_ERAS[Math.floor(Math.random() * AFL_DRAW_ERAS.length)] ?? "??'s");
     setDrawOpened(false);
     setActivePlayerId(null);
     playArcadeSound("swoosh");
-    rollTimer.current = window.setTimeout(() => {
+
+    reelTickers.current = [
+      window.setInterval(() => setReelClub(AFL_REEL_CLUBS[Math.floor(Math.random() * AFL_REEL_CLUBS.length)] ?? "???"), 82),
+      window.setInterval(() => setReelEra(AFL_DRAW_ERAS[Math.floor(Math.random() * AFL_DRAW_ERAS.length)] ?? "??'s"), 96),
+    ];
+    rollTimers.current = [
+      window.setTimeout(() => {
+        window.clearInterval(reelTickers.current[0]);
+        setReelClub(nextDraw.club);
+        setRollStage("club");
+        playArcadeSound("click");
+      }, 880),
+      window.setTimeout(() => {
+        window.clearInterval(reelTickers.current[1]);
+        setReelEra(nextDraw.era);
+        setRollStage("era");
+        playArcadeSound("place");
+      }, 1380),
+      window.setTimeout(() => {
       const landedPlayers = availableDrawPlayers(lineup, nextDraw);
       setDraw(nextDraw);
       setDrawOpened(true);
       setDrawCount((value) => value + 1);
       setDrawPicks(0);
       setIsRolling(false);
-      rollTimer.current = null;
+      setRollStage("idle");
+      rollTimers.current = [];
+      reelTickers.current = [];
       playArcadeSound(rosterOfferStrength(landedPlayers) >= 94 ? "levelUp" : "place");
-    }, 720);
+      }, 1720),
+    ];
   };
 
   const commitPlayer = (player: AflPlayer, slotId: string) => {
@@ -654,12 +705,10 @@ function Draft({
           <div className={styles.rerollCounter}><b>{drawPicks}</b><small>of 2<br />selected</small></div>
         </div>
         {isRolling ? (
-          <div className={styles.drawReel} role="status" aria-live="polite">
-            <span className={styles.reelFooty} aria-hidden="true"><FootyIcon /></span>
-            <div><small>CLUB</small><strong>Finding a historical side</strong></div>
-            <div><small>ERA</small><strong>Scanning every generation</strong></div>
-            <div><small>BOARD</small><strong>Ranking the available legends</strong></div>
-            <p>One roll. Two picks. Make them count.</p>
+          <div className={styles.rollDeck}>
+            <DraftRollMachine club={reelClub} era={reelEra} rolling stage={rollStage} />
+            <button type="button" className={styles.spinButton} disabled><span>Spinning</span><i aria-hidden="true">•••</i></button>
+            <p>{rollStage === "cycling" ? "Finding your club…" : rollStage === "club" ? "Club locked — landing the era…" : "Roster found — opening the board…"}</p>
           </div>
         ) : drawLocked ? (
           <div className={styles.rollAgainPrompt} role="status">
@@ -674,13 +723,13 @@ function Draft({
               {drawOpened && candidates.map((player, index) => (
                 <PlayerCard key={player.id} player={player} boardRank={index + 1} showRatings={config.showRatings} onPick={() => selectCandidate(player)} disabled={Boolean(activeSlot && !playerDraftSlotIds(player).includes(activeSlot.id))} selected={activePlayerId === player.id} />
               ))}
-              {(!draw || (drawOpened && candidates.length === 0)) && <div className={styles.positionPrompt}><span>↻</span><strong>{draw ? "Roster exhausted" : "No roster open"}</strong><p>Press Roll to reveal the next club, decade and available players.</p></div>}
+              {!draw && <div className={styles.rollDeck}><DraftRollMachine club="???" era="??'s" rolling={false} stage="idle" /><p>Spin a club and era, then choose up to two players.</p></div>}
+              {drawOpened && candidates.length === 0 && <div className={styles.positionPrompt}><span>↻</span><strong>Roster exhausted</strong><p>Roll to reveal the next club, decade and available players.</p></div>}
             </div>
             {(!draw || candidates.length === 0 || rerollsRemaining > 0) ? (
-              <button type="button" className={`${styles.rerollButton} ${styles.rollButton}`} onClick={() => roll(Boolean(draw && candidates.length > 0))} disabled={isRolling}>
-                <span aria-hidden="true">↻</span>
-                <strong>{!draw ? "Roll club & era" : candidates.length === 0 ? "Roll next club & era" : "Reroll this club & era"}</strong>
-                <small>{!draw ? "Reveal the year group and everyone available for it" : candidates.length === 0 ? "This roster is exhausted · the next roll is free" : `${rerollsRemaining} optional reroll${rerollsRemaining === 1 ? "" : "s"} remaining`}</small>
+              <button type="button" className={styles.spinButton} onClick={() => roll(Boolean(draw && candidates.length > 0))} disabled={isRolling}>
+                <span>{!draw ? "Spin" : candidates.length === 0 ? "Spin next" : "Reroll"}</span>
+                <i>{draw && candidates.length > 0 ? `${rerollsRemaining} left` : "Club + era"}</i>
               </button>
             ) : (
               <div className={styles.rerollLimitNotice}><span>0</span><div><strong>No optional rerolls left</strong><small>Choose from this roster. The next roll unlocks after two picks or when the roster is exhausted.</small></div></div>
