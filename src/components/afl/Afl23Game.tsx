@@ -55,6 +55,7 @@ interface AflDraftDraw {
   club: string;
   era: AflDrawEra;
   number: number;
+  formPenalty: number;
 }
 
 interface AflLeaderboardEntry {
@@ -156,6 +157,37 @@ function playerBelongsToDraw(playerId: string, draw: AflDraftDraw) {
     ?.playerIds.includes(playerId) ?? false;
 }
 
+function draftSeedValue(value: string) {
+  return [...value].reduce((total, character) => ((total * 31) + character.charCodeAt(0)) >>> 0, 17);
+}
+
+function draftFormPenalty(lineup: LineupPick[], club: string, era: AflDrawEra, number: number) {
+  const elitePicks = lineup.filter((pick) => playerOverall(pick.player) >= 94).length;
+  const recentElitePicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) >= 94).length;
+  const recentDepthPicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) <= 90).length;
+  const average = lineup.length
+    ? lineup.reduce((sum, pick) => sum + playerOverall(pick.player), 0) / lineup.length
+    : 0;
+  const progressPressure = Math.floor(lineup.length / 4);
+  const elitePressure = Math.floor(elitePicks / 3) + (recentElitePicks === 2 ? 1 : 0) + (average >= 94 ? 1 : 0);
+  const drawVariance = 1 + (draftSeedValue(`${club}:${era}:${number}`) % 3);
+  const depthRelief = recentDepthPicks === 2 ? 1 : 0;
+  return Math.max(0, Math.min(6, progressPressure + elitePressure + drawVariance - depthRelief));
+}
+
+function applyDraftForm(player: AflPlayer, penalty: number): AflPlayer {
+  if (penalty <= 0) return player;
+  const adjust = (rating: number) => Math.max(76, rating - penalty);
+  return {
+    ...player,
+    attack: adjust(player.attack),
+    midfield: adjust(player.midfield),
+    defence: adjust(player.defence),
+    athleticism: adjust(player.athleticism),
+    leadership: adjust(player.leadership),
+  };
+}
+
 function availableDrawPlayers(lineup: LineupPick[], draw: AflDraftDraw | null) {
   if (!draw) return [];
   const usedPlayers = new Set(lineup.map((pick) => pick.player.id));
@@ -167,6 +199,7 @@ function availableDrawPlayers(lineup: LineupPick[], draw: AflDraftDraw | null) {
       && rosterIds.has(player.id)
       && playerDraftSlotIds(player).some((slotId) => openSlotIds.includes(slotId)),
   )
+    .map((player) => applyDraftForm(player, draw.formPenalty))
     .sort((left, right) => playerOverall(right) - playerOverall(left) || right.leadership - left.leadership);
 }
 
@@ -176,26 +209,27 @@ function rosterOfferStrength(players: AflPlayer[]) {
 }
 
 function coldBoardChance(lineup: LineupPick[]) {
-  if (lineup.length < 2) return 0;
   const recentElitePicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) >= 94).length;
   const elitePickCount = lineup.filter((pick) => playerOverall(pick.player) >= 94).length;
-  const average = lineup.reduce((sum, pick) => sum + playerOverall(pick.player), 0) / lineup.length;
-  const lastPickWasDepth = playerOverall(lineup.at(-1)!.player) <= 91;
-  const pressure = recentElitePicks * 0.22 + Math.max(0, average - 92) * 0.07 + Math.max(0, elitePickCount - 4) * 0.035;
-  return lastPickWasDepth ? 0 : Math.min(0.68, pressure);
+  const average = lineup.length ? lineup.reduce((sum, pick) => sum + playerOverall(pick.player), 0) / lineup.length : 0;
+  const recentDepthPicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) <= 90).length;
+  const progressPressure = (lineup.length / AFL_POSITION_SLOTS.length) * 0.48;
+  const starPressure = recentElitePicks * 0.12 + Math.max(0, elitePickCount - 2) * 0.045 + Math.max(0, average - 92) * 0.035;
+  const depthRelief = recentDepthPicks === 2 ? 0.2 : recentDepthPicks === 1 ? 0.08 : 0;
+  return Math.max(0.24, Math.min(0.92, 0.28 + progressPressure + starPressure - depthRelief));
 }
 
 function hotBoardChance(lineup: LineupPick[]) {
   if (lineup.length < 2 || playerOverall(lineup.at(-1)!.player) > 91) return 0;
   const recentDepthPicks = lineup.slice(-2).filter((pick) => playerOverall(pick.player) <= 91).length;
   const average = lineup.reduce((sum, pick) => sum + playerOverall(pick.player), 0) / lineup.length;
-  return Math.min(0.65, 0.32 + Math.max(0, recentDepthPicks - 1) * 0.24 + (average <= 91.5 ? 0.08 : 0));
+  return Math.min(0.34, 0.12 + Math.max(0, recentDepthPicks - 1) * 0.14 + (average <= 90.5 ? 0.08 : 0));
 }
 
 function rollClubAndEra(lineup: LineupPick[], config: DraftConfig, number: number): AflDraftDraw | null {
   const optionsFor = (eras: AflDrawEra[]) => AFL_CLUB_ERA_ROSTERS
     .filter((roster) => eras.includes(roster.era))
-    .map(({ club, era }) => ({ club, era, number }))
+    .map(({ club, era }) => ({ club, era, number, formPenalty: draftFormPenalty(lineup, club, era, number) }))
     .map((draw) => ({ draw, players: availableDrawPlayers(lineup, draw) }))
     .filter((option) => option.players.length > 0);
   const preferred = config.era === "all" ? optionsFor(AFL_DRAW_ERAS) : optionsFor([config.era as AflDrawEra]);
@@ -207,7 +241,7 @@ function rollClubAndEra(lineup: LineupPick[], config: DraftConfig, number: numbe
   const pool = fullRosters.length ? fullRosters : deepRosters.length ? deepRosters : playableRosters.length ? playableRosters : possible;
   // Quietly pace streaks in both directions without blocking players or shrinking rosters.
   if (pool.length > 1) {
-    const pacedPoolSize = Math.max(1, Math.ceil(pool.length * 0.42));
+    const pacedPoolSize = Math.max(1, Math.ceil(pool.length * 0.3));
     const orderedPool = [...pool].sort((left, right) => rosterOfferStrength(left.players) - rosterOfferStrength(right.players));
     const pacingRoll = Math.random();
     if (pacingRoll < hotBoardChance(lineup)) {
